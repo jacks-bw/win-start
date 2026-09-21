@@ -50,6 +50,8 @@ interface TileItem {
   size: 'small' | 'medium' | 'wide' | 'large'
   liveEnabled: boolean
   position: number
+  row: number
+  col: number
 }
 
 interface Window {

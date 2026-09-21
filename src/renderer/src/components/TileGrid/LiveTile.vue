@@ -9,6 +9,7 @@
         'drag-target': isDragTarget
       }
     ]"
+    :style="$attrs.style"
     draggable="true"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"

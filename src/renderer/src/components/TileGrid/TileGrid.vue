@@ -21,6 +21,7 @@
           v-for="tile in sortedTiles(group)"
           :key="tile.id"
           :tile="tile"
+          :style="{ gridRow: `${tile.row} / span ${sizeSpan[tile.size]?.rows || 1}`, gridColumn: `${tile.col} / span ${sizeSpan[tile.size]?.cols || 1}` }"
           @click="handleTileClick(tile)"
           @contextmenu="handleTileContextMenu($event, tile.id)"
         />
@@ -52,6 +53,14 @@ import LiveTile from './LiveTile.vue'
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
 
+// 磁贴尺寸对应的网格跨度（单元格数）
+const sizeSpan: Record<string, { rows: number; cols: number }> = {
+  small: { rows: 1, cols: 1 },
+  medium: { rows: 2, cols: 2 },
+  wide: { rows: 2, cols: 4 },
+  large: { rows: 4, cols: 4 }
+}
+
 // 拖拽预览占位块
 const dragPreview = reactive({
   visible: false,
@@ -60,14 +69,6 @@ const dragPreview = reactive({
   row: 0,
   groupId: ''
 })
-
-// 磁贴尺寸对应的网格跨度（单元格数）
-const sizeSpan: Record<string, { col: number; row: number }> = {
-  small: { col: 1, row: 1 },
-  medium: { col: 2, row: 2 },
-  wide: { col: 4, row: 2 },
-  large: { col: 4, row: 4 }
-}
 
 function handleGridDragOver(e: DragEvent) {
   if (!tilesStore.draggingTileId || !tilesStore.draggingTileSize) return
@@ -80,7 +81,7 @@ function handleGridDragOver(e: DragEvent) {
   const col = Math.floor((e.clientX - rect.left) / cellSize)
   const row = Math.floor((e.clientY - rect.top) / cellSize)
 
-  const span = sizeSpan[tilesStore.draggingTileSize] || { col: 1, row: 1 }
+  const span = sizeSpan[tilesStore.draggingTileSize] || { cols: 1, rows: 1 }
 
   dragPreview.visible = true
   dragPreview.col = col
@@ -89,8 +90,8 @@ function handleGridDragOver(e: DragEvent) {
     position: 'fixed',
     left: `${rect.left + col * cellSize}px`,
     top: `${rect.top + row * cellSize}px`,
-    width: `${span.col * cellSize}px`,
-    height: `${span.row * cellSize}px`,
+    width: `${span.cols * cellSize}px`,
+    height: `${span.rows * cellSize}px`,
     background: 'rgba(0, 120, 215, 0.2)',
     border: '2px solid var(--accent-color)',
     borderRadius: '2px',
@@ -101,31 +102,13 @@ function handleGridDragOver(e: DragEvent) {
 
 function handleGridDrop(e: DragEvent, group: TileGroup) {
   const dragTileId = e.dataTransfer?.getData('text/plain')
-  if (!dragTileId || dragTileId === tilesStore.draggingTileId) {
+  if (!dragTileId) {
     tilesStore.setDraggingTile(null)
     return
   }
 
-  // 根据 col/row 计算插入索引（按行优先）
-  // 简单策略：根据 row 找到应该插入的位置
-  const cellSize = 76
-  // 当前 grid 的列数
-  const grid = e.currentTarget as HTMLElement
-  const colCount = Math.floor(grid.getBoundingClientRect().width / cellSize)
-  // 目标位置的扁平索引
-  const flatIndex = dragPreview.row * colCount + dragPreview.col
-
-  // 找到组内应该插入的位置：遍历磁贴，找到第一个在目标位置之后的磁贴
-  let insertIndex = group.tiles.length
-  for (let i = 0; i < group.tiles.length; i++) {
-    // 简化：按 position 顺序，根据 row/col 估算
-    // 这里用简单策略：直接放到末尾或按预览位置
-    break
-  }
-
-  // 简化：如果拖到空白处，放到组末尾
-  // 更精确的做法：根据预览位置插入
-  tilesStore.moveTileToPosition(dragTileId, group.id, group.tiles.length)
+  // 用预览块的 row/col 移动磁贴
+  tilesStore.moveTileToGrid(dragTileId, group.id, dragPreview.row, dragPreview.col)
   tilesStore.setDraggingTile(null)
 }
 
@@ -323,9 +306,8 @@ function addGroup() {
   position: relative;
   display: grid;
   /* 轨道宽 = tile-small(70)，gap = 6，实际步进 = 76px */
-  grid-template-columns: repeat(auto-fill, var(--tile-small));
+  grid-template-columns: repeat(10, var(--tile-small));
   grid-auto-rows: var(--tile-small);
-  grid-auto-flow: row;
   gap: var(--tile-gap);
   align-content: start;
 }
