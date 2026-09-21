@@ -1,0 +1,53 @@
+:root {
+  /* Win10 设计变量 */
+  --start-menu-width: 640px;
+  --start-menu-height: 720px;
+  --app-list-width: 280px;
+  --tile-area-width: 360px;
+
+  /* 颜色 - 深色模式 */
+  --bg-dark: rgba(32, 32, 32, 0.95);
+  --bg-light: rgba(243, 243, 243, 0.95);
+  --item-hover: rgba(255, 255, 255, 0.08);
+  --item-active: rgba(255, 255, 255, 0.15);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --accent-color: #0078d7;
+  --accent-hover: #0063a1;
+
+  /* 磁贴尺寸 */
+  --tile-small: 70px;
+  --tile-medium: 150px;
+  --tile-wide: 310px;
+  --tile-large: 310px;
+  --tile-gap: 6px;
+
+  /* 字体 */
+  --font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-lg: 15px;
+
+  /* 圆角 */
+  --tile-radius: 0px;
+  --menu-radius: 0px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  overflow: hidden;
+  user-select: none;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+}

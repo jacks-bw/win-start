@@ -1,0 +1,31 @@
+appId: com.jacks13.win10startmenu
+productName: Win10StartMenu
+copyright: Copyright © 2026 jacks13
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**/*
+  - resources/**/*
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Win10StartMenu
+
+portable:
+  artifactName: Win10StartMenu-${version}-portable.exe

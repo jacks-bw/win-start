@@ -1,0 +1,76 @@
+/* 磁贴 3D 翻转动画 */
+.tile-container {
+  perspective: 600px;
+}
+
+.tile-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.tile-container.flipped .tile-inner {
+  transform: rotateY(180deg);
+}
+
+.tile-front,
+.tile-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.tile-back {
+  transform: rotateY(180deg);
+}
+
+/* 开始菜单滑入动画 */
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.start-menu-enter {
+  animation: slideInUp 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.start-menu-exit {
+  animation: slideOutDown 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 右键菜单淡入 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.context-menu {
+  animation: fadeIn 0.1s ease-out forwards;
+}

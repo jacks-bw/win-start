@@ -1,0 +1,33 @@
+{
+  "name": "win10-start-menu",
+  "version": "1.0.0",
+  "description": "Win10 开始菜单增强版 - 左侧 Win7 程序列表 + 右侧 Win10 磁贴",
+  "main": "./out/main/index.js",
+  "author": "jacks13",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build && electron-builder",
+    "build:dir": "electron-vite build && electron-builder --dir",
+    "build:portable": "electron-vite build && electron-builder portable",
+    "preview": "electron-vite preview"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "extract-file-icon": "^0.3.2",
+    "pinyin": "^4.0.0-alpha.1"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@types/node": "^20.11.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.0.0",
+    "pinia": "^2.1.7",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vue": "^3.4.0"
+  }
+}
