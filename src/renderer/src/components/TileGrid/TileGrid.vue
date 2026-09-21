@@ -287,9 +287,9 @@ function addGroup() {
 .tile-grid-inner {
   position: relative;
   display: grid;
-  /* 以小磁贴为最小网格单位：小磁贴宽度 + gap */
-  grid-template-columns: repeat(auto-fill, calc(var(--tile-small) + var(--tile-gap)));
-  grid-auto-rows: calc(var(--tile-small) + var(--tile-gap));
+  /* 轨道宽 = tile-small(70)，gap = 6，实际步进 = 76px */
+  grid-template-columns: repeat(auto-fill, var(--tile-small));
+  grid-auto-rows: var(--tile-small);
   grid-auto-flow: dense;
   gap: var(--tile-gap);
   align-content: start;
