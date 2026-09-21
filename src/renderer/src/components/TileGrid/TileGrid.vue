@@ -159,6 +159,8 @@ function addGroup() {
   display: grid;
   /* 以小磁贴为最小网格单位：小磁贴宽度 + gap */
   grid-template-columns: repeat(auto-fill, calc(var(--tile-small) + var(--tile-gap)));
+  grid-auto-rows: calc(var(--tile-small) + var(--tile-gap));
+  grid-auto-flow: dense;
   gap: var(--tile-gap);
   align-content: start;
 }

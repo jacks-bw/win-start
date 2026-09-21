@@ -184,25 +184,13 @@ onUnmounted(() => {
   transform: scale(0.95);
 }
 
-/* 四种尺寸 */
-.size-small {
-  width: var(--tile-small);
-  height: var(--tile-small);
-}
-
-.size-medium {
-  width: var(--tile-medium);
-  height: var(--tile-medium);
-}
-
-.size-wide {
-  width: var(--tile-wide);
-  height: var(--tile-medium);
-}
-
+/* 四种尺寸 - 大小由 Grid 布局控制，磁贴填充单元格 */
+.size-small,
+.size-medium,
+.size-wide,
 .size-large {
-  width: var(--tile-wide);
-  height: var(--tile-large);
+  width: 100%;
+  height: 100%;
 }
 
 .tile-content {
