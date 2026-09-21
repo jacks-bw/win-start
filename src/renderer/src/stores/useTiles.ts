@@ -144,50 +144,76 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
-  // 移动磁贴到指定位置
+  // 移动磁贴到指定位置（插入到目标位置，非交换）
   function moveTile(dragTileId: string, targetTileId: string) {
     if (dragTileId === targetTileId) return
 
-    let dragTile: TileItem | null = null
     let dragGroup: TileGroup | null = null
-    let targetTile: TileItem | null = null
     let targetGroup: TileGroup | null = null
 
     // 查找拖拽磁贴和目标磁贴
     for (const group of groups.value) {
-      for (const tile of group.tiles) {
-        if (tile.id === dragTileId) {
-          dragTile = tile
-          dragGroup = group
-        }
-        if (tile.id === targetTileId) {
-          targetTile = tile
-          targetGroup = group
-        }
+      if (group.tiles.some((t) => t.id === dragTileId)) {
+        dragGroup = group
+      }
+      if (group.tiles.some((t) => t.id === targetTileId)) {
+        targetGroup = group
       }
     }
 
-    if (!dragTile || !targetTile || !dragGroup || !targetGroup) return
+    if (!dragGroup || !targetGroup) return
 
     // 从原位置移除
     const dragIdx = dragGroup.tiles.findIndex((t) => t.id === dragTileId)
-    if (dragIdx >= 0) {
-      dragGroup.tiles.splice(dragIdx, 1)
-    }
+    const dragTile = dragGroup.tiles.splice(dragIdx, 1)[0]
 
-    // 插入到目标位置
+    // 插入到目标磁贴位置（目标磁贴往后挤）
     const targetIdx = targetGroup.tiles.findIndex((t) => t.id === targetTileId)
-    if (targetIdx >= 0) {
-      targetGroup.tiles.splice(targetIdx, 0, dragTile)
-    } else {
-      targetGroup.tiles.push(dragTile)
-    }
+    targetGroup.tiles.splice(targetIdx, 0, dragTile)
 
     // 重新排序 position
     targetGroup.tiles.forEach((tile, index) => {
       tile.position = index
     })
     // 如果跨分组，也要更新原分组的 position
+    if (dragGroup !== targetGroup) {
+      dragGroup.tiles.forEach((tile, index) => {
+        tile.position = index
+      })
+    }
+
+    saveLayout()
+  }
+
+  // 移动磁贴到指定分组的指定索引位置（拖到空白处）
+  function moveTileToPosition(dragTileId: string, targetGroupId: string, targetIndex: number) {
+    let dragGroup: TileGroup | null = null
+    let targetGroup: TileGroup | null = null
+
+    for (const group of groups.value) {
+      if (group.tiles.some((t) => t.id === dragTileId)) {
+        dragGroup = group
+      }
+      if (group.id === targetGroupId) {
+        targetGroup = group
+      }
+    }
+
+    if (!dragGroup || !targetGroup) return
+
+    // 从原位置移除
+    const dragIdx = dragGroup.tiles.findIndex((t) => t.id === dragTileId)
+    const dragTile = dragGroup.tiles.splice(dragIdx, 1)[0]
+
+    // 如果跨分组，目标索引可能因为移除而变化
+    // 插入到目标位置
+    const insertIdx = Math.max(0, Math.min(targetIndex, targetGroup.tiles.length))
+    targetGroup.tiles.splice(insertIdx, 0, dragTile)
+
+    // 重新排序 position
+    targetGroup.tiles.forEach((tile, index) => {
+      tile.position = index
+    })
     if (dragGroup !== targetGroup) {
       dragGroup.tiles.forEach((tile, index) => {
         tile.position = index
@@ -235,6 +261,7 @@ export const useTilesStore = defineStore('tiles', () => {
     renameGroup,
     removeGroup,
     moveTile,
+    moveTileToPosition,
     getNotifications
   }
 })

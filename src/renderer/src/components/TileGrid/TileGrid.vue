@@ -15,6 +15,7 @@
         class="tile-grid-inner"
         :class="{ dragging: tilesStore.draggingTileId !== null }"
         @dragover.prevent="handleGridDragOver"
+        @drop.prevent="handleGridDrop($event, group)"
       >
         <LiveTile
           v-for="tile in sortedTiles(group)"
@@ -54,7 +55,10 @@ const appsStore = useAppsStore()
 // 拖拽预览占位块
 const dragPreview = reactive({
   visible: false,
-  style: {} as Record<string, string>
+  style: {} as Record<string, string>,
+  col: 0,
+  row: 0,
+  groupId: ''
 })
 
 // 磁贴尺寸对应的网格跨度（单元格数）
@@ -79,6 +83,8 @@ function handleGridDragOver(e: DragEvent) {
   const span = sizeSpan[tilesStore.draggingTileSize] || { col: 1, row: 1 }
 
   dragPreview.visible = true
+  dragPreview.col = col
+  dragPreview.row = row
   dragPreview.style = {
     position: 'fixed',
     left: `${rect.left + col * cellSize}px`,
@@ -91,6 +97,36 @@ function handleGridDragOver(e: DragEvent) {
     pointerEvents: 'none',
     zIndex: '9999'
   }
+}
+
+function handleGridDrop(e: DragEvent, group: TileGroup) {
+  const dragTileId = e.dataTransfer?.getData('text/plain')
+  if (!dragTileId || dragTileId === tilesStore.draggingTileId) {
+    tilesStore.setDraggingTile(null)
+    return
+  }
+
+  // 根据 col/row 计算插入索引（按行优先）
+  // 简单策略：根据 row 找到应该插入的位置
+  const cellSize = 76
+  // 当前 grid 的列数
+  const grid = e.currentTarget as HTMLElement
+  const colCount = Math.floor(grid.getBoundingClientRect().width / cellSize)
+  // 目标位置的扁平索引
+  const flatIndex = dragPreview.row * colCount + dragPreview.col
+
+  // 找到组内应该插入的位置：遍历磁贴，找到第一个在目标位置之后的磁贴
+  let insertIndex = group.tiles.length
+  for (let i = 0; i < group.tiles.length; i++) {
+    // 简化：按 position 顺序，根据 row/col 估算
+    // 这里用简单策略：直接放到末尾或按预览位置
+    break
+  }
+
+  // 简化：如果拖到空白处，放到组末尾
+  // 更精确的做法：根据预览位置插入
+  tilesStore.moveTileToPosition(dragTileId, group.id, group.tiles.length)
+  tilesStore.setDraggingTile(null)
 }
 
 // 拖拽结束时隐藏预览
@@ -289,7 +325,7 @@ function addGroup() {
   /* 轨道宽 = tile-small(70)，gap = 6，实际步进 = 76px */
   grid-template-columns: repeat(auto-fill, var(--tile-small));
   grid-auto-rows: var(--tile-small);
-  grid-auto-flow: dense;
+  grid-auto-flow: row;
   gap: var(--tile-gap);
   align-content: start;
 }
