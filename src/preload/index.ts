@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showInFolder: (fullPath: string) => ipcRenderer.invoke('app:show-in-folder', fullPath),
   uninstallProgram: () => ipcRenderer.invoke('app:uninstall'),
   togglePin: (appId: string) => ipcRenderer.invoke('app:toggle-pin', appId),
+  pinToTaskbar: (lnkPath: string) => ipcRenderer.invoke('app:pin-taskbar', lnkPath),
 
   // 磁贴布局
   saveTileLayout: (layout: unknown) => ipcRenderer.invoke('tile:layout-save', layout),

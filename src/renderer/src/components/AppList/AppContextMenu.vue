@@ -5,8 +5,8 @@
     @click.stop
     @contextmenu.prevent
   >
-    <div class="menu-item" @click="handlePin">
-      <span class="menu-label">{{ app.pinned ? '从"开始"菜单取消固定' : '固定到"开始"菜单' }}</span>
+    <div class="menu-item" @click="handlePinToStart">
+      <span class="menu-label">{{ isPinnedToStart ? '从"开始"屏幕取消固定' : '固定到"开始"屏幕' }}</span>
     </div>
 
     <div class="menu-item" @click="handlePinTaskbar">
@@ -26,7 +26,8 @@
 </template>
 
 <script setup lang="ts">
-import { useAppsStore } from '../../stores/useApps'
+import { computed } from 'vue'
+import { useTilesStore } from '../../stores/useTiles'
 
 const props = defineProps<{
   x: number
@@ -38,15 +39,41 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const appsStore = useAppsStore()
+const tilesStore = useTilesStore()
 
-function handlePin() {
-  appsStore.togglePin(props.app.id)
+// 检查该程序是否已经固定为磁贴
+const isPinnedToStart = computed(() => {
+  for (const group of tilesStore.groups) {
+    if (group.tiles.some((t) => t.appId === props.app.id)) {
+      return true
+    }
+  }
+  return false
+})
+
+function handlePinToStart() {
+  if (isPinnedToStart.value) {
+    // 从所有分组中移除该程序的磁贴
+    tilesStore.groups.forEach((group) => {
+      const idx = group.tiles.findIndex((t) => t.appId === props.app.id)
+      if (idx >= 0) {
+        group.tiles.splice(idx, 1)
+      }
+    })
+    tilesStore.saveLayout()
+  } else {
+    // 添加到第一个分组
+    const firstGroup = tilesStore.groups[0]
+    if (firstGroup) {
+      tilesStore.addTile(firstGroup.id, props.app.id, 'medium')
+    }
+  }
   emit('close')
 }
 
 function handlePinTaskbar() {
-  console.log('固定到任务栏:', props.app.name)
+  // 调用 IPC 固定到任务栏
+  window.electronAPI.pinToTaskbar(props.app.lnkPath)
   emit('close')
 }
 

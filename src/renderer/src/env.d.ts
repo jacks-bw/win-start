@@ -12,6 +12,7 @@ interface ElectronAPI {
   showInFolder: (fullPath: string) => void
   uninstallProgram: () => void
   togglePin: (appId: string) => Promise<string[]>
+  pinToTaskbar: (lnkPath: string) => Promise<{ success: boolean; error?: string }>
   saveTileLayout: (layout: unknown) => Promise<void>
   loadTileLayout: () => Promise<TileLayout>
   hideMenu: () => void

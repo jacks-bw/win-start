@@ -41,6 +41,25 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
     uninstallProgram()
   })
 
+  // 固定到任务栏
+  ipcMain.handle('app:pin-taskbar', async (_event, lnkPath: string) => {
+    try {
+      const { exec } = await import('child_process')
+      // 使用 PowerShell 通过 Shell 对象固定到任务栏
+      const script = `
+        $shell = New-Object -ComObject Shell.Application
+        $folder = $shell.Namespace('${require('path').dirname(lnkPath)}')
+        $item = $folder.ParseName('${require('path').basename(lnkPath)}')
+        $item.InvokeVerb('taskbarpin')
+      `
+      exec(`powershell -Command "${script.replace(/"/g, '\\"')}"`)
+      return { success: true }
+    } catch (err) {
+      console.error('固定到任务栏失败:', err)
+      return { success: false, error: String(err) }
+    }
+  })
+
   // 固定/取消固定程序到开始菜单
   ipcMain.handle('app:toggle-pin', (_event, appId: string) => {
     const pinnedApps = store.get('pinnedApps', []) as string[]
