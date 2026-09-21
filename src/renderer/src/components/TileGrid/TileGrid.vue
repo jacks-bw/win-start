@@ -74,7 +74,7 @@ function handleGridDragOver(e: DragEvent) {
   if (!tilesStore.draggingTileId || !tilesStore.draggingTileSize) return
   const grid = e.currentTarget as HTMLElement
   if (!grid) return
-
+  console.log('[dragover] grid rect:', grid.getBoundingClientRect(), 'all groups:', tilesStore.groups.map(g => g.id))
   const rect = grid.getBoundingClientRect()
   const cellSize = 76 // tile-small(70) + gap(6)
   const paddingLeft = 16 // 减去 grid 的 padding
