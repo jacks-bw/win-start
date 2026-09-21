@@ -12,17 +12,10 @@
 
       <!-- 磁贴网格 - 使用 CSS Grid -->
       <div
-        ref="gridRef"
         class="tile-grid-inner"
         :class="{ dragging: tilesStore.draggingTileId !== null }"
         @dragover.prevent="handleGridDragOver"
       >
-        <!-- 拖拽预览占位块 -->
-        <div
-          v-if="dragPreview.visible && tilesStore.draggingTileId"
-          class="drag-preview"
-          :style="dragPreview.style"
-        ></div>
         <LiveTile
           v-for="tile in sortedTiles(group)"
           :key="tile.id"
@@ -32,6 +25,13 @@
         />
       </div>
     </div>
+
+    <!-- 拖拽预览占位块（fixed 定位，只渲染一个） -->
+    <div
+      v-if="dragPreview.visible && tilesStore.draggingTileId"
+      class="drag-preview"
+      :style="dragPreview.style"
+    ></div>
 
     <!-- 添加分组按钮 -->
     <div class="add-group-section">
@@ -52,7 +52,6 @@ const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
 
 // 拖拽预览占位块
-const gridRef = ref<HTMLElement | null>(null)
 const dragPreview = reactive({
   visible: false,
   style: {} as Record<string, string>
@@ -82,16 +81,16 @@ function handleGridDragOver(e: DragEvent) {
 
   dragPreview.visible = true
   dragPreview.style = {
-    position: 'absolute',
-    left: `${col * cellSize}px`,
-    top: `${row * cellSize}px`,
+    position: 'fixed',
+    left: `${rect.left + col * cellSize}px`,
+    top: `${rect.top + row * cellSize}px`,
     width: `${span.col * cellSize - gap}px`,
     height: `${span.row * cellSize - gap}px`,
     background: 'rgba(0, 120, 215, 0.2)',
     border: '2px solid var(--accent-color)',
     borderRadius: '2px',
     pointerEvents: 'none',
-    zIndex: '10'
+    zIndex: '9999'
   }
 }
 
@@ -296,13 +295,12 @@ function addGroup() {
   align-content: start;
 }
 
-/* 拖拽时显示浅网格线 */
+/* 拖拽时显示浅网格线（对齐到磁贴边缘/gap） */
 .tile-grid-inner.dragging {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size:
-    calc(var(--tile-small) + var(--tile-gap)) calc(var(--tile-small) + var(--tile-gap));
+    linear-gradient(90deg, transparent 70px, rgba(255, 255, 255, 0.08) 70px, rgba(255, 255, 255, 0.08) 71px, transparent 71px),
+    linear-gradient(0deg, transparent 70px, rgba(255, 255, 255, 0.08) 70px, rgba(255, 255, 255, 0.08) 71px, transparent 71px);
+  background-size: 76px 76px;
   border-radius: 2px;
 }
 
