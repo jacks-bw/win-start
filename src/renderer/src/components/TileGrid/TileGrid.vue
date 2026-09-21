@@ -102,6 +102,7 @@ function handleGridDragOver(e: DragEvent) {
 
 function handleGridDrop(e: DragEvent, group: TileGroup) {
   const dragTileId = e.dataTransfer?.getData('text/plain')
+  console.log('[drop] dragTileId:', dragTileId, 'targetGroup:', group.id, 'row/col:', dragPreview.row, dragPreview.col)
   if (!dragTileId) {
     tilesStore.setDraggingTile(null)
     return

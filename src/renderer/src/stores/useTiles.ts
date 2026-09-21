@@ -247,7 +247,12 @@ export const useTilesStore = defineStore('tiles', () => {
       }
     }
 
-    if (!dragGroup || !targetGroup || !dragTile) return
+    if (!dragGroup || !targetGroup || !dragTile) {
+      console.log('[moveTileToGrid] not found:', { dragGroup: !!dragGroup, targetGroup: !!targetGroup, dragTile: !!dragTile })
+      return
+    }
+
+    console.log('[moveTileToGrid] start:', { dragTileId, targetGroupId, row, col, dragGroup: dragGroup.id, targetGroup: targetGroup.id })
 
     // 先临时把磁贴从原位置移除（标记为不存在以便检测冲突）
     const oldRow = dragTile.row
@@ -304,12 +309,14 @@ export const useTilesStore = defineStore('tiles', () => {
     // 找到空位，放置
     dragTile.row = targetRow
     dragTile.col = targetCol
+    console.log('[moveTileToGrid] placed at:', targetRow, targetCol)
 
     // 如果跨分组，需要移动磁贴到新分组
     if (dragGroup !== targetGroup) {
       const idx = dragGroup.tiles.findIndex((t) => t.id === dragTileId)
       if (idx >= 0) dragGroup.tiles.splice(idx, 1)
       targetGroup.tiles.push(dragTile)
+      console.log('[moveTileToGrid] cross-group moved to', targetGroup.id)
     }
 
     saveLayout()
