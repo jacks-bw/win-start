@@ -44,6 +44,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
+import { useAppsStore } from '../../stores/useApps'
 
 const props = defineProps<{
   tile: TileItem
