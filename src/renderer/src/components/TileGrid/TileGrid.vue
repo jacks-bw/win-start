@@ -2,9 +2,12 @@
   <div class="tile-grid">
     <div v-for="group in tilesStore.groups" :key="group.id" class="tile-group-section">
       <!-- 分组标题 -->
-      <div class="group-header">
+      <div class="group-header" @contextmenu="handleGroupContextMenu($event, group)">
         <span class="group-name">{{ group.name }}</span>
-        <button class="edit-group-btn" @click="renameGroup(group)">编辑</button>
+        <div class="group-actions">
+          <button class="edit-group-btn" @click.stop="renameGroup(group)">重命名</button>
+          <button class="delete-group-btn" @click.stop="deleteGroup(group)">删除</button>
+        </div>
       </div>
 
       <!-- 磁贴网格 - 使用 CSS Grid -->
@@ -94,6 +97,24 @@ function renameGroup(group: TileGroup) {
   }
 }
 
+function deleteGroup(group: TileGroup) {
+  if (tilesStore.groups.length <= 1) {
+    alert('至少保留一个分组')
+    return
+  }
+  if (confirm(`确定要删除分组"${group.name}"吗？组内磁贴也会被移除。`)) {
+    tilesStore.removeGroup(group.id)
+  }
+}
+
+function handleGroupContextMenu(e: MouseEvent, group: TileGroup) {
+  e.preventDefault()
+  e.stopPropagation()
+  if (confirm(`确定要删除分组"${group.name}"吗？`)) {
+    tilesStore.removeGroup(group.id)
+  }
+}
+
 function addGroup() {
   if (window.showInputDialog) {
     window.showInputDialog('新建分组', '新分组', (name) => {
@@ -152,6 +173,28 @@ function addGroup() {
 .edit-group-btn:hover {
   background: var(--item-hover);
   color: var(--text-primary);
+}
+
+.group-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.delete-group-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  color: rgba(255, 150, 150, 0.8);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.delete-group-btn:hover {
+  background: rgba(255, 100, 100, 0.15);
+  color: #ff8080;
+  border-color: rgba(255, 100, 100, 0.5);
 }
 
 /* CSS Grid 磁贴布局 - 基于 Win10 真实网格 */
