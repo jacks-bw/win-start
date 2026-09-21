@@ -253,12 +253,7 @@ function addGroup() {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0;
-}
-
-.tile-group-section:last-child {
-  border-right: none;
 }
 
 .group-header {
