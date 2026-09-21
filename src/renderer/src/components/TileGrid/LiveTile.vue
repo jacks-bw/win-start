@@ -13,8 +13,6 @@
     draggable="true"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
-    @dragover.prevent="handleDragOver"
-    @drop="handleDrop"
     @click="$emit('click')"
     @contextmenu="$emit('contextmenu', $event)"
   >
@@ -89,21 +87,6 @@ function handleDragStart(e: DragEvent) {
 
 function handleDragEnd() {
   isDragging.value = false
-  tilesStore.setDraggingTile(null)
-}
-
-function handleDragOver(e: DragEvent) {
-  if (tilesStore.draggingTileId && tilesStore.draggingTileId !== props.tile.id) {
-    tilesStore.setDragTarget(props.tile.id)
-  }
-}
-
-function handleDrop(e: DragEvent) {
-  e.preventDefault()
-  const dragTileId = e.dataTransfer?.getData('text/plain')
-  if (dragTileId && dragTileId !== props.tile.id) {
-    tilesStore.moveTile(dragTileId, props.tile.id)
-  }
   tilesStore.setDraggingTile(null)
 }
 

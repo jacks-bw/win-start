@@ -21,7 +21,7 @@
           v-for="tile in sortedTiles(group)"
           :key="tile.id"
           :tile="tile"
-          :style="{ gridRow: `${tile.row} / span ${sizeSpan[tile.size]?.rows || 1}`, gridColumn: `${tile.col} / span ${sizeSpan[tile.size]?.cols || 1}` }"
+          :style="{ gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`, gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}` }"
           @click="handleTileClick(tile)"
           @contextmenu="handleTileContextMenu($event, tile.id)"
         />
@@ -305,8 +305,8 @@ function addGroup() {
 .tile-grid-inner {
   position: relative;
   display: grid;
-  /* 轨道宽 = tile-small(70)，gap = 6，实际步进 = 76px */
-  grid-template-columns: repeat(10, var(--tile-small));
+  /* 每组 6 列宽（等于 3 个中磁贴） */
+  grid-template-columns: repeat(6, var(--tile-small));
   grid-auto-rows: var(--tile-small);
   gap: var(--tile-gap);
   align-content: start;
