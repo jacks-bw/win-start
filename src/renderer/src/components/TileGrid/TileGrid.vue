@@ -153,48 +153,49 @@ function addGroup() {
   padding: 0 4px;
 }
 
+.group-header:hover .group-actions {
+  opacity: 1;
+}
+
 .group-name {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
 }
 
+.group-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
 .edit-group-btn {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: none;
   color: var(--text-secondary);
   font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 2px;
+  padding: 2px 4px;
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: color 0.1s ease;
 }
 
 .edit-group-btn:hover {
-  background: var(--item-hover);
   color: var(--text-primary);
-}
-
-.group-actions {
-  display: flex;
-  gap: 4px;
 }
 
 .delete-group-btn {
   background: transparent;
-  border: 1px solid rgba(255, 100, 100, 0.3);
+  border: none;
   color: rgba(255, 150, 150, 0.8);
   font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 2px;
+  padding: 2px 4px;
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: color 0.1s ease;
 }
 
 .delete-group-btn:hover {
-  background: rgba(255, 100, 100, 0.15);
   color: #ff8080;
-  border-color: rgba(255, 100, 100, 0.5);
 }
 
 /* CSS Grid 磁贴布局 - 基于 Win10 真实网格 */
