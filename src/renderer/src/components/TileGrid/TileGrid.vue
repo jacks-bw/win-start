@@ -247,6 +247,23 @@ function addGroup() {
   border-radius: 3px;
 }
 
+.tile-group-section::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tile-group-section::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tile-group-section::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.tile-group-section::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 .tile-group-section {
   flex-shrink: 0;
   width: 460px; /* 6列磁贴450 + 10边距 */
