@@ -190,8 +190,13 @@ onMounted(async () => {
 
   window.addEventListener('keydown', handleKeydown)
 
-  // 点击任意位置关闭右键菜单
-  const handleGlobalClick = () => {
+  // 点击任意位置关闭右键菜单（但点击菜单内部时不关闭）
+  const handleGlobalClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement
+    // 检查点击是否发生在菜单内部
+    const isInsideMenu = target.closest('.context-menu') || target.closest('.app-context-menu')
+    if (isInsideMenu) return
+
     if (contextMenu.value.visible) {
       contextMenu.value.visible = false
     }

@@ -30,16 +30,47 @@
 
 <script setup lang="ts">
 import { useTilesStore } from '../../stores/useTiles'
+import { useAppsStore } from '../../stores/useApps'
 import LiveTile from './LiveTile.vue'
 
 const tilesStore = useTilesStore()
+const appsStore = useAppsStore()
 
 function sortedTiles(group: TileGroup): TileItem[] {
   return [...group.tiles].sort((a, b) => a.position - b.position)
 }
 
-function handleTileClick(tile: TileItem) {
+async function handleTileClick(tile: TileItem) {
   console.log('点击磁贴:', tile.appId)
+
+  // 先在已加载的程序列表中按名称匹配
+  const app = appsStore.apps.find(
+    (a) =>
+      a.name.toLowerCase().includes(tile.appId.toLowerCase()) ||
+      tile.appId.toLowerCase().includes(a.name.toLowerCase())
+  )
+
+  if (app) {
+    await appsStore.launchApp(app)
+    return
+  }
+
+  // 内置模拟磁贴：尝试直接启动系统程序
+  const builtinMap: Record<string, string> = {
+    calc: 'calc.exe',
+    notepad: 'notepad.exe',
+    browser: 'explorer.exe',
+    files: 'explorer.exe'
+  }
+
+  const target = builtinMap[tile.appId]
+  if (target) {
+    try {
+      await window.electronAPI.launchApp(target)
+    } catch (err) {
+      console.error('启动内置程序失败:', err)
+    }
+  }
 }
 
 function handleTileContextMenu(e: MouseEvent, tileId: string) {
