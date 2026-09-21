@@ -249,12 +249,12 @@ function addGroup() {
 
 .tile-group-section {
   flex-shrink: 0;
-  width: 520px; /* 6列磁贴450 + 70边距 */
+  width: 450px; /* 6列磁贴宽度 */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0 5px;
+  padding: 0;
 }
 
 .tile-group-section:last-child {
