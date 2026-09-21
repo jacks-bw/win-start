@@ -25,7 +25,7 @@
     <!-- 添加分组按钮 -->
     <div class="add-group-section">
       <button class="add-group-btn" @click="addGroup">
-        <span>+</span> 自定义
+        <span>+</span> 新增
       </button>
     </div>
   </div>
@@ -251,22 +251,27 @@ function addGroup() {
   display: flex;
   justify-content: center;
   padding: 16px 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tile-grid:hover .add-group-section {
+  opacity: 1;
 }
 
 .add-group-btn {
   background: transparent;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: none;
   color: var(--text-secondary);
-  padding: 10px 20px;
+  padding: 6px 12px;
   border-radius: 2px;
   cursor: pointer;
   font-size: var(--font-size-base);
-  transition: all 0.1s ease;
+  transition: color 0.1s ease;
 }
 
 .add-group-btn:hover {
   background: var(--item-hover);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.4);
 }
 </style>
