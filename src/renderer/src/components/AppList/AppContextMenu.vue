@@ -6,7 +6,7 @@
     @contextmenu.prevent
   >
     <div class="menu-item" @click="handlePinToStart">
-      <span class="menu-label">{{ isPinnedToStart ? '从"开始"屏幕取消固定' : '固定到"开始"屏幕' }}</span>
+      <span class="menu-label">{{ isPinnedToStart ? '从磁贴取消固定' : '固定到磁贴' }}</span>
     </div>
 
     <div class="menu-item" @click="handlePinTaskbar">

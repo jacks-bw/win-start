@@ -15,7 +15,8 @@
       <div class="tile-front" :style="{ background: tileColor }">
         <div class="tile-content" :class="contentLayout">
           <div class="tile-icon">
-            <span v-if="tileIcon" class="icon-emoji">{{ tileIcon }}</span>
+            <span v-if="appIcon" class="icon-img" :style="{ backgroundImage: `url(${appIcon})` }"></span>
+            <span v-else-if="tileIcon" class="icon-emoji">{{ tileIcon }}</span>
             <span v-else class="icon-placeholder">{{ tileName.charAt(0) }}</span>
           </div>
           <div v-if="tileSize !== 'small'" class="tile-text">
@@ -54,6 +55,7 @@ defineEmits<{
 }>()
 
 const tilesStore = useTilesStore()
+const { apps } = useAppsStore()
 const isFlipped = ref(false)
 const isDragging = ref(false)
 let flipInterval: ReturnType<typeof setInterval> | null = null
@@ -81,6 +83,12 @@ function handleDrop(e: DragEvent) {
 
 // 根据 appId 获取显示名称和图标
 const tileName = computed(() => {
+  // 先在已加载的程序列表中查找
+  const app = apps.find((a) => a.id === props.tile.appId)
+  if (app) {
+    return app.name
+  }
+  // 内置磁贴 fallback
   const nameMap: Record<string, string> = {
     calc: '计算器',
     notepad: '记事本',
@@ -91,6 +99,11 @@ const tileName = computed(() => {
 })
 
 const tileIcon = computed(() => {
+  // 先在已加载的程序列表中查找
+  const app = apps.find((a) => a.id === props.tile.appId)
+  if (app && app.icon) {
+    return '' // 使用 app.icon
+  }
   const iconMap: Record<string, string> = {
     calc: '🧮',
     notepad: '📝',
@@ -98,6 +111,12 @@ const tileIcon = computed(() => {
     files: '📁'
   }
   return iconMap[props.tile.appId] || ''
+})
+
+// 真实程序图标（base64）
+const appIcon = computed(() => {
+  const app = apps.find((a) => a.id === props.tile.appId)
+  return app?.icon || ''
 })
 
 const tileColor = computed(() => {
@@ -213,6 +232,19 @@ onUnmounted(() => {
 
 .center-icon .tile-icon {
   margin-bottom: 0;
+}
+
+.icon-img {
+  width: 36px;
+  height: 36px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.center-icon .icon-img {
+  width: 32px;
+  height: 32px;
 }
 
 .icon-emoji {

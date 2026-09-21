@@ -43,19 +43,24 @@ function sortedTiles(group: TileGroup): TileItem[] {
 async function handleTileClick(tile: TileItem) {
   console.log('点击磁贴:', tile.appId)
 
-  // 先在已加载的程序列表中按名称匹配
-  const app = appsStore.apps.find(
-    (a) =>
-      a.name.toLowerCase().includes(tile.appId.toLowerCase()) ||
-      tile.appId.toLowerCase().includes(a.name.toLowerCase())
-  )
+  // 1. 先按 appId 精确匹配（固定到磁贴的程序）
+  let app = appsStore.apps.find((a) => a.id === tile.appId)
+
+  // 2. 如果没找到，按名称模糊匹配（内置模拟磁贴）
+  if (!app) {
+    app = appsStore.apps.find(
+      (a) =>
+        a.name.toLowerCase().includes(tile.appId.toLowerCase()) ||
+        tile.appId.toLowerCase().includes(a.name.toLowerCase())
+    )
+  }
 
   if (app) {
     await appsStore.launchApp(app)
     return
   }
 
-  // 内置模拟磁贴：尝试直接启动系统程序
+  // 3. 内置模拟磁贴：尝试直接启动系统程序
   const builtinMap: Record<string, string> = {
     calc: 'calc.exe',
     notepad: 'notepad.exe',
