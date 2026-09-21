@@ -255,30 +255,55 @@ export const useTilesStore = defineStore('tiles', () => {
     dragTile.row = -100
     dragTile.col = -100
 
-    // 检查目标位置是否有冲突
-    const conflictTile = targetGroup.tiles.find((t) => {
-      if (t.id === dragTileId) return false
-      const span = sizeSpan[dragTile!.size] || { rows: 1, cols: 1 }
-      const tSpan = sizeSpan[t.size] || { rows: 1, cols: 1 }
-      return (
-        row < t.row + tSpan.rows &&
-        row + span.rows > t.row &&
-        col < t.col + tSpan.cols &&
-        col + span.cols > t.col
-      )
-    })
+    const span = sizeSpan[dragTile.size] || { rows: 1, cols: 1 }
+    const MAX_COLS = 6
 
-    if (conflictTile) {
-      // 有冲突：交换位置
-      dragTile.row = conflictTile.row
-      dragTile.col = conflictTile.col
-      conflictTile.row = oldRow
-      conflictTile.col = oldCol
-    } else {
-      // 无冲突：直接放到目标位置
-      dragTile.row = row
-      dragTile.col = col
+    // 检查位置是否有效（不超出列数，不重叠）
+    function canPlace(r: number, c: number): boolean {
+      // 超出列数
+      if (c < 0 || c + span.cols > MAX_COLS) return false
+      // 检查重叠
+      for (const t of targetGroup!.tiles) {
+        if (t.id === dragTileId) continue
+        const tSpan = sizeSpan[t.size] || { rows: 1, cols: 1 }
+        const overlap =
+          r < t.row + tSpan.rows &&
+          r + span.rows > t.row &&
+          c < t.col + tSpan.cols &&
+          c + span.cols > t.col
+        if (overlap) return false
+      }
+      return true
     }
+
+    // 先尝试放到目标位置
+    let targetRow = row
+    let targetCol = col
+
+    // 如果目标位置放不下，从目标行开始往下扫描找空位
+    if (!canPlace(targetRow, targetCol)) {
+      let found = false
+      for (let r = row; r < 20 && !found; r++) {
+        for (let c = 0; c <= MAX_COLS - span.cols; c++) {
+          if (canPlace(r, c)) {
+            targetRow = r
+            targetCol = c
+            found = true
+            break
+          }
+        }
+      }
+      // 整组都满了，不移动
+      if (!found) {
+        dragTile.row = oldRow
+        dragTile.col = oldCol
+        return
+      }
+    }
+
+    // 找到空位，放置
+    dragTile.row = targetRow
+    dragTile.col = targetCol
 
     // 如果跨分组，需要移动磁贴到新分组
     if (dragGroup !== targetGroup) {
