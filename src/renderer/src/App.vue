@@ -22,6 +22,9 @@
       @close="contextMenu.visible = false"
     />
 
+    <!-- 右下角 resize 手柄 -->
+    <div class="window-resize-handle"></div>
+
     <!-- 自定义确认对话框（替代 prompt） -->
     <div v-if="inputDialog.visible" class="dialog-overlay" @click.self="closeInputDialog">
       <div class="dialog-box">
@@ -131,7 +134,14 @@ function confirmInputDialog() {
 
 // 暴露方法给子组件
 window.openTileContextMenu = (x: number, y: number, tileId: string) => {
-  contextMenu.value = { visible: true, x, y, tileId }
+  // 右键菜单大约 220px 宽，280px 高，防止超出窗口边界
+  const menuWidth = 240
+  const menuHeight = 300
+  const maxX = window.innerWidth - menuWidth - 4
+  const maxY = window.innerHeight - menuHeight - 4
+  const adjustedX = Math.min(x, maxX)
+  const adjustedY = Math.min(y, maxY)
+  contextMenu.value = { visible: true, x: adjustedX, y: adjustedY, tileId }
 }
 
 window.showInputDialog = showInputDialog
@@ -199,6 +209,32 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* 右下角窗口 resize 手柄 */
+.window-resize-handle {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  z-index: 9999;
+  /* Electron 系统级拖拽区域 */
+  -webkit-app-region: no-drag;
+}
+
+.window-resize-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  background: transparent;
+  border-right: 2px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  border-bottom-right-radius: 2px;
 }
 
 /* 对话框样式 */
