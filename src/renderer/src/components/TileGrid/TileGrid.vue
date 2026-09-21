@@ -229,14 +229,16 @@ function addGroup() {
 
 <style scoped>
 .tile-grid {
-  padding: 16px;
+  display: flex;
+  flex-direction: row;
+  padding: 16px 0;
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .tile-grid::-webkit-scrollbar {
-  width: 6px;
+  height: 6px;
 }
 
 .tile-grid::-webkit-scrollbar-thumb {
@@ -245,7 +247,20 @@ function addGroup() {
 }
 
 .tile-group-section {
-  margin-bottom: 20px;
+  flex-shrink: 0;
+  width: 450px; /* 6列宽度 */
+  padding: 0 12px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tile-group-section:first-child {
+  padding-left: 16px;
+}
+
+.tile-group-section:last-child {
+  padding-right: 16px;
 }
 
 .group-header {
@@ -343,9 +358,10 @@ function addGroup() {
 }
 
 .add-group-section {
+  flex-shrink: 0;
   display: flex;
-  justify-content: center;
-  padding: 16px 0;
+  align-items: center;
+  padding: 0 16px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
