@@ -15,6 +15,9 @@ app.whenReady().then(() => {
   createTray(windowManager)
   setupIpc(windowManager, store)
 
+  // 启动后自动显示开始菜单窗口
+  windowManager.showStartMenu()
+
   app.on('activate', () => {
     windowManager?.showStartMenu()
   })

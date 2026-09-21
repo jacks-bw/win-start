@@ -62,8 +62,10 @@ export class WindowManager {
       }
     })
 
-    // 窗口失焦时不自动隐藏（开发调试用）
-    // this.startMenuWindow.webContents.openDevTools()
+    // 开发模式下自动打开 DevTools
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      this.startMenuWindow.webContents.openDevTools({ mode: 'detach' })
+    }
   }
 
   showStartMenu(): void {
