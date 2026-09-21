@@ -77,9 +77,8 @@ function handleGridDragOver(e: DragEvent) {
   console.log('[dragover] grid rect:', grid.getBoundingClientRect(), 'all groups:', tilesStore.groups.map(g => g.id))
   const rect = grid.getBoundingClientRect()
   const cellSize = 76 // tile-small(70) + gap(6)
-  const paddingLeft = 16 // 减去 grid 的 padding
 
-  const col = Math.floor((e.clientX - rect.left - paddingLeft) / cellSize)
+  const col = Math.floor((e.clientX - rect.left) / cellSize)
   const row = Math.floor((e.clientY - rect.top) / cellSize)
 
   const span = sizeSpan[tilesStore.draggingTileSize] || { cols: 1, rows: 1 }
@@ -89,7 +88,7 @@ function handleGridDragOver(e: DragEvent) {
   dragPreview.row = Math.max(0, row)
   dragPreview.style = {
     position: 'fixed',
-    left: `${rect.left + paddingLeft + Math.max(0, col) * cellSize}px`,
+    left: `${rect.left + Math.max(0, col) * cellSize}px`,
     top: `${rect.top + Math.max(0, row) * cellSize}px`,
     width: `${span.cols * cellSize}px`,
     height: `${span.rows * cellSize}px`,
@@ -250,11 +249,12 @@ function addGroup() {
 
 .tile-group-section {
   flex-shrink: 0;
-  width: 450px; /* 6列宽度 */
+  width: 482px; /* 6列宽度 + 左右padding */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 16px;
 }
 
 .tile-group-section:last-child {
@@ -324,7 +324,6 @@ function addGroup() {
   gap: var(--tile-gap);
   align-content: start;
   min-height: 200px; /* 空分组也有足够高度接收拖拽 */
-  padding: 0 16px;
 }
 
 /* 拖拽时显示浅网格线（对齐到单元格起点=磁贴左边缘） */
