@@ -61,4 +61,12 @@ interface Window {
     defaultValue: string,
     callback: (value: string) => void
   ) => void
+  showConfirmDialog: (options: {
+    title: string
+    message?: string
+    confirmText?: string
+    cancelText?: string
+    danger?: boolean
+    onConfirm: () => void
+  }) => void
 }

@@ -34,7 +34,7 @@
     <!-- 右下角 resize 手柄 -->
     <div class="window-resize-handle"></div>
 
-    <!-- 自定义确认对话框（替代 prompt） -->
+    <!-- 自定义输入对话框（替代 prompt） -->
     <div v-if="inputDialog.visible" class="dialog-overlay" @click.self="closeInputDialog">
       <div class="dialog-box">
         <div class="dialog-title">{{ inputDialog.title }}</div>
@@ -47,6 +47,26 @@
         <div class="dialog-buttons">
           <button class="dialog-btn" @click="closeInputDialog">取消</button>
           <button class="dialog-btn primary" @click="confirmInputDialog">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 自定义确认对话框（替代 confirm / alert） -->
+    <div v-if="confirmDialog.visible" class="dialog-overlay">
+      <div class="dialog-box">
+        <div class="dialog-title">{{ confirmDialog.title }}</div>
+        <div v-if="confirmDialog.message" class="dialog-message">{{ confirmDialog.message }}</div>
+        <div class="dialog-buttons">
+          <button class="dialog-btn" @click="closeConfirmDialog">
+            {{ confirmDialog.cancelText || '取消' }}
+          </button>
+          <button
+            class="dialog-btn"
+            :class="confirmDialog.danger ? 'danger' : 'primary'"
+            @click="confirmDialogOk"
+          >
+            {{ confirmDialog.confirmText || '确定' }}
+          </button>
         </div>
       </div>
     </div>
@@ -94,10 +114,41 @@ const inputDialog = ref({
 })
 const dialogInputRef = ref<HTMLInputElement | null>(null)
 
-// ESC 关闭菜单
+// 自定义确认对话框
+const confirmDialog = ref({
+  visible: false,
+  title: '',
+  message: '',
+  confirmText: '确定',
+  cancelText: '取消',
+  danger: false,
+  callback: null as (() => void) | null
+})
+
+// ESC 关闭：优先关闭弹窗/菜单，其次隐藏开始菜单
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
+    if (confirmDialog.value.visible) {
+      closeConfirmDialog()
+      return
+    }
+    if (inputDialog.value.visible) {
+      closeInputDialog()
+      return
+    }
+    if (contextMenu.value.visible) {
+      contextMenu.value.visible = false
+      return
+    }
+    if (appContextMenu.value.visible) {
+      appContextMenu.value.visible = false
+      return
+    }
     window.electronAPI.hideMenu()
+  }
+  // Enter 确认对话框主操作
+  if (e.key === 'Enter' && confirmDialog.value.visible) {
+    confirmDialogOk()
   }
 }
 
@@ -150,6 +201,38 @@ function confirmInputDialog() {
   closeInputDialog()
 }
 
+// 全局确认对话框（替代 confirm/alert）
+function showConfirmDialog(options: {
+  title: string
+  message?: string
+  confirmText?: string
+  cancelText?: string
+  danger?: boolean
+  onConfirm: () => void
+}) {
+  confirmDialog.value = {
+    visible: true,
+    title: options.title,
+    message: options.message || '',
+    confirmText: options.confirmText || '确定',
+    cancelText: options.cancelText || '取消',
+    danger: options.danger || false,
+    callback: options.onConfirm
+  }
+}
+
+function closeConfirmDialog() {
+  confirmDialog.value.visible = false
+  confirmDialog.value.callback = null
+}
+
+function confirmDialogOk() {
+  if (confirmDialog.value.callback) {
+    confirmDialog.value.callback()
+  }
+  closeConfirmDialog()
+}
+
 // 暴露方法给子组件
 window.openTileContextMenu = (x: number, y: number, tileId: string) => {
   // 右键菜单大约 220px 宽，280px 高，防止超出窗口边界
@@ -163,6 +246,7 @@ window.openTileContextMenu = (x: number, y: number, tileId: string) => {
 }
 
 window.showInputDialog = showInputDialog
+window.showConfirmDialog = showConfirmDialog
 
 // 左侧程序列表右键菜单
 window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
@@ -298,21 +382,54 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 10000;
+  animation: dialogFadeIn 0.15s ease-out;
+}
+
+@keyframes dialogFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialogSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dialog-box {
   background: rgba(45, 45, 45, 0.98);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 20px;
   min-width: 300px;
+  max-width: 380px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: dialogSlideUp 0.15s ease-out;
 }
 
 .dialog-title {
   font-size: 14px;
-  margin-bottom: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
   color: var(--text-primary);
+}
+
+.dialog-message {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
 }
 
 .dialog-input {
@@ -359,5 +476,14 @@ onUnmounted(() => {
 
 .dialog-btn.primary:hover {
   background: var(--accent-hover);
+}
+
+.dialog-btn.danger {
+  background: #d94c4c;
+  border-color: #d94c4c;
+}
+
+.dialog-btn.danger:hover {
+  background: #b83e3e;
 }
 </style>

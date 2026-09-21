@@ -99,20 +99,37 @@ function renameGroup(group: TileGroup) {
 
 function deleteGroup(group: TileGroup) {
   if (tilesStore.groups.length <= 1) {
-    alert('至少保留一个分组')
+    window.showConfirmDialog({
+      title: '无法删除',
+      message: '至少需要保留一个分组。',
+      confirmText: '知道了'
+    })
     return
   }
-  if (confirm(`确定要删除分组"${group.name}"吗？组内磁贴也会被移除。`)) {
-    tilesStore.removeGroup(group.id)
-  }
+  window.showConfirmDialog({
+    title: `删除分组"${group.name}"？`,
+    message: '组内的磁贴也会一并移除，此操作无法撤销。',
+    confirmText: '删除',
+    danger: true,
+    onConfirm: () => {
+      tilesStore.removeGroup(group.id)
+    }
+  })
 }
 
 function handleGroupContextMenu(e: MouseEvent, group: TileGroup) {
   e.preventDefault()
   e.stopPropagation()
-  if (confirm(`确定要删除分组"${group.name}"吗？`)) {
-    tilesStore.removeGroup(group.id)
-  }
+  if (tilesStore.groups.length <= 1) return
+  window.showConfirmDialog({
+    title: `删除分组"${group.name}"？`,
+    message: '组内的磁贴也会一并移除，此操作无法撤销。',
+    confirmText: '删除',
+    danger: true,
+    onConfirm: () => {
+      tilesStore.removeGroup(group.id)
+    }
+  })
 }
 
 function addGroup() {
