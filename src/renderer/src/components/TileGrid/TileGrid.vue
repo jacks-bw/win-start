@@ -11,7 +11,18 @@
       </div>
 
       <!-- 磁贴网格 - 使用 CSS Grid -->
-      <div class="tile-grid-inner" :class="{ dragging: tilesStore.draggingTileId !== null }">
+      <div
+        ref="gridRef"
+        class="tile-grid-inner"
+        :class="{ dragging: tilesStore.draggingTileId !== null }"
+        @dragover.prevent="handleGridDragOver"
+      >
+        <!-- 拖拽预览占位块 -->
+        <div
+          v-if="dragPreview.visible && tilesStore.draggingTileId"
+          class="drag-preview"
+          :style="dragPreview.style"
+        ></div>
         <LiveTile
           v-for="tile in sortedTiles(group)"
           :key="tile.id"
@@ -32,12 +43,70 @@
 </template>
 
 <script setup lang="ts">
+import { ref, reactive, watch } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
 import LiveTile from './LiveTile.vue'
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
+
+// 拖拽预览占位块
+const gridRef = ref<HTMLElement | null>(null)
+const dragPreview = reactive({
+  visible: false,
+  style: {} as Record<string, string>
+})
+
+// 磁贴尺寸对应的网格跨度（单元格数）
+const sizeSpan: Record<string, { col: number; row: number }> = {
+  small: { col: 1, row: 1 },
+  medium: { col: 2, row: 2 },
+  wide: { col: 4, row: 2 },
+  large: { col: 4, row: 4 }
+}
+
+function handleGridDragOver(e: DragEvent) {
+  if (!tilesStore.draggingTileId || !tilesStore.draggingTileSize) return
+  const grid = e.currentTarget as HTMLElement
+  if (!grid) return
+
+  const rect = grid.getBoundingClientRect()
+  const cellSize = 76 // tile-small(70) + tile-gap(6)
+  const gap = 6
+
+  const col = Math.floor((e.clientX - rect.left) / cellSize)
+  const row = Math.floor((e.clientY - rect.top) / cellSize)
+
+  const span = sizeSpan[tilesStore.draggingTileSize] || { col: 1, row: 1 }
+
+  dragPreview.visible = true
+  dragPreview.style = {
+    position: 'absolute',
+    left: `${col * cellSize}px`,
+    top: `${row * cellSize}px`,
+    width: `${span.col * cellSize - gap}px`,
+    height: `${span.row * cellSize - gap}px`,
+    background: 'rgba(0, 120, 215, 0.2)',
+    border: '2px solid var(--accent-color)',
+    borderRadius: '2px',
+    pointerEvents: 'none',
+    zIndex: '10'
+  }
+}
+
+// 拖拽结束时隐藏预览
+function clearDragPreview() {
+  dragPreview.visible = false
+  dragPreview.style = {}
+}
+
+watch(
+  () => tilesStore.draggingTileId,
+  (id) => {
+    if (!id) clearDragPreview()
+  }
+)
 
 function sortedTiles(group: TileGroup): TileItem[] {
   return [...group.tiles].sort((a, b) => a.position - b.position)
@@ -217,6 +286,7 @@ function addGroup() {
 
 /* CSS Grid 磁贴布局 - 基于 Win10 真实网格 */
 .tile-grid-inner {
+  position: relative;
   display: grid;
   /* 以小磁贴为最小网格单位：小磁贴宽度 + gap */
   grid-template-columns: repeat(auto-fill, calc(var(--tile-small) + var(--tile-gap)));

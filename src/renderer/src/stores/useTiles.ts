@@ -15,10 +15,12 @@ export const useTilesStore = defineStore('tiles', () => {
   const tileNotifications = ref<Record<string, TileNotification[]>>({})
   // 拖拽视觉反馈状态
   const draggingTileId = ref<string | null>(null)
+  const draggingTileSize = ref<TileItem['size'] | null>(null)
   const dragTargetId = ref<string | null>(null)
 
-  function setDraggingTile(id: string | null) {
+  function setDraggingTile(id: string | null, size: TileItem['size'] | null = null) {
     draggingTileId.value = id
+    draggingTileSize.value = size
     if (!id) dragTargetId.value = null
   }
 
@@ -218,6 +220,7 @@ export const useTilesStore = defineStore('tiles', () => {
     flippedTiles,
     allTiles,
     draggingTileId,
+    draggingTileSize,
     dragTargetId,
     setDraggingTile,
     setDragTarget,

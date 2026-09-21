@@ -83,7 +83,7 @@ function handleDragStart(e: DragEvent) {
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
   }
-  tilesStore.setDraggingTile(props.tile.id)
+  tilesStore.setDraggingTile(props.tile.id, props.tile.size)
 }
 
 function handleDragEnd() {
