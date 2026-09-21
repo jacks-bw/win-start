@@ -30,7 +30,7 @@ export class WindowManager {
       height: winHeight,
       minWidth: 660,
       minHeight: 500,
-      maxWidth: 1200,
+      maxWidth: 1350,
       maxHeight: 900,
       x: 0,
       y: screenHeight - winHeight,
