@@ -1,7 +1,12 @@
 <template>
   <div
     class="tile-container"
-    :class="[`size-${tile.size}`, { flipped: isFlipped }]"
+    :class="[`size-${tile.size}`, { flipped: isFlipped, dragging: isDragging }]"
+    draggable="true"
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd"
+    @dragover.prevent
+    @drop="handleDrop"
     @click="$emit('click')"
     @contextmenu="$emit('contextmenu', $event)"
   >
@@ -50,7 +55,29 @@ defineEmits<{
 
 const tilesStore = useTilesStore()
 const isFlipped = ref(false)
+const isDragging = ref(false)
 let flipInterval: ReturnType<typeof setInterval> | null = null
+
+// 拖拽事件
+function handleDragStart(e: DragEvent) {
+  isDragging.value = true
+  e.dataTransfer?.setData('text/plain', props.tile.id)
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function handleDragEnd() {
+  isDragging.value = false
+}
+
+function handleDrop(e: DragEvent) {
+  e.preventDefault()
+  const dragTileId = e.dataTransfer?.getData('text/plain')
+  if (dragTileId && dragTileId !== props.tile.id) {
+    tilesStore.moveTile(dragTileId, props.tile.id)
+  }
+}
 
 // 根据 appId 获取显示名称和图标
 const tileName = computed(() => {
@@ -130,6 +157,11 @@ onUnmounted(() => {
 
 .tile-container:hover {
   transform: scale(0.98);
+}
+
+.tile-container.dragging {
+  opacity: 0.4;
+  transform: scale(0.95);
 }
 
 /* 四种尺寸 */

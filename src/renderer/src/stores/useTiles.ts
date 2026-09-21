@@ -130,6 +130,59 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
+  // 移动磁贴到指定位置
+  function moveTile(dragTileId: string, targetTileId: string) {
+    if (dragTileId === targetTileId) return
+
+    let dragTile: TileItem | null = null
+    let dragGroup: TileGroup | null = null
+    let targetTile: TileItem | null = null
+    let targetGroup: TileGroup | null = null
+
+    // 查找拖拽磁贴和目标磁贴
+    for (const group of groups.value) {
+      for (const tile of group.tiles) {
+        if (tile.id === dragTileId) {
+          dragTile = tile
+          dragGroup = group
+        }
+        if (tile.id === targetTileId) {
+          targetTile = tile
+          targetGroup = group
+        }
+      }
+    }
+
+    if (!dragTile || !targetTile || !dragGroup || !targetGroup) return
+
+    // 从原位置移除
+    const dragIdx = dragGroup.tiles.findIndex((t) => t.id === dragTileId)
+    if (dragIdx >= 0) {
+      dragGroup.tiles.splice(dragIdx, 1)
+    }
+
+    // 插入到目标位置
+    const targetIdx = targetGroup.tiles.findIndex((t) => t.id === targetTileId)
+    if (targetIdx >= 0) {
+      targetGroup.tiles.splice(targetIdx, 0, dragTile)
+    } else {
+      targetGroup.tiles.push(dragTile)
+    }
+
+    // 重新排序 position
+    targetGroup.tiles.forEach((tile, index) => {
+      tile.position = index
+    })
+    // 如果跨分组，也要更新原分组的 position
+    if (dragGroup !== targetGroup) {
+      dragGroup.tiles.forEach((tile, index) => {
+        tile.position = index
+      })
+    }
+
+    saveLayout()
+  }
+
   // 初始化模拟通知数据
   function initMockNotifications() {
     const sampleNotifications: Record<string, TileNotification[]> = {
@@ -162,6 +215,7 @@ export const useTilesStore = defineStore('tiles', () => {
     addGroup,
     renameGroup,
     removeGroup,
+    moveTile,
     getNotifications
   }
 })

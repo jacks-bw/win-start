@@ -73,7 +73,10 @@ function handleLaunch(app: AppItem) {
 
 function handleContextMenu(e: MouseEvent, app: AppItem) {
   e.preventDefault()
-  console.log('右键菜单:', app.name)
+  e.stopPropagation()
+  if (window.openAppContextMenu) {
+    window.openAppContextMenu(e.clientX, e.clientY, app)
+  }
 }
 </script>
 

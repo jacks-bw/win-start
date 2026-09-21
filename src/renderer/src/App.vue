@@ -13,13 +13,22 @@
       <TileGrid />
     </div>
 
-    <!-- 右键菜单 -->
+    <!-- 右键菜单（磁贴） -->
     <TileContextMenu
       v-if="contextMenu.visible"
       :x="contextMenu.x"
       :y="contextMenu.y"
       :tile-id="contextMenu.tileId"
       @close="contextMenu.visible = false"
+    />
+
+    <!-- 右键菜单（程序列表） -->
+    <AppContextMenu
+      v-if="appContextMenu.visible && appContextMenu.app"
+      :x="appContextMenu.x"
+      :y="appContextMenu.y"
+      :app="appContextMenu.app"
+      @close="appContextMenu.visible = false"
     />
 
     <!-- 右下角 resize 手柄 -->
@@ -49,6 +58,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import AppList from './components/AppList/AppList.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
+import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import { useAppsStore } from './stores/useApps'
 import { useTilesStore } from './stores/useTiles'
 
@@ -61,6 +71,14 @@ const contextMenu = ref({
   x: 0,
   y: 0,
   tileId: ''
+})
+
+// 左侧程序列表右键菜单
+const appContextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  app: null as AppItem | null
 })
 
 // 左侧列表宽度（可拖拽调整）
@@ -146,6 +164,17 @@ window.openTileContextMenu = (x: number, y: number, tileId: string) => {
 
 window.showInputDialog = showInputDialog
 
+// 左侧程序列表右键菜单
+window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
+  const menuWidth = 200
+  const menuHeight = 200
+  const maxX = window.innerWidth - menuWidth - 4
+  const maxY = window.innerHeight - menuHeight - 4
+  const adjustedX = Math.min(x, maxX)
+  const adjustedY = Math.min(y, maxY)
+  appContextMenu.value = { visible: true, x: adjustedX, y: adjustedY, app }
+}
+
 onMounted(async () => {
   // 加载数据
   await Promise.all([appsStore.loadApps(), tilesStore.loadLayout()])
@@ -160,6 +189,21 @@ onMounted(async () => {
   })
 
   window.addEventListener('keydown', handleKeydown)
+
+  // 点击任意位置关闭右键菜单
+  const handleGlobalClick = () => {
+    if (contextMenu.value.visible) {
+      contextMenu.value.visible = false
+    }
+    if (appContextMenu.value.visible) {
+      appContextMenu.value.visible = false
+    }
+  }
+  document.addEventListener('mousedown', handleGlobalClick)
+
+  onUnmounted(() => {
+    document.removeEventListener('mousedown', handleGlobalClick)
+  })
 })
 
 onUnmounted(() => {
