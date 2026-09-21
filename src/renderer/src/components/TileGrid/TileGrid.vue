@@ -71,8 +71,7 @@ function handleGridDragOver(e: DragEvent) {
   if (!grid) return
 
   const rect = grid.getBoundingClientRect()
-  const cellSize = 76 // tile-small(70) + tile-gap(6)
-  const gap = 6
+  const cellSize = 76 // tile-small(70) + gap(6)
 
   const col = Math.floor((e.clientX - rect.left) / cellSize)
   const row = Math.floor((e.clientY - rect.top) / cellSize)
@@ -84,8 +83,8 @@ function handleGridDragOver(e: DragEvent) {
     position: 'fixed',
     left: `${rect.left + col * cellSize}px`,
     top: `${rect.top + row * cellSize}px`,
-    width: `${span.col * cellSize - gap}px`,
-    height: `${span.row * cellSize - gap}px`,
+    width: `${span.col * cellSize}px`,
+    height: `${span.row * cellSize}px`,
     background: 'rgba(0, 120, 215, 0.2)',
     border: '2px solid var(--accent-color)',
     borderRadius: '2px',
@@ -295,11 +294,11 @@ function addGroup() {
   align-content: start;
 }
 
-/* 拖拽时显示浅网格线（对齐到磁贴边缘/gap） */
+/* 拖拽时显示浅网格线（对齐到单元格起点=磁贴左边缘） */
 .tile-grid-inner.dragging {
   background-image:
-    linear-gradient(90deg, transparent 70px, rgba(255, 255, 255, 0.08) 70px, rgba(255, 255, 255, 0.08) 71px, transparent 71px),
-    linear-gradient(0deg, transparent 70px, rgba(255, 255, 255, 0.08) 70px, rgba(255, 255, 255, 0.08) 71px, transparent 71px);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
   background-size: 76px 76px;
   border-radius: 2px;
 }
