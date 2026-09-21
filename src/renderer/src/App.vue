@@ -161,7 +161,7 @@ function startDrag(e: MouseEvent) {
   const onMouseMove = (e: MouseEvent) => {
     if (!isDragging.value) return
     const delta = e.clientX - startX
-    const newWidth = Math.max(200, Math.min(450, startWidth + delta))
+    const newWidth = Math.max(200, Math.min(420, startWidth + delta))
     appListWidth.value = newWidth
   }
 
@@ -339,6 +339,7 @@ onUnmounted(() => {
 
 .tile-grid-panel {
   flex: 1;
+  min-width: 450px; /* 1组宽度：6列×70px + 5gap×6px */
   overflow: hidden;
   display: flex;
   flex-direction: column;

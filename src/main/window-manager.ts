@@ -22,13 +22,13 @@ export class WindowManager {
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
 
     // Win10 开始菜单默认尺寸：宽 ~640px，高 ~720px
-    const winWidth = 640
+    const winWidth = 720
     const winHeight = Math.min(720, screenHeight - 60)
 
     this.startMenuWindow = new BrowserWindow({
       width: winWidth,
       height: winHeight,
-      minWidth: 500,
+      minWidth: 660,
       minHeight: 500,
       maxWidth: 1200,
       maxHeight: 900,
