@@ -249,7 +249,7 @@ function addGroup() {
 
 .tile-group-section {
   flex-shrink: 0;
-  width: 460px; /* 6列磁贴450 + 10边距 */
+  width: 480px; /* 6列磁贴450 + 30边距 */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
