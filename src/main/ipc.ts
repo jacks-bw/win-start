@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog } from 'electron'
 import type { WindowManager } from './window-manager'
 import { scanStartMenu } from './scanner'
 import { launchApp, showInFolder, uninstallProgram } from './launcher'
@@ -97,5 +97,19 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
   ipcMain.handle('theme:set', (_event, theme: 'light' | 'dark') => {
     store.set('theme', theme)
     return theme
+  })
+
+  // 选择图片
+  ipcMain.handle('dialog:select-image', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+    return result.filePaths[0]
   })
 }

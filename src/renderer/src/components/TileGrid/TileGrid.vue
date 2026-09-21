@@ -40,12 +40,75 @@
       <button class="add-group-btn" @click="addGroup">
         <span>+</span> 新增
       </button>
+      <button class="customize-btn" @click="showWallpaperDialog = true">
+        <span>🎨</span> 自定义
+      </button>
+    </div>
+
+    <!-- 磁贴壁纸设置对话框 -->
+    <div v-if="showWallpaperDialog" class="wallpaper-overlay" @click.self="showWallpaperDialog = false">
+      <div class="wallpaper-dialog">
+        <div class="wallpaper-header">
+          <span>磁贴壁纸设置</span>
+          <button class="close-btn" @click="showWallpaperDialog = false">×</button>
+        </div>
+
+        <div class="wallpaper-body">
+          <!-- 左侧：磁贴布局预览 -->
+          <div class="wallpaper-preview">
+            <div
+              v-for="group in tilesStore.groups"
+              :key="group.id"
+              class="preview-group"
+            >
+              <div class="preview-group-name">{{ group.name }}</div>
+              <div class="preview-grid">
+                <div
+                  v-for="tile in sortedTiles(group)"
+                  :key="tile.id"
+                  class="preview-tile"
+                  :class="`size-${tile.size}`"
+                  :style="{
+                    backgroundImage: tile.background ? `url(${tile.background})` : 'rgba(255,255,255,0.1)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    cursor: 'pointer'
+                  }"
+                  @click="selectedTileId = tile.id"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右侧：操作区 -->
+          <div class="wallpaper-actions">
+            <div v-if="selectedTile" class="selected-tile-info">
+              <div class="tile-name">{{ selectedTileName }}</div>
+              <div class="tile-size">尺寸：{{ sizeName[selectedTile.size] }}</div>
+            </div>
+
+            <button class="action-btn" @click="selectTileImage">
+              📷 选择图片
+            </button>
+            <button
+              v-if="selectedTile?.background"
+              class="action-btn danger"
+              @click="clearTileBackground"
+            >
+              🗑️ 清除背景
+            </button>
+            <button class="action-btn" @click="clearAllBackgrounds">
+              🧹 清除全部背景
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
 import LiveTile from './LiveTile.vue'
@@ -226,6 +289,50 @@ function addGroup() {
     })
   }
 }
+
+// ========== 磁贴壁纸功能 ==========
+const showWallpaperDialog = ref(false)
+const selectedTileId = ref<string | null>(null)
+
+const selectedTile = computed(() => {
+  if (!selectedTileId.value) return null
+  for (const group of tilesStore.groups) {
+    const tile = group.tiles.find((t) => t.id === selectedTileId.value)
+    if (tile) return tile
+  }
+  return null
+})
+
+const selectedTileName = computed(() => {
+  if (!selectedTile.value) return ''
+  const app = appsStore.apps.find((a) => a.id === selectedTile.value!.appId)
+  return app?.name || selectedTile.value.appId
+})
+
+const sizeName: Record<string, string> = {
+  small: '小',
+  medium: '中',
+  wide: '宽',
+  large: '大'
+}
+
+async function selectTileImage() {
+  if (!selectedTileId.value) return
+  const filePath = await window.electronAPI.selectImage()
+  if (filePath) {
+    tilesStore.setTileBackground(selectedTileId.value, filePath)
+  }
+}
+
+function clearTileBackground() {
+  if (selectedTileId.value) {
+    tilesStore.setTileBackground(selectedTileId.value, undefined)
+  }
+}
+
+function clearAllBackgrounds() {
+  tilesStore.clearAllBackgrounds()
+}
 </script>
 
 <style scoped>
@@ -395,5 +502,166 @@ function addGroup() {
 .add-group-btn:hover {
   background: var(--item-hover);
   color: var(--text-primary);
+}
+
+.customize-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  transition: color 0.1s ease;
+}
+
+.customize-btn:hover {
+  background: var(--item-hover);
+  color: var(--text-primary);
+}
+
+/* 磁贴壁纸设置对话框 */
+.wallpaper-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wallpaper-dialog {
+  background: rgba(40, 40, 40, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.wallpaper-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.wallpaper-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.wallpaper-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.preview-group {
+  margin-bottom: 16px;
+}
+
+.preview-group-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 40px);
+  grid-auto-rows: 40px;
+  gap: 4px;
+}
+
+.preview-tile.size-small { grid-column: span 1; grid-row: span 1; }
+.preview-tile.size-medium { grid-column: span 2; grid-row: span 2; }
+.preview-tile.size-wide { grid-column: span 4; grid-row: span 2; }
+.preview-tile.size-large { grid-column: span 4; grid-row: span 4; }
+
+.preview-tile {
+  border-radius: 2px;
+  transition: outline 0.1s ease;
+}
+
+.preview-tile:hover {
+  outline: 2px solid var(--accent-color);
+}
+
+.wallpaper-actions {
+  width: 180px;
+  padding: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-tile-info {
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.tile-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.tile-size {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.action-btn {
+  background: var(--item-hover);
+  border: none;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.action-btn.danger {
+  color: #ff8080;
+}
+
+.action-btn.danger:hover {
+  background: rgba(255, 100, 100, 0.2);
 }
 </style>

@@ -336,6 +336,28 @@ export const useTilesStore = defineStore('tiles', () => {
     tileNotifications.value = sampleNotifications
   }
 
+  // 设置单个磁贴背景
+  function setTileBackground(tileId: string, background: string | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.background = background
+        saveLayout()
+        return
+      }
+    }
+  }
+
+  // 清除所有磁贴背景
+  function clearAllBackgrounds() {
+    for (const group of groups.value) {
+      for (const tile of group.tiles) {
+        tile.background = undefined
+      }
+    }
+    saveLayout()
+  }
+
   function getNotifications(tileId: string): TileNotification[] {
     return tileNotifications.value[tileId] || []
   }
@@ -361,6 +383,8 @@ export const useTilesStore = defineStore('tiles', () => {
     removeGroup,
     moveTile,
     moveTileToGrid,
+    setTileBackground,
+    clearAllBackgrounds,
     getNotifications
   }
 })

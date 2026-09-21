@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTheme: () => ipcRenderer.invoke('theme:get'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('theme:set', theme),
 
+  // 图片选择
+  selectImage: () => ipcRenderer.invoke('dialog:select-image'),
+
   // 事件监听
   onMenuOpen: (callback: () => void) => {
     ipcRenderer.on('menu:open', callback)

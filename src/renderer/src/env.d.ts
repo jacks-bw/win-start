@@ -18,6 +18,7 @@ interface ElectronAPI {
   hideMenu: () => void
   getTheme: () => Promise<'light' | 'dark'>
   setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>
+  selectImage: () => Promise<string | null>
   onMenuOpen: (callback: () => void) => void
   onMenuClose: (callback: () => void) => void
 }
@@ -52,6 +53,7 @@ interface TileItem {
   position: number
   row: number
   col: number
+  background?: string
 }
 
 interface Window {

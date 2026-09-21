@@ -18,7 +18,15 @@
   >
     <div class="tile-inner">
       <!-- 正面 -->
-      <div class="tile-front" :style="{ background: tileColor }">
+      <div
+        class="tile-front"
+        :style="{
+          background: tileColor,
+          backgroundImage: tile.background ? `url(${tile.background})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }"
+      >
         <div class="tile-content" :class="contentLayout">
           <div class="tile-icon">
             <span v-if="appIcon" class="icon-img" :style="{ backgroundImage: `url(${appIcon})` }"></span>
