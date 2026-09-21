@@ -28,7 +28,7 @@ export class WindowManager {
     this.startMenuWindow = new BrowserWindow({
       width: winWidth,
       height: winHeight,
-      minWidth: 760, // 左侧280 + 磁贴区480（一组450 + 30）
+      minWidth: 800, // 左侧280 + 磁贴区520（一组450 + 70）
       minHeight: 500,
       maxWidth: 1350,
       maxHeight: 900,
