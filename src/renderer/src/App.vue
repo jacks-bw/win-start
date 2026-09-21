@@ -1,10 +1,17 @@
 <template>
   <div class="start-menu" :class="{ visible: isVisible }">
     <!-- 左侧：Win7 风格程序列表 -->
-    <AppList class="app-list-panel" />
+    <div class="app-list-panel" :style="{ width: appListWidth + 'px' }">
+      <AppList />
+    </div>
+
+    <!-- 拖拽分割线 -->
+    <div class="resizer" @mousedown="startDrag"></div>
 
     <!-- 右侧：Win10 磁贴区 -->
-    <TileGrid class="tile-grid-panel" />
+    <div class="tile-grid-panel">
+      <TileGrid />
+    </div>
 
     <!-- 右键菜单 -->
     <TileContextMenu
@@ -14,11 +21,28 @@
       :tile-id="contextMenu.tileId"
       @close="contextMenu.visible = false"
     />
+
+    <!-- 自定义确认对话框（替代 prompt） -->
+    <div v-if="inputDialog.visible" class="dialog-overlay" @click.self="closeInputDialog">
+      <div class="dialog-box">
+        <div class="dialog-title">{{ inputDialog.title }}</div>
+        <input
+          v-model="inputDialog.value"
+          class="dialog-input"
+          @keyup.enter="confirmInputDialog"
+          ref="dialogInputRef"
+        />
+        <div class="dialog-buttons">
+          <button class="dialog-btn" @click="closeInputDialog">取消</button>
+          <button class="dialog-btn primary" @click="confirmInputDialog">确定</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import AppList from './components/AppList/AppList.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
@@ -36,6 +60,82 @@ const contextMenu = ref({
   tileId: ''
 })
 
+// 左侧列表宽度（可拖拽调整）
+const appListWidth = ref(280)
+const isDragging = ref(false)
+
+// 自定义输入对话框
+const inputDialog = ref({
+  visible: false,
+  title: '',
+  value: '',
+  callback: null as ((value: string) => void) | null
+})
+const dialogInputRef = ref<HTMLInputElement | null>(null)
+
+// ESC 关闭菜单
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    window.electronAPI.hideMenu()
+  }
+}
+
+// 拖拽调整宽度
+function startDrag(e: MouseEvent) {
+  isDragging.value = true
+  const startX = e.clientX
+  const startWidth = appListWidth.value
+
+  const onMouseMove = (e: MouseEvent) => {
+    if (!isDragging.value) return
+    const delta = e.clientX - startX
+    const newWidth = Math.max(200, Math.min(450, startWidth + delta))
+    appListWidth.value = newWidth
+  }
+
+  const onMouseUp = () => {
+    isDragging.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+// 自定义 prompt 替代
+function showInputDialog(title: string, defaultValue: string, callback: (value: string) => void) {
+  inputDialog.value = {
+    visible: true,
+    title,
+    value: defaultValue,
+    callback
+  }
+  nextTick(() => {
+    dialogInputRef.value?.focus()
+    dialogInputRef.value?.select()
+  })
+}
+
+function closeInputDialog() {
+  inputDialog.value.visible = false
+  inputDialog.value.callback = null
+}
+
+function confirmInputDialog() {
+  if (inputDialog.value.callback && inputDialog.value.value.trim()) {
+    inputDialog.value.callback(inputDialog.value.value.trim())
+  }
+  closeInputDialog()
+}
+
+// 暴露方法给子组件
+window.openTileContextMenu = (x: number, y: number, tileId: string) => {
+  contextMenu.value = { visible: true, x, y, tileId }
+}
+
+window.showInputDialog = showInputDialog
+
 onMounted(async () => {
   // 加载数据
   await Promise.all([appsStore.loadApps(), tilesStore.loadLayout()])
@@ -49,22 +149,11 @@ onMounted(async () => {
     isVisible.value = false
   })
 
-  // 按 ESC 关闭菜单
-  const handleKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      window.electronAPI.hideMenu()
-    }
-  }
   window.addEventListener('keydown', handleKeydown)
+})
 
-  // 暴露右键菜单打开方法给子组件
-  window.openTileContextMenu = (x: number, y: number, tileId: string) => {
-    contextMenu.value = { visible: true, x, y, tileId }
-  }
-
-  onUnmounted(() => {
-    window.removeEventListener('keydown', handleKeydown)
-  })
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -87,13 +176,103 @@ onMounted(async () => {
 }
 
 .app-list-panel {
-  width: var(--app-list-width);
   flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
+  height: 100%;
+}
+
+.resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.resizer:hover,
+.resizer:active {
+  background: var(--accent-color);
 }
 
 .tile-grid-panel {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 对话框样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.dialog-box {
+  background: rgba(45, 45, 45, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-title {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.dialog-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 16px;
+}
+
+.dialog-input:focus {
+  border-color: var(--accent-color);
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-btn {
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.dialog-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dialog-btn.primary {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+.dialog-btn.primary:hover {
+  background: var(--accent-hover);
 }
 </style>

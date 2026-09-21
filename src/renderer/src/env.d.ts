@@ -53,4 +53,10 @@ interface TileItem {
 
 interface Window {
   electronAPI: ElectronAPI
+  openTileContextMenu: (x: number, y: number, tileId: string) => void
+  showInputDialog: (
+    title: string,
+    defaultValue: string,
+    callback: (value: string) => void
+  ) => void
 }

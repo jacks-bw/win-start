@@ -1,11 +1,11 @@
 <template>
-  <div class="user-bar">
-    <div class="user-avatar">
+  <div class="user-bar win7-userbar">
+    <div class="user-avatar-section">
       <div class="avatar-circle">U</div>
       <span class="username">用户</span>
     </div>
-    <div class="power-menu" @click="showPowerMenu = !showPowerMenu">
-      <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor">
+    <div class="power-section" @click="showPowerMenu = !showPowerMenu">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
         <path d="M8 1a.75.75 0 0 1 .75.75V6a.75.75 0 0 1-1.5 0V1.75A.75.75 0 0 1 8 1Zm.75 7V3.75a.75.75 0 0 0-1.5 0V8a3.75 3.75 0 1 0 1.5 0Z" />
       </svg>
     </div>
@@ -13,13 +13,13 @@
     <!-- 电源选项下拉 -->
     <div v-if="showPowerMenu" class="power-dropdown" @click.stop>
       <div class="power-item" @click="powerAction('sleep')">
-        <span>💤</span> 睡眠
+        <span class="power-icon">💤</span> 睡眠
       </div>
       <div class="power-item" @click="powerAction('shutdown')">
-        <span>⏻</span> 关机
+        <span class="power-icon">⏻</span> 关机
       </div>
       <div class="power-item" @click="powerAction('restart')">
-        <span>🔄</span> 重启
+        <span class="power-icon">🔄</span> 重启
       </div>
     </div>
   </div>
@@ -33,88 +33,101 @@ const showPowerMenu = ref(false)
 function powerAction(action: string) {
   showPowerMenu.value = false
   console.log('电源操作:', action)
-  // 实际调用系统 API 时在此实现
 }
 </script>
 
 <style scoped>
+/* Win7 风格用户栏 */
 .user-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
 }
 
-.user-avatar {
+.user-avatar-section {
   display: flex;
   align-items: center;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border-radius: 2px;
   transition: background 0.1s ease;
 }
 
-.user-avatar:hover {
+.user-avatar-section:hover {
   background: var(--item-hover);
 }
 
 .avatar-circle {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
   background: var(--accent-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  margin-right: 10px;
+  margin-right: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .username {
-  font-size: var(--font-size-base);
+  font-size: 12.5px;
+  color: #e0e0e0;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.power-menu {
-  padding: 8px;
+.power-section {
+  padding: 6px 8px;
   cursor: pointer;
   border-radius: 2px;
   transition: background 0.1s ease;
+  color: #ccc;
 }
 
-.power-menu:hover {
+.power-section:hover {
   background: var(--item-hover);
+  color: #fff;
 }
 
 .power-dropdown {
   position: absolute;
   bottom: 100%;
-  right: 16px;
+  right: 8px;
   background: rgba(45, 45, 45, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   padding: 4px 0;
-  min-width: 160px;
+  min-width: 140px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   z-index: 100;
+  margin-bottom: 4px;
 }
 
 .power-item {
   display: flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 6px 12px;
   cursor: pointer;
-  font-size: var(--font-size-base);
+  font-size: 12.5px;
+  color: #e0e0e0;
   transition: background 0.1s ease;
 }
 
 .power-item:hover {
   background: var(--item-hover);
+  color: #fff;
 }
 
-.power-item span {
-  margin-right: 10px;
+.power-icon {
+  margin-right: 8px;
+  font-size: 13px;
 }
 </style>

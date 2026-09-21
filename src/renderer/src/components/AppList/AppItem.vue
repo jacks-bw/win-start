@@ -1,6 +1,6 @@
 <template>
   <div
-    class="app-item"
+    class="app-item win7-item"
     :class="{ pinned: app.pinned }"
     @click="$emit('click')"
     @contextmenu="$emit('contextmenu', $event)"
@@ -10,7 +10,6 @@
       <span v-else class="icon-placeholder">{{ app.name.charAt(0).toUpperCase() }}</span>
     </div>
     <span class="app-name">{{ app.name }}</span>
-    <span v-if="app.pinned" class="pin-indicator">📌</span>
   </div>
 </template>
 
@@ -26,27 +25,31 @@ defineEmits<{
 </script>
 
 <style scoped>
+/* Win7 风格程序项 */
 .app-item {
   display: flex;
   align-items: center;
-  padding: 6px 20px;
+  padding: 5px 20px;
   cursor: pointer;
-  transition: background 0.1s ease;
+  transition: background 0.08s ease;
   position: relative;
+  height: 34px;
 }
 
 .app-item:hover {
-  background: var(--item-hover);
+  background: linear-gradient(to right, rgba(0, 120, 215, 0.3), rgba(0, 120, 215, 0.15));
+  border-left: 3px solid var(--accent-color);
+  padding-left: 17px;
 }
 
 .app-item:active {
-  background: var(--item-active);
+  background: rgba(0, 120, 215, 0.4);
 }
 
 .app-icon {
-  width: 32px;
-  height: 32px;
-  margin-right: 12px;
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -54,37 +57,36 @@ defineEmits<{
 }
 
 .icon-placeholder {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   background: var(--accent-color);
-  border-radius: 4px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 600;
   color: white;
 }
 
 .icon-img {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
 }
 
 .app-name {
-  font-size: var(--font-size-base);
+  font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  color: #e0e0e0;
 }
 
-.pin-indicator {
-  font-size: 10px;
-  margin-left: 8px;
-  opacity: 0.7;
+.app-item:hover .app-name {
+  color: #ffffff;
 }
 </style>

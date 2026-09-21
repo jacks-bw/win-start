@@ -7,7 +7,7 @@
         <button class="edit-group-btn" @click="renameGroup(group)">编辑</button>
       </div>
 
-      <!-- 磁贴网格 -->
+      <!-- 磁贴网格 - 使用 CSS Grid -->
       <div class="tile-grid-inner">
         <LiveTile
           v-for="tile in sortedTiles(group)"
@@ -39,7 +39,6 @@ function sortedTiles(group: TileGroup): TileItem[] {
 }
 
 function handleTileClick(tile: TileItem) {
-  // TODO: 根据 appId 查找并启动对应应用
   console.log('点击磁贴:', tile.appId)
 }
 
@@ -52,25 +51,28 @@ function handleTileContextMenu(e: MouseEvent, tileId: string) {
 }
 
 function renameGroup(group: TileGroup) {
-  const newName = prompt('输入新的分组名称:', group.name)
-  if (newName && newName.trim()) {
-    tilesStore.renameGroup(group.id, newName.trim())
+  if (window.showInputDialog) {
+    window.showInputDialog('重命名分组', group.name, (newName) => {
+      tilesStore.renameGroup(group.id, newName)
+    })
   }
 }
 
 function addGroup() {
-  const name = prompt('输入新分组名称:', '新分组')
-  if (name && name.trim()) {
-    tilesStore.addGroup(name.trim())
+  if (window.showInputDialog) {
+    window.showInputDialog('新建分组', '新分组', (name) => {
+      tilesStore.addGroup(name)
+    })
   }
 }
 </script>
 
 <style scoped>
 .tile-grid {
-  padding: 20px 16px;
+  padding: 16px;
   height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tile-grid::-webkit-scrollbar {
@@ -83,14 +85,14 @@ function addGroup() {
 }
 
 .tile-group-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .group-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding: 0 4px;
 }
 
@@ -116,11 +118,26 @@ function addGroup() {
   color: var(--text-primary);
 }
 
+/* CSS Grid 磁贴布局 - 基于 Win10 真实网格 */
 .tile-grid-inner {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--tile-medium));
   gap: var(--tile-gap);
-  align-content: flex-start;
+  align-content: start;
+}
+
+/* 磁贴尺寸通过 LiveTile 组件内部类控制 grid-column-span */
+.tile-grid-inner > * {
+  grid-column: span 1;
+}
+
+.tile-grid-inner > .size-wide {
+  grid-column: span 2;
+}
+
+.tile-grid-inner > .size-large {
+  grid-column: span 2;
+  grid-row: span 2;
 }
 
 .add-group-section {

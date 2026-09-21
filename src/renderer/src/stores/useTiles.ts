@@ -39,7 +39,9 @@ export const useTilesStore = defineStore('tiles', () => {
 
   async function saveLayout() {
     try {
-      await window.electronAPI.saveTileLayout({ groups: groups.value })
+      // 序列化为纯对象，避免 Vue 响应式 Proxy 导致 IPC 克隆失败
+      const plainGroups = JSON.parse(JSON.stringify(groups.value))
+      await window.electronAPI.saveTileLayout({ groups: plainGroups })
     } catch (err) {
       console.error('保存磁贴布局失败:', err)
     }
