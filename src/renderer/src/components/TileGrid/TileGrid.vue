@@ -157,23 +157,31 @@ function addGroup() {
 /* CSS Grid 磁贴布局 - 基于 Win10 真实网格 */
 .tile-grid-inner {
   display: grid;
-  grid-template-columns: repeat(auto-fill, var(--tile-medium));
+  /* 以小磁贴为最小网格单位：小磁贴宽度 + gap */
+  grid-template-columns: repeat(auto-fill, calc(var(--tile-small) + var(--tile-gap)));
   gap: var(--tile-gap);
   align-content: start;
 }
 
-/* 磁贴尺寸通过 LiveTile 组件内部类控制 grid-column-span */
-.tile-grid-inner > * {
+/* 磁贴尺寸对应的网格跨度（以小磁贴为单位） */
+.tile-grid-inner > .size-small {
   grid-column: span 1;
+  grid-row: span 1;
+}
+
+.tile-grid-inner > .size-medium {
+  grid-column: span 2;
+  grid-row: span 2;
 }
 
 .tile-grid-inner > .size-wide {
-  grid-column: span 2;
+  grid-column: span 4;
+  grid-row: span 2;
 }
 
 .tile-grid-inner > .size-large {
-  grid-column: span 2;
-  grid-row: span 2;
+  grid-column: span 4;
+  grid-row: span 4;
 }
 
 .add-group-section {

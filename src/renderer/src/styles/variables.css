@@ -15,11 +15,11 @@
   --accent-color: #0078d7;
   --accent-hover: #0063a1;
 
-  /* 磁贴尺寸 */
+  /* 磁贴尺寸 - 以小磁贴为最小网格单位 */
   --tile-small: 70px;
-  --tile-medium: 150px;
-  --tile-wide: 310px;
-  --tile-large: 310px;
+  --tile-medium: 146px;
+  --tile-wide: 298px;
+  --tile-large: 298px;
   --tile-gap: 6px;
 
   /* 字体 */
