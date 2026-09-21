@@ -1,11 +1,18 @@
 <template>
   <div
     class="tile-container"
-    :class="[`size-${tile.size}`, { flipped: isFlipped, dragging: isDragging }]"
+    :class="[
+      `size-${tile.size}`,
+      {
+        flipped: isFlipped,
+        dragging: isDragging,
+        'drag-target': isDragTarget
+      }
+    ]"
     draggable="true"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
-    @dragover.prevent
+    @dragover.prevent="handleDragOver"
     @drop="handleDrop"
     @click="$emit('click')"
     @contextmenu="$emit('contextmenu', $event)"
@@ -61,6 +68,14 @@ const isFlipped = ref(false)
 const isDragging = ref(false)
 let flipInterval: ReturnType<typeof setInterval> | null = null
 
+// 当前是否是拖拽的目标位置
+const isDragTarget = computed(
+  () =>
+    tilesStore.draggingTileId !== null &&
+    tilesStore.draggingTileId !== props.tile.id &&
+    tilesStore.dragTargetId === props.tile.id
+)
+
 // 拖拽事件
 function handleDragStart(e: DragEvent) {
   isDragging.value = true
@@ -68,10 +83,18 @@ function handleDragStart(e: DragEvent) {
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
   }
+  tilesStore.setDraggingTile(props.tile.id)
 }
 
 function handleDragEnd() {
   isDragging.value = false
+  tilesStore.setDraggingTile(null)
+}
+
+function handleDragOver(e: DragEvent) {
+  if (tilesStore.draggingTileId && tilesStore.draggingTileId !== props.tile.id) {
+    tilesStore.setDragTarget(props.tile.id)
+  }
 }
 
 function handleDrop(e: DragEvent) {
@@ -80,6 +103,7 @@ function handleDrop(e: DragEvent) {
   if (dragTileId && dragTileId !== props.tile.id) {
     tilesStore.moveTile(dragTileId, props.tile.id)
   }
+  tilesStore.setDraggingTile(null)
 }
 
 // 根据 appId 获取显示名称和图标
@@ -182,6 +206,14 @@ onUnmounted(() => {
 .tile-container.dragging {
   opacity: 0.4;
   transform: scale(0.95);
+}
+
+/* 拖拽目标位置高亮 */
+.tile-container.drag-target {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+  background: rgba(0, 120, 215, 0.15);
+  border-radius: 2px;
 }
 
 /* 四种尺寸 - 大小由 Grid 布局控制，磁贴填充单元格 */

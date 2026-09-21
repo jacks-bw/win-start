@@ -11,7 +11,7 @@
       </div>
 
       <!-- 磁贴网格 - 使用 CSS Grid -->
-      <div class="tile-grid-inner">
+      <div class="tile-grid-inner" :class="{ dragging: tilesStore.draggingTileId !== null }">
         <LiveTile
           v-for="tile in sortedTiles(group)"
           :key="tile.id"
@@ -224,6 +224,16 @@ function addGroup() {
   grid-auto-flow: dense;
   gap: var(--tile-gap);
   align-content: start;
+}
+
+/* 拖拽时显示浅网格线 */
+.tile-grid-inner.dragging {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size:
+    calc(var(--tile-small) + var(--tile-gap)) calc(var(--tile-small) + var(--tile-gap));
+  border-radius: 2px;
 }
 
 /* 磁贴尺寸对应的网格跨度（以小磁贴为单位） */
