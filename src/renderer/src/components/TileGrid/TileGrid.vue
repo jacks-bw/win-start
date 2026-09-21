@@ -326,6 +326,7 @@ function addGroup() {
   grid-auto-rows: var(--tile-small);
   gap: var(--tile-gap);
   align-content: start;
+  min-height: 200px; /* 空分组也有足够高度接收拖拽 */
 }
 
 /* 拖拽时显示浅网格线（对齐到单元格起点=磁贴左边缘） */
