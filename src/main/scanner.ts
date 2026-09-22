@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import crypto from 'crypto'
-import pinyin from 'pinyin'
+import { pinyin } from 'pinyin'
 
 export interface AppItem {
   id: string
