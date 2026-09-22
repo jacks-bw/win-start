@@ -38,7 +38,6 @@ export class WindowManager {
       show: false,
       frame: false,
       transparent: true,
-      backgroundMaterial: 'acrylic',
       resizable: true,
       movable: false,
       minimizable: false,
@@ -88,13 +87,14 @@ export class WindowManager {
     this.startMenuWindow.focus()
     this.isVisible = true
 
-    // 修复 Windows 透明窗口首次显示时 Acrylic/透明效果不生效的问题
-    // 显示后触发一次重绘，让透明和 Acrylic 效果立即生效
+    // 修复 Windows 透明窗口首次显示时 Acrylic 效果不生效的问题
+    // 窗口显示后延迟设置 backgroundMaterial，确保 Acrylic 正确初始化
+    this.startMenuWindow.setBackgroundMaterial('acrylic')
     setTimeout(() => {
       if (this.startMenuWindow && !this.startMenuWindow.isDestroyed()) {
-        this.startMenuWindow.setBounds({ x: 0, y: screenHeight - height, width, height })
+        this.startMenuWindow.setBackgroundMaterial('acrylic')
       }
-    }, 0)
+    }, 50)
 
     // 通知渲染进程开始菜单已打开
     this.startMenuWindow.webContents.send('menu:open')
