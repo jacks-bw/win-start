@@ -1,4 +1,6 @@
 import { ipcMain, dialog } from 'electron'
+import { readFileSync } from 'fs'
+import { extname } from 'path'
 import type { WindowManager } from './window-manager'
 import { scanStartMenu } from './scanner'
 import { launchApp, showInFolder, uninstallProgram } from './launcher'
@@ -111,6 +113,27 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
       return null
     }
     return result.filePaths[0]
+  })
+
+  // 读取图片并转 base64
+  ipcMain.handle('image:read-base64', async (_event, filePath: string) => {
+    try {
+      const ext = extname(filePath).toLowerCase().replace('.', '')
+      const mimeMap: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        bmp: 'image/bmp',
+        webp: 'image/webp'
+      }
+      const mime = mimeMap[ext] || 'image/png'
+      const data = readFileSync(filePath)
+      return `data:${mime};base64,${data.toString('base64')}`
+    } catch (err) {
+      console.error('读取图片失败:', err)
+      return null
+    }
   })
 
   // 打开壁纸设置窗口

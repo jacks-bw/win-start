@@ -19,6 +19,7 @@ interface ElectronAPI {
   getTheme: () => Promise<'light' | 'dark'>
   setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>
   selectImage: () => Promise<string | null>
+  readImageBase64: (filePath: string) => Promise<string | null>
   openWallpaperWindow: () => Promise<void>
   onMenuOpen: (callback: () => void) => void
   onMenuClose: (callback: () => void) => void

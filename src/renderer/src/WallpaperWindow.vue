@@ -179,15 +179,29 @@ function getTileStyle(tile: TileItem) {
     backgroundPosition: 'center'
   }
   if (tile.background) {
-    style.backgroundImage = `url(file:///${encodeURI(tile.background.replace(/\\/g, '/'))})`
-    if (tile.backgroundCrop) {
-      style.backgroundPosition = `${tile.backgroundCrop.x}px ${tile.backgroundCrop.y}px`
-      style.backgroundSize = `${tile.backgroundCrop.width}px ${tile.backgroundCrop.height}px`
+    // 用缓存的 base64，如果没有就先用路径（会异步加载）
+    const cached = imageCache.get(tile.background)
+    if (cached) {
+      style.backgroundImage = `url(${cached})`
+    } else {
+      style.backgroundColor = 'rgba(255,255,255,0.1)'
+      loadTileBackground(tile.background)
     }
   } else {
     style.backgroundColor = 'rgba(255,255,255,0.1)'
   }
   return style
+}
+
+// 图片缓存
+const imageCache = new Map<string, string>()
+
+async function loadTileBackground(filePath: string) {
+  if (imageCache.has(filePath)) return
+  const base64 = await window.electronAPI.readImageBase64(filePath)
+  if (base64) {
+    imageCache.set(filePath, base64)
+  }
 }
 
 function toggleIcon() {
@@ -206,22 +220,28 @@ async function selectTileImage() {
   if (!selectedTileId.value) return
   const filePath = await window.electronAPI.selectImage()
   if (filePath) {
-    openCropDialog(filePath, 'tile')
+    const base64 = await window.electronAPI.readImageBase64(filePath)
+    if (base64) {
+      openCropDialog(filePath, base64, 'tile')
+    }
   }
 }
 
 async function selectGroupBackground(group: TileGroup) {
   const filePath = await window.electronAPI.selectImage()
   if (filePath) {
-    cropDialog.targetGroupId = group.id
-    openCropDialog(filePath, 'group')
+    const base64 = await window.electronAPI.readImageBase64(filePath)
+    if (base64) {
+      cropDialog.targetGroupId = group.id
+      openCropDialog(filePath, base64, 'group')
+    }
   }
 }
 
-function openCropDialog(filePath: string, mode: 'tile' | 'group') {
+function openCropDialog(filePath: string, imageUrl: string, mode: 'tile' | 'group') {
   cropDialog.visible = true
   cropDialog.imagePath = filePath
-  cropDialog.imageUrl = `file:///${encodeURI(filePath.replace(/\\/g, '/'))}`
+  cropDialog.imageUrl = imageUrl
   cropDialog.mode = mode
   cropDialog.offsetX = 0
   cropDialog.offsetY = 0

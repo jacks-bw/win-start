@@ -22,7 +22,7 @@
         class="tile-front"
         :style="{
           background: tileColor,
-          backgroundImage: tile.background ? `url(file:///${encodeURI(tile.background.replace(/\\/g, '/'))})` : undefined,
+          backgroundImage: backgroundImage.value ? `url(${backgroundImage.value})` : undefined,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }"
@@ -56,9 +56,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
+
+// 图片 base64 缓存
+const imageCache = new Map<string, string>()
 
 const props = defineProps<{
   tile: TileItem
@@ -150,6 +153,28 @@ const tileSize = computed(() => props.tile.size)
 
 const showIcon = computed(() => props.tile.showIcon !== false)
 const showName = computed(() => props.tile.showName !== false)
+
+// 背景图片 base64
+const backgroundImage = ref<string | undefined>(undefined)
+
+async function loadBackground() {
+  if (!props.tile.background) {
+    backgroundImage.value = undefined
+    return
+  }
+  const cached = imageCache.get(props.tile.background)
+  if (cached) {
+    backgroundImage.value = cached
+    return
+  }
+  const base64 = await window.electronAPI.readImageBase64(props.tile.background)
+  if (base64) {
+    imageCache.set(props.tile.background, base64)
+    backgroundImage.value = base64
+  }
+}
+
+watch(() => props.tile.background, loadBackground, { immediate: true })
 
 const contentLayout = computed(() => {
   switch (props.tile.size) {
