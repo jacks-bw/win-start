@@ -1,4 +1,5 @@
 import { BrowserWindow, screen } from 'electron'
+import { AcrylicBrowserWindow } from 'electron-acrylic-window'
 import { join } from 'path'
 import type Store from 'electron-store'
 
@@ -26,7 +27,7 @@ export class WindowManager {
     const winWidth = 740
     const winHeight = Math.min(720, screenHeight - 60)
 
-    this.startMenuWindow = new BrowserWindow({
+    this.startMenuWindow = new AcrylicBrowserWindow({
       width: winWidth,
       height: winHeight,
       minWidth: 800, // 左侧280 + 磁贴区520（一组450 + 70）
@@ -46,6 +47,14 @@ export class WindowManager {
       alwaysOnTop: false,
       fullscreenable: false,
       backgroundColor: '#00000000',
+      vibrancy: 'acrylic',
+      vibrancyOptions: {
+        theme: 'dark',
+        effect: 'acrylic',
+        useCustomWindowRefreshMethod: true,
+        maximumRefreshRate: 60,
+        disableOnBlur: false
+      },
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -80,21 +89,12 @@ export class WindowManager {
 
     const primaryDisplay = screen.getPrimaryDisplay()
     const { height: screenHeight } = primaryDisplay.workAreaSize
-    const [width, height] = this.startMenuWindow.getSize()
+    const [, height] = this.startMenuWindow.getSize()
 
     this.startMenuWindow.setPosition(0, screenHeight - height)
     this.startMenuWindow.show()
     this.startMenuWindow.focus()
     this.isVisible = true
-
-    // 修复 Windows 透明窗口首次显示时 Acrylic 效果不生效的问题
-    // 窗口显示后延迟设置 backgroundMaterial，确保 Acrylic 正确初始化
-    this.startMenuWindow.setBackgroundMaterial('acrylic')
-    setTimeout(() => {
-      if (this.startMenuWindow && !this.startMenuWindow.isDestroyed()) {
-        this.startMenuWindow.setBackgroundMaterial('acrylic')
-      }
-    }, 50)
 
     // 通知渲染进程开始菜单已打开
     this.startMenuWindow.webContents.send('menu:open')

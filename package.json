@@ -13,6 +13,7 @@
     "preview": "electron-vite preview"
   },
   "dependencies": {
+    "electron-acrylic-window": "^0.5.11",
     "electron-store": "^8.2.0",
     "extract-file-icon": "^0.3.2",
     "lucide-vue-next": "^0.577.0",
