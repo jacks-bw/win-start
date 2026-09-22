@@ -318,9 +318,7 @@ onUnmounted(() => {
   display: flex;
   width: 100%;
   height: 100%;
-  background: rgba(32, 32, 32, 0.6);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  background: transparent;
   opacity: 0;
   transform: translateY(20px);
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -335,6 +333,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   height: 100%;
+  background: rgba(32, 32, 32, 0.4);
 }
 
 .resizer {
@@ -357,6 +356,7 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: rgba(32, 32, 32, 0.2);
 }
 
 /* 右下角窗口 resize 手柄 */

@@ -38,6 +38,7 @@ export class WindowManager {
       show: false,
       frame: false,
       transparent: true,
+      backgroundMaterial: 'acrylic',
       resizable: true,
       movable: false,
       minimizable: false,
