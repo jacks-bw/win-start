@@ -39,6 +39,13 @@ interface AppItem {
   group: string
   pinned: boolean
   recentlyAdded: boolean
+  folderId?: string // 所属文件夹ID
+}
+
+interface AppFolder {
+  id: string
+  name: string
+  appIds: string[] // 文件夹里的应用ID
 }
 
 interface TileLayout {

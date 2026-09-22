@@ -12,6 +12,8 @@
           v-for="app in appsStore.recentApps"
           :key="app.id"
           :app="app"
+          draggable="true"
+          @dragstart="handleAppDragStart($event, app)"
           @click="handleLaunch(app)"
           @contextmenu="handleContextMenu($event, app)"
         />
@@ -24,6 +26,8 @@
           v-for="app in appsStore.pinnedAppList"
           :key="app.id"
           :app="app"
+          draggable="true"
+          @dragstart="handleAppDragStart($event, app)"
           @click="handleLaunch(app)"
           @contextmenu="handleContextMenu($event, app)"
         />
@@ -31,13 +35,30 @@
 
       <!-- 所有应用 - 按字母分组 -->
       <div class="section">
-        <div v-if="!appsStore.searchQuery" class="section-title all-apps-title">所有应用</div>
+        <div v-if="!appsStore.searchQuery" class="section-title all-apps-title">
+          所有应用
+          <button class="new-folder-btn" @click="createNewFolder" title="新建文件夹">+ 新建文件夹</button>
+        </div>
+
+        <!-- 文件夹列表 -->
+        <FolderItem
+          v-for="folder in appsStore.folders"
+          :key="folder.id"
+          :folder="folder"
+          @contextmenu="handleFolderContextMenu($event, folder)"
+          @launch-app="handleLaunch"
+          @app-contextmenu="handleContextMenu"
+        />
+
+        <!-- 按字母分组的应用（排除文件夹里的） -->
         <template v-for="group in appsStore.groupedApps" :key="group.group">
           <div class="letter-header">{{ group.group }}</div>
           <AppItem
             v-for="app in group.items"
             :key="app.id"
             :app="app"
+            draggable="true"
+            @dragstart="handleAppDragStart($event, app)"
             @click="handleLaunch(app)"
             @contextmenu="handleContextMenu($event, app)"
           />
@@ -58,6 +79,7 @@
 <script setup lang="ts">
 import SearchBox from './SearchBox.vue'
 import AppItem from './AppItem.vue'
+import FolderItem from './FolderItem.vue'
 import UserBar from './UserBar.vue'
 import { useAppsStore } from '../../stores/useApps'
 
@@ -76,6 +98,62 @@ function handleContextMenu(e: MouseEvent, app: AppItem) {
   e.stopPropagation()
   if (window.openAppContextMenu) {
     window.openAppContextMenu(e.clientX, e.clientY, app)
+  }
+}
+
+function handleAppDragStart(e: DragEvent, app: AppItem) {
+  e.dataTransfer?.setData('text/plain', app.id)
+  e.dataTransfer!.effectAllowed = 'move'
+}
+
+function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
+  e.preventDefault()
+  e.stopPropagation()
+  // 用自定义菜单
+  const menu = document.createElement('div')
+  menu.className = 'folder-context-menu'
+  menu.style.left = `${e.clientX}px`
+  menu.style.top = `${e.clientY}px`
+  menu.innerHTML = `
+    <div class="menu-item" data-action="rename">✏️ 重命名</div>
+    <div class="menu-item danger" data-action="delete">🗑️ 删除文件夹</div>
+  `
+  document.body.appendChild(menu)
+
+  const handleClick = (ev: MouseEvent) => {
+    const target = ev.target as HTMLElement
+    if (target.classList.contains('menu-item')) {
+      const action = target.dataset.action
+      if (action === 'rename') {
+        appsStore.toggleFolder(folder.id)
+        // 触发重命名（通过 FolderItem 的方法比较复杂，这里用 prompt 替代）
+        const newName = prompt('重命名文件夹', folder.name)
+        if (newName && newName.trim()) {
+          appsStore.renameFolder(folder.id, newName.trim())
+        }
+      } else if (action === 'delete') {
+        if (confirm(`确定删除文件夹"${folder.name}"吗？里面的应用会移出来。`)) {
+          appsStore.deleteFolder(folder.id)
+        }
+      }
+    }
+    cleanup()
+  }
+
+  const cleanup = () => {
+    document.removeEventListener('click', handleClick)
+    menu.remove()
+  }
+
+  setTimeout(() => {
+    document.addEventListener('click', handleClick)
+  }, 0)
+}
+
+function createNewFolder() {
+  const name = prompt('输入文件夹名称', '新建文件夹')
+  if (name && name.trim()) {
+    appsStore.createFolder(name.trim())
   }
 }
 </script>
@@ -143,4 +221,60 @@ function handleContextMenu(e: MouseEvent, app: AppItem) {
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+.all-apps-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.new-folder-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: #999;
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.new-folder-btn:hover {
+  background: rgba(0, 120, 215, 0.2);
+  border-color: var(--accent-color);
+  color: #fff;
+}
 </style>
+
+/* 全局右键菜单样式 */
+.folder-context-menu {
+  position: fixed;
+  background: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 140px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+}
+
+.folder-context-menu .menu-item {
+  padding: 8px 16px;
+  font-size: 12.5px;
+  color: #ccc;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.folder-context-menu .menu-item:hover {
+  background: rgba(0, 120, 215, 0.3);
+  color: #fff;
+}
+
+.folder-context-menu .menu-item.danger {
+  color: #ff8080;
+}
+
+.folder-context-menu .menu-item.danger:hover {
+  background: rgba(255, 100, 100, 0.15);
+}
