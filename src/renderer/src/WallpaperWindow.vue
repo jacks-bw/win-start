@@ -66,6 +66,17 @@
 
         <div class="divider"></div>
 
+        <div v-if="hasPendingChanges" class="pending-actions">
+          <div class="pending-hint">有未保存的更改</div>
+          <button class="action-btn primary" @click="savePendingBackgrounds">
+            💾 保存应用
+          </button>
+          <button class="action-btn" @click="cancelPendingChanges">
+            ❌ 取消更改
+          </button>
+          <div class="divider"></div>
+        </div>
+
         <button class="action-btn" @click="clearAllBackgrounds">
           🧹 清除全部背景
         </button>
@@ -155,6 +166,10 @@ const cropDialog = reactive({
   targetTileId: ''
 })
 
+// 待应用的临时背景（预览用，点击保存后才真正应用）
+const pendingBackgrounds = ref<Map<string, string>>(new Map()) // tileId -> filePath
+const hasPendingChanges = ref(false)
+
 // 图片完整 transform（图片左上角定位，计算居中位置）
 const imageTransformStyle = computed(() => {
   if (!cropContainerRef.value || cropDialog.imgWidth === 0) return {}
@@ -195,17 +210,20 @@ const showName = computed(() => selectedTile.value?.showName !== false)
 function getTileStyle(tile: TileItem, group?: TileGroup) {
   // 引用 refreshKey 触发响应式更新
   void refreshKey.value
+  void hasPendingChanges.value
   const style: Record<string, string> = {
     backgroundSize: 'cover',
     backgroundPosition: 'center'
   }
 
+  // 优先显示待应用的临时背景
+  const pendingBg = pendingBackgrounds.value.get(tile.id)
   // 优先用磁贴自己的背景，否则用组背景
-  const bgPath = tile.background || group?.background
+  const bgPath = pendingBg || tile.background || group?.background
 
   if (bgPath) {
-    // 如果是组背景，计算每个磁贴显示图片的不同部分
-    if (!tile.background && group?.background) {
+    // 如果是组背景（且没有磁贴自己的背景和临时背景），计算每个磁贴显示图片的不同部分
+    if (!pendingBg && !tile.background && group?.background) {
       // 计算组的网格范围
       let maxRow = 0
       let maxCol = 0
@@ -498,20 +516,28 @@ const cropBoxStyle = computed(() => ({
 }))
 
 async function confirmCrop() {
-  if (cropDialog.mode === 'tile' && selectedTileId.value) {
-    // 单个磁贴：保存图片路径
-    tilesStore.setTileBackground(selectedTileId.value, cropDialog.imagePath)
+  if (cropDialog.mode === 'tile' && cropDialog.targetTileId) {
+    // 单个磁贴：先截取裁剪框区域，保存到临时状态
+    const base64 = await cropSingleTile()
+    if (base64) {
+      const savedPath = await window.electronAPI.saveImage(base64, `tile-${cropDialog.targetTileId}-${Date.now()}`)
+      if (savedPath) {
+        pendingBackgrounds.value.set(cropDialog.targetTileId, savedPath)
+        hasPendingChanges.value = true
+      }
+    }
   } else if (cropDialog.mode === 'group') {
-    // 组背景：用 canvas 把图片切割成每个磁贴独立的小图
+    // 组背景：切割成每个磁贴独立的小图，保存到临时状态
     await splitImageToTiles()
   }
   cropDialog.visible = false
 }
 
-// 把图片切割成每个磁贴独立的小图（参考 Tile Genie 原理）
-async function splitImageToTiles() {
-  const group = tilesStore.groups.find((g) => g.id === cropDialog.targetGroupId)
-  if (!group || !cropContainerRef.value) return
+// 截取单个磁贴的裁剪框区域
+async function cropSingleTile(): Promise<string | null> {
+  if (!cropContainerRef.value) return null
+  const containerW = cropContainerRef.value.clientWidth
+  const containerH = cropContainerRef.value.clientHeight
 
   // 加载原图
   const img = new Image()
@@ -521,29 +547,50 @@ async function splitImageToTiles() {
     img.onerror = resolve
   })
 
-  const containerW = cropContainerRef.value.clientWidth
-  const containerH = cropContainerRef.value.clientHeight
-
-  // 新的图片定位：图片左上角在容器中的位置
-  // imgLeft = centerX - imgWidth*scale/2 + offsetX
-  // imgTop = centerY - imgHeight*scale/2 + offsetY
-  // 容器坐标转原图坐标：imgX = (containerX - imgLeft) / scale
+  // 图片左上角在容器中的位置
   const scale = cropDialog.scale
-  const centerX = containerW / 2
-  const centerY = containerH / 2
-  const imgLeft = centerX - (img.width * scale) / 2 + cropDialog.offsetX
-  const imgTop = centerY - (img.height * scale) / 2 + cropDialog.offsetY
+  const imgLeft = containerW / 2 - (img.width * scale) / 2 + cropDialog.offsetX
+  const imgTop = containerH / 2 - (img.height * scale) / 2 + cropDialog.offsetY
 
-  const toImgX = (containerX: number) => (containerX - imgLeft) / scale
-  const toImgY = (containerY: number) => (containerY - imgTop) / scale
+  // 创建 canvas，大小等于裁剪框大小
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(cropDialog.cropBox.width)
+  canvas.height = Math.round(cropDialog.cropBox.height)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
 
-  // 裁剪框在原图上的区域
-  const cropImgX = toImgX(cropDialog.cropBox.x)
-  const cropImgY = toImgY(cropDialog.cropBox.y)
-  const cropImgW = toImgX(cropDialog.cropBox.x + cropDialog.cropBox.width) - cropImgX
-  const cropImgH = toImgY(cropDialog.cropBox.y + cropDialog.cropBox.height) - cropImgY
+  // 黑色背景
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  // 计算组的网格范围
+  // 把图片绘制到 canvas 上，只显示裁剪框区域
+  const drawX = imgLeft - cropDialog.cropBox.x
+  const drawY = imgTop - cropDialog.cropBox.y
+  const drawW = img.width * scale
+  const drawH = img.height * scale
+  ctx.drawImage(img, drawX, drawY, drawW, drawH)
+
+  return canvas.toDataURL('image/png')
+}
+
+// 把图片切割成每个磁贴独立的小图（参考 Tile Genie 原理）
+async function splitImageToTiles() {
+  const group = tilesStore.groups.find((g) => g.id === cropDialog.targetGroupId)
+  if (!group) return
+
+  // 第一步：先把裁剪框区域截取成一张完整的图
+  const croppedBase64 = await cropSingleTile()
+  if (!croppedBase64) return
+
+  // 加载截取后的图
+  const croppedImg = new Image()
+  croppedImg.src = croppedBase64
+  await new Promise((resolve) => {
+    croppedImg.onload = resolve
+    croppedImg.onerror = resolve
+  })
+
+  // 第二步：计算组的网格范围
   let maxRow = 0
   let maxCol = 0
   for (const tile of group.tiles) {
@@ -552,65 +599,50 @@ async function splitImageToTiles() {
     maxCol = Math.max(maxCol, tile.col + span.cols)
   }
 
-  // 每个 cell 在原图上的大小
-  const cellW = cropImgW / maxCol
-  const cellH = cropImgH / maxRow
+  // 第三步：按网格切割，每个磁贴对应截取图的一部分
+  const cellW = croppedImg.width / maxCol
+  const cellH = croppedImg.height / maxRow
 
-  // 清除组背景（因为现在每个磁贴有自己独立的背景）
-  tilesStore.setGroupBackground(cropDialog.targetGroupId, undefined)
-
-  // 对每个磁贴，切割对应的图片区域并保存
   for (const tile of group.tiles) {
     const span = sizeSpan[tile.size]
-    const sx = cropImgX + tile.col * cellW
-    const sy = cropImgY + tile.row * cellH
+    const sx = tile.col * cellW
+    const sy = tile.row * cellH
     const sw = span.cols * cellW
     const sh = span.rows * cellH
 
-    // 边界检查
-    if (sx < 0 || sy < 0 || sx + sw > img.width || sy + sh > img.height) {
-      // 超出图片范围的部分用黑色填充
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(sw))
-      canvas.height = Math.max(1, Math.round(sh))
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.fillStyle = '#000'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        // 绘制可见部分
-        const visibleSx = Math.max(0, sx)
-        const visibleSy = Math.max(0, sy)
-        const visibleSw = Math.min(sw, img.width - sx)
-        const visibleSh = Math.min(sh, img.height - sy)
-        if (visibleSw > 0 && visibleSh > 0) {
-          ctx.drawImage(
-            img,
-            visibleSx, visibleSy, visibleSw, visibleSh,
-            visibleSx - sx, visibleSy - sy, visibleSw, visibleSh
-          )
-        }
-        const base64 = canvas.toDataURL('image/png')
-        const savedPath = await window.electronAPI.saveImage(base64, `tile-${tile.id}-${Date.now()}`)
-        if (savedPath) {
-          tilesStore.setTileBackground(tile.id, savedPath)
-        }
-      }
-    } else {
-      // 正常切割
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(sw)
-      canvas.height = Math.round(sh)
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
-        const base64 = canvas.toDataURL('image/png')
-        const savedPath = await window.electronAPI.saveImage(base64, `tile-${tile.id}-${Date.now()}`)
-        if (savedPath) {
-          tilesStore.setTileBackground(tile.id, savedPath)
-        }
-      }
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(sw))
+    canvas.height = Math.max(1, Math.round(sh))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) continue
+
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(croppedImg, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+
+    const base64 = canvas.toDataURL('image/png')
+    const savedPath = await window.electronAPI.saveImage(base64, `tile-${tile.id}-${Date.now()}`)
+    if (savedPath) {
+      pendingBackgrounds.value.set(tile.id, savedPath)
     }
   }
+
+  hasPendingChanges.value = true
+}
+
+// 保存待应用的背景到实际磁贴
+function savePendingBackgrounds() {
+  for (const [tileId, bgPath] of pendingBackgrounds.value) {
+    tilesStore.setTileBackground(tileId, bgPath)
+  }
+  pendingBackgrounds.value.clear()
+  hasPendingChanges.value = false
+}
+
+// 取消待应用的更改
+function cancelPendingChanges() {
+  pendingBackgrounds.value.clear()
+  hasPendingChanges.value = false
 }
 </script>
 
@@ -772,6 +804,30 @@ async function splitImageToTiles() {
 
 .action-btn.danger:hover {
   background: rgba(255, 100, 100, 0.15);
+}
+
+.action-btn.primary {
+  background: #0078d7;
+  color: #fff;
+}
+
+.action-btn.primary:hover {
+  background: #106ebe;
+}
+
+.pending-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pending-hint {
+  font-size: 12px;
+  color: #ffc000;
+  text-align: center;
+  padding: 6px;
+  background: rgba(255, 192, 0, 0.1);
+  border-radius: 4px;
 }
 
 .toggle-section {
