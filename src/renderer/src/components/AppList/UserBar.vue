@@ -1,23 +1,18 @@
 <template>
   <div class="user-bar win7-userbar">
     <div class="user-avatar-section">
-      <div class="avatar-circle">U</div>
+      <div class="avatar-circle"><User :size="20" /></div>
       <span class="username">用户</span>
     </div>
     <div class="user-actions">
       <!-- 设置按钮 -->
       <div class="action-btn" @click="showSettingsMenu = !showSettingsMenu">
-        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-          <path d="M8 4.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5ZM3.5 8a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" />
-          <path d="M8 1.75a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0v-.75A.75.75 0 0 1 8 1.75Zm0 11a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0v-.75a.75.75 0 0 1 .75-.75ZM2.5 8a.75.75 0 0 1-.75.75H1a.75.75 0 0 1 0-1.5h.75A.75.75 0 0 1 2.5 8Zm12.5 0a.75.75 0 0 1-.75.75h-.75a.75.75 0 0 1 0-1.5h.75A.75.75 0 0 1 15 8ZM3.97 3.97a.75.75 0 0 1 1.06 0l.53.53a.75.75 0 0 1-1.06 1.06l-.53-.53a.75.75 0 0 1 0-1.06Zm6.47 6.47a.75.75 0 0 1 1.06 0l.53.53a.75.75 0 0 1-1.06 1.06l-.53-.53a.75.75 0 0 1 0-1.06ZM12.03 3.97a.75.75 0 0 1 0 1.06l-.53.53a.75.75 0 0 1-1.06-1.06l.53-.53a.75.75 0 0 1 1.06 0ZM5.56 10.44a.75.75 0 0 1 0 1.06l-.53.53a.75.75 0 0 1-1.06-1.06l.53-.53a.75.75 0 0 1 1.06 0Z" />
-        </svg>
+        <Settings :size="16" />
       </div>
 
       <!-- 电源按钮 -->
       <div class="action-btn" @click="showPowerMenu = !showPowerMenu">
-        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-          <path d="M8 1a.75.75 0 0 1 .75.75V6a.75.75 0 0 1-1.5 0V1.75A.75.75 0 0 1 8 1Zm.75 7V3.75a.75.75 0 0 0-1.5 0V8a3.75 3.75 0 1 0 1.5 0Z" />
-        </svg>
+        <Power :size="16" />
       </div>
     </div>
 
@@ -48,7 +43,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Plus, Palette, Moon, Power, RotateCcw } from 'lucide-vue-next'
+import { Plus, Palette, Moon, Power, RotateCcw, User, Settings } from 'lucide-vue-next'
 
 const showPowerMenu = ref(false)
 const showSettingsMenu = ref(false)
