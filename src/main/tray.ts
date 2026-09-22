@@ -12,7 +12,10 @@ function getIconPath(): string {
 }
 
 export function createTray(windowManager: WindowManager): void {
-  const icon = nativeImage.createFromPath(getIconPath())
+  const iconPath = getIconPath()
+  const icon = nativeImage.createFromPath(iconPath)
+  console.log('[Tray] Icon path:', iconPath)
+  console.log('[Tray] Icon isEmpty:', icon.isEmpty(), 'size:', icon.getSize())
   tray = new Tray(icon)
 
   const contextMenu = Menu.buildFromTemplate([
