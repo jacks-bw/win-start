@@ -2,6 +2,17 @@
   <div class="wallpaper-window">
     <div class="wallpaper-header">
       <span class="title">磁贴壁纸设置</span>
+      <div class="header-actions">
+        <span v-if="hasPendingChanges" class="pending-dot"></span>
+        <button
+          class="header-save-btn"
+          :class="{ active: hasPendingChanges }"
+          :disabled="!hasPendingChanges"
+          @click="savePendingBackgrounds"
+        >
+          💾 保存应用
+        </button>
+      </div>
     </div>
 
     <div class="wallpaper-body">
@@ -169,14 +180,6 @@
         >
           🗑️ 清除此磁贴背景
         </button>
-
-        <div v-if="hasPendingChanges" class="pending-actions">
-          <div class="pending-hint">有未保存的更改</div>
-          <button class="action-btn primary" @click="savePendingBackgrounds">
-            💾 保存应用
-          </button>
-          <div class="divider"></div>
-        </div>
 
         <button class="action-btn" @click="clearAllBackgrounds">
           🧹 清除全部背景
@@ -989,14 +992,59 @@ function cancelPendingChanges() {
 }
 
 .wallpaper-header {
-  padding: 16px 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: #252525;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .title {
   font-size: 14px;
   font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pending-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffc400;
+  box-shadow: 0 0 6px rgba(255, 196, 0, 0.6);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.header-save-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  color: #888;
+  cursor: not-allowed;
+  transition: all 0.15s ease;
+}
+
+.header-save-btn.active {
+  background: #0078d7;
+  border-color: #0078d7;
+  color: #fff;
+  cursor: pointer;
+}
+
+.header-save-btn.active:hover {
+  background: #106ebe;
 }
 
 .wallpaper-body {
