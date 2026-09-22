@@ -80,20 +80,20 @@
           <button class="close-btn" @click="cropDialog.visible = false">×</button>
         </div>
         <div class="crop-body">
-          <div class="crop-container" ref="cropContainerRef">
+          <div class="crop-container" ref="cropContainerRef" @wheel="onWheelZoom">
             <img
               :src="cropDialog.imageUrl"
               class="crop-image"
               :style="{ transform: `translate(${cropDialog.offsetX}px, ${cropDialog.offsetY}px) scale(${cropDialog.scale})` }"
-              @mousedown="startCropDrag"
+              @mousedown="startImageDrag"
               draggable="false"
             />
             <div class="crop-overlay-mask">
-              <div class="crop-box" :style="cropBoxStyle">
-                <div class="crop-corner tl" @mousedown="startResize('tl', $event)"></div>
-                <div class="crop-corner tr" @mousedown="startResize('tr', $event)"></div>
-                <div class="crop-corner bl" @mousedown="startResize('bl', $event)"></div>
-                <div class="crop-corner br" @mousedown="startResize('br', $event)"></div>
+              <div class="crop-box" :style="cropBoxStyle" @mousedown="startCropBoxDrag">
+                <div class="crop-corner tl" @mousedown.stop="startResize('tl', $event)"></div>
+                <div class="crop-corner tr" @mousedown.stop="startResize('tr', $event)"></div>
+                <div class="crop-corner bl" @mousedown.stop="startResize('bl', $event)"></div>
+                <div class="crop-corner br" @mousedown.stop="startResize('br', $event)"></div>
               </div>
             </div>
           </div>
@@ -272,36 +272,74 @@ function clearAllBackgrounds() {
   tilesStore.clearAllBackgrounds()
 }
 
-// 裁剪框拖动
-let isDragging = false
-let dragStartX = 0
-let dragStartY = 0
-let cropStartX = 0
-let cropStartY = 0
+// 图片拖动
+let isImageDragging = false
+let imageDragStartX = 0
+let imageDragStartY = 0
+let imageStartOffsetX = 0
+let imageStartOffsetY = 0
 
-function startCropDrag(e: MouseEvent) {
-  isDragging = true
-  dragStartX = e.clientX
-  dragStartY = e.clientY
-  cropStartX = cropDialog.offsetX
-  cropStartY = cropDialog.offsetY
-  window.addEventListener('mousemove', onCropDrag)
-  window.addEventListener('mouseup', stopCropDrag)
+function startImageDrag(e: MouseEvent) {
+  e.preventDefault()
+  isImageDragging = true
+  imageDragStartX = e.clientX
+  imageDragStartY = e.clientY
+  imageStartOffsetX = cropDialog.offsetX
+  imageStartOffsetY = cropDialog.offsetY
+  window.addEventListener('mousemove', onImageDrag)
+  window.addEventListener('mouseup', stopImageDrag)
 }
 
-function onCropDrag(e: MouseEvent) {
-  if (!isDragging) return
-  cropDialog.offsetX = cropStartX + (e.clientX - dragStartX)
-  cropDialog.offsetY = cropStartY + (e.clientY - dragStartY)
+function onImageDrag(e: MouseEvent) {
+  if (!isImageDragging) return
+  cropDialog.offsetX = imageStartOffsetX + (e.clientX - imageDragStartX)
+  cropDialog.offsetY = imageStartOffsetY + (e.clientY - imageDragStartY)
 }
 
-function stopCropDrag() {
-  isDragging = false
-  window.removeEventListener('mousemove', onCropDrag)
-  window.removeEventListener('mouseup', stopCropDrag)
+function stopImageDrag() {
+  isImageDragging = false
+  window.removeEventListener('mousemove', onImageDrag)
+  window.removeEventListener('mouseup', stopImageDrag)
 }
 
-// 裁剪框缩放
+// 裁剪框整体拖动
+let isCropBoxDragging = false
+let cropBoxDragStartX = 0
+let cropBoxDragStartY = 0
+let cropBoxStartX = 0
+let cropBoxStartY = 0
+
+function startCropBoxDrag(e: MouseEvent) {
+  e.preventDefault()
+  isCropBoxDragging = true
+  cropBoxDragStartX = e.clientX
+  cropBoxDragStartY = e.clientY
+  cropBoxStartX = cropDialog.cropBox.x
+  cropBoxStartY = cropDialog.cropBox.y
+  window.addEventListener('mousemove', onCropBoxDrag)
+  window.addEventListener('mouseup', stopCropBoxDrag)
+}
+
+function onCropBoxDrag(e: MouseEvent) {
+  if (!isCropBoxDragging) return
+  cropDialog.cropBox.x = cropBoxStartX + (e.clientX - cropBoxDragStartX)
+  cropDialog.cropBox.y = cropBoxStartY + (e.clientY - cropBoxDragStartY)
+}
+
+function stopCropBoxDrag() {
+  isCropBoxDragging = false
+  window.removeEventListener('mousemove', onCropBoxDrag)
+  window.removeEventListener('mouseup', stopCropBoxDrag)
+}
+
+// 鼠标滚轮缩放
+function onWheelZoom(e: WheelEvent) {
+  e.preventDefault()
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  cropDialog.scale = Math.max(0.1, Math.min(5, cropDialog.scale + delta))
+}
+
+// 裁剪框四角缩放
 let isResizing = false
 let resizeCorner = ''
 let resizeStartX = 0
@@ -634,6 +672,8 @@ function applyGroupBackground() {
   border-radius: 4px;
   overflow: hidden;
   cursor: move;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .crop-image {
@@ -660,6 +700,7 @@ function applyGroupBackground() {
   border: 2px solid #0078d7;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
+  cursor: move;
 }
 
 .crop-corner {
