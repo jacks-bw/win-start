@@ -162,69 +162,63 @@ const sizeSpanMap: Record<string, { rows: number; cols: number }> = {
   large: { rows: 4, cols: 4 }
 }
 
-// 组背景样式
-const groupBackgroundStyle = computed(() => {
-  if (!props.group?.background) return null
+// 当前使用的背景路径（磁贴自己的优先，否则用组的）
+const currentBgPath = computed(() => props.tile.background || props.group?.background)
 
-  // 计算组的网格范围
-  let maxRow = 0
-  let maxCol = 0
-  for (const t of props.group.tiles) {
-    const span = sizeSpanMap[t.size]
-    maxRow = Math.max(maxRow, t.row + span.rows)
-    maxCol = Math.max(maxCol, t.col + span.cols)
+// 是否使用组背景
+const useGroupBg = computed(() => !props.tile.background && !!props.group?.background)
+
+// 背景样式（组背景时每个磁贴显示图片不同部分）
+const backgroundStyle = computed(() => {
+  if (useGroupBg.value && props.group) {
+    // 计算组的网格范围
+    let maxRow = 0
+    let maxCol = 0
+    for (const t of props.group.tiles) {
+      const span = sizeSpanMap[t.size]
+      maxRow = Math.max(maxRow, t.row + span.rows)
+      maxCol = Math.max(maxCol, t.col + span.cols)
+    }
+
+    const cellSize = 76 // 每个格子的大小（70内容+6gap）
+    const groupWidth = maxCol * cellSize
+    const groupHeight = maxRow * cellSize
+    const offsetX = -(props.tile.col * cellSize)
+    const offsetY = -(props.tile.row * cellSize)
+
+    return {
+      backgroundSize: `${groupWidth}px ${groupHeight}px`,
+      backgroundPosition: `${offsetX}px ${offsetY}px`,
+      backgroundRepeat: 'no-repeat'
+    }
   }
-
-  const cellSize = 76 // 每个格子的大小（70内容+6gap）
-  const groupWidth = maxCol * cellSize
-  const groupHeight = maxRow * cellSize
-
-  const span = sizeSpanMap[props.tile.size]
-  const offsetX = -(props.tile.col * cellSize)
-  const offsetY = -(props.tile.row * cellSize)
-
   return {
-    backgroundSize: `${groupWidth}px ${groupHeight}px`,
-    backgroundPosition: `${offsetX}px ${offsetY}px`
+    backgroundSize: 'cover',
+    backgroundPosition: 'center'
   }
 })
 
 // 背景图片 base64
 const backgroundImage = ref<string | undefined>(undefined)
-const backgroundStyle = ref<Record<string, string>>({})
 
 async function loadBackground() {
-  // 优先用磁贴自己的背景，否则用组背景
-  const bgPath = props.tile.background || props.group?.background
-  if (!bgPath) {
+  if (!currentBgPath.value) {
     backgroundImage.value = undefined
-    backgroundStyle.value = {}
     return
   }
-
-  // 如果是组背景，设置特殊的 background-size 和 position
-  if (!props.tile.background && props.group?.background && groupBackgroundStyle.value) {
-    backgroundStyle.value = groupBackgroundStyle.value
-  } else {
-    backgroundStyle.value = {
-      backgroundSize: 'cover',
-      backgroundPosition: 'center'
-    }
-  }
-
-  const cached = imageCache.get(bgPath)
+  const cached = imageCache.get(currentBgPath.value)
   if (cached) {
     backgroundImage.value = cached
     return
   }
-  const base64 = await window.electronAPI.readImageBase64(bgPath)
+  const base64 = await window.electronAPI.readImageBase64(currentBgPath.value)
   if (base64) {
-    imageCache.set(bgPath, base64)
+    imageCache.set(currentBgPath.value, base64)
     backgroundImage.value = base64
   }
 }
 
-watch([() => props.tile.background, () => props.group?.background], loadBackground, { immediate: true })
+watch(currentBgPath, loadBackground, { immediate: true })
 
 const contentLayout = computed(() => {
   switch (props.tile.size) {

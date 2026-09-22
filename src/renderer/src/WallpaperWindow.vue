@@ -270,20 +270,34 @@ function openCropDialog(filePath: string, imageUrl: string, mode: 'tile' | 'grou
   cropDialog.offsetX = 0
   cropDialog.offsetY = 0
   cropDialog.scale = 1
-  // 默认裁剪框居中
-  setTimeout(() => {
-    if (cropContainerRef.value) {
-      const w = cropContainerRef.value.clientWidth
-      const h = cropContainerRef.value.clientHeight
-      const size = Math.min(w, h) * 0.6
-      cropDialog.cropBox = {
-        x: (w - size) / 2,
-        y: (h - size) / 2,
-        width: size,
-        height: size
-      }
+
+  // 等图片加载完成后，自动缩放到容器中间
+  const img = new Image()
+  img.onload = () => {
+    if (!cropContainerRef.value) return
+    const containerW = cropContainerRef.value.clientWidth
+    const containerH = cropContainerRef.value.clientHeight
+
+    // 计算缩放比例，让图片适应容器（contain）
+    const scaleX = containerW / img.width
+    const scaleY = containerH / img.height
+    const scale = Math.min(scaleX, scaleY)
+
+    cropDialog.scale = scale
+    // 图片已经通过 CSS top:50%, left:50% 居中，offset 设为 0
+    cropDialog.offsetX = 0
+    cropDialog.offsetY = 0
+
+    // 默认裁剪框居中，大小为容器的 60%
+    const size = Math.min(containerW, containerH) * 0.6
+    cropDialog.cropBox = {
+      x: (containerW - size) / 2,
+      y: (containerH - size) / 2,
+      width: size,
+      height: size
     }
-  }, 100)
+  }
+  img.src = imageUrl
 }
 
 function clearTileBackground() {
