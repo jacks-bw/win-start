@@ -275,7 +275,7 @@ window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
 
 onMounted(async () => {
   // 加载数据
-  await Promise.all([appsStore.loadApps(), tilesStore.loadLayout(), settingsStore.loadOpacity()])
+  await Promise.all([appsStore.loadApps(), tilesStore.loadLayout()])
 
   // 监听菜单打开/关闭事件
   window.electronAPI.onMenuOpen(() => {
