@@ -318,7 +318,7 @@ onUnmounted(() => {
   display: flex;
   width: 100%;
   height: 100%;
-  background: var(--bg-dark);
+  background: rgba(32, 32, 32, 0.6);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   opacity: 0;

@@ -37,6 +37,7 @@ export class WindowManager {
       y: screenHeight - winHeight,
       show: false,
       frame: false,
+      transparent: true,
       resizable: true,
       movable: false,
       minimizable: false,
