@@ -35,7 +35,24 @@
                 ...getTileStyle(tile, group)
               }"
               @click="selectedTileId = tile.id"
-            ></div>
+            >
+              <div class="preview-tile-content" :class="previewContentLayout(tile.size)">
+                <div v-if="tile.showIcon !== false" class="preview-tile-icon">
+                  <component
+                    v-if="getCustomIconComponent(tile.customIcon)"
+                    :is="getCustomIconComponent(tile.customIcon)"
+                    :size="previewIconSize(tile.size)"
+                    :color="tile.iconColor || '#fff'"
+                    :stroke-width="2"
+                  />
+                  <span v-else-if="getAppIcon(tile.appId)" class="preview-icon-img" :style="{ backgroundImage: `url(${getAppIcon(tile.appId)})` }"></span>
+                  <span v-else class="preview-icon-placeholder">{{ getAppName(tile.appId).charAt(0) }}</span>
+                </div>
+                <div v-if="tile.showName !== false && tile.size !== 'small'" class="preview-tile-text">
+                  <div class="preview-tile-title" :style="{ color: tile.nameColor || undefined }">{{ getAppName(tile.appId) }}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -364,6 +381,50 @@ const imageTransformStyle = computed(() => {
 
 function sortedTiles(group: TileGroup) {
   return [...group.tiles].sort((a, b) => a.row * 100 + a.col - (b.row * 100 + b.col))
+}
+
+// 获取应用名称
+function getAppName(appId: string): string {
+  const app = appsStore.apps.find((a) => a.id === appId)
+  return app?.name || appId
+}
+
+// 获取应用图标
+function getAppIcon(appId: string): string {
+  const app = appsStore.apps.find((a) => a.id === appId)
+  return app?.icon || ''
+}
+
+// 获取自定义 icon 组件
+function getCustomIconComponent(iconName?: string) {
+  if (!iconName) return null
+  const componentName = iconName
+    .split('-')
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join('')
+  return (LucideIcons as Record<string, unknown>)[componentName] || null
+}
+
+// 预览 icon 尺寸
+function previewIconSize(size: string): number {
+  switch (size) {
+    case 'small': return 24
+    case 'medium': return 32
+    case 'wide': return 32
+    case 'large': return 40
+    default: return 32
+  }
+}
+
+// 预览内容布局
+function previewContentLayout(size: string): string {
+  switch (size) {
+    case 'small': return 'center-icon'
+    case 'medium': return 'bottom-left'
+    case 'wide': return 'bottom-left'
+    case 'large': return 'top-left'
+    default: return 'bottom-left'
+  }
 }
 
 const selectedTile = computed(() => {
@@ -974,6 +1035,74 @@ function cancelPendingChanges() {
 .preview-tile.selected {
   border-color: #0078d7;
   box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.3);
+}
+
+.preview-tile-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.preview-tile-content.center-icon {
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-tile-content.bottom-left {
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.preview-tile-content.top-left {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.preview-tile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-icon-img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.preview-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.preview-tile-text {
+  margin-top: 4px;
+}
+
+.preview-tile-title {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .wallpaper-actions {
