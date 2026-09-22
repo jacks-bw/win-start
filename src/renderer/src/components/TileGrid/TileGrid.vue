@@ -21,6 +21,7 @@
           v-for="tile in sortedTiles(group)"
           :key="tile.id"
           :tile="tile"
+          :group="group"
           :style="{ gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`, gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}` }"
           @click="handleTileClick(tile)"
           @contextmenu="handleTileContextMenu($event, tile.id)"

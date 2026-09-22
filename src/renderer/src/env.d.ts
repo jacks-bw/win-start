@@ -45,6 +45,8 @@ interface TileGroup {
   id: string
   name: string
   tiles: TileItem[]
+  background?: string
+  backgroundCrop?: { x: number; y: number; width: number; height: number }
 }
 
 interface TileItem {

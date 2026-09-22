@@ -23,8 +23,7 @@
         :style="{
           background: tileColor,
           backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
+          ...backgroundStyle
         }"
       >
         <div class="tile-content" :class="contentLayout">
@@ -65,6 +64,7 @@ const imageCache = new Map<string, string>()
 
 const props = defineProps<{
   tile: TileItem
+  group?: TileGroup
 }>()
 
 defineEmits<{
@@ -154,27 +154,77 @@ const tileSize = computed(() => props.tile.size)
 const showIcon = computed(() => props.tile.showIcon !== false)
 const showName = computed(() => props.tile.showName !== false)
 
+// 尺寸映射
+const sizeSpanMap: Record<string, { rows: number; cols: number }> = {
+  small: { rows: 1, cols: 1 },
+  medium: { rows: 2, cols: 2 },
+  wide: { rows: 2, cols: 4 },
+  large: { rows: 4, cols: 4 }
+}
+
+// 组背景样式
+const groupBackgroundStyle = computed(() => {
+  if (!props.group?.background) return null
+
+  // 计算组的网格范围
+  let maxRow = 0
+  let maxCol = 0
+  for (const t of props.group.tiles) {
+    const span = sizeSpanMap[t.size]
+    maxRow = Math.max(maxRow, t.row + span.rows)
+    maxCol = Math.max(maxCol, t.col + span.cols)
+  }
+
+  const cellSize = 76 // 每个格子的大小（70内容+6gap）
+  const groupWidth = maxCol * cellSize
+  const groupHeight = maxRow * cellSize
+
+  const span = sizeSpanMap[props.tile.size]
+  const offsetX = -(props.tile.col * cellSize)
+  const offsetY = -(props.tile.row * cellSize)
+
+  return {
+    backgroundSize: `${groupWidth}px ${groupHeight}px`,
+    backgroundPosition: `${offsetX}px ${offsetY}px`
+  }
+})
+
 // 背景图片 base64
 const backgroundImage = ref<string | undefined>(undefined)
+const backgroundStyle = ref<Record<string, string>>({})
 
 async function loadBackground() {
-  if (!props.tile.background) {
+  // 优先用磁贴自己的背景，否则用组背景
+  const bgPath = props.tile.background || props.group?.background
+  if (!bgPath) {
     backgroundImage.value = undefined
+    backgroundStyle.value = {}
     return
   }
-  const cached = imageCache.get(props.tile.background)
+
+  // 如果是组背景，设置特殊的 background-size 和 position
+  if (!props.tile.background && props.group?.background && groupBackgroundStyle.value) {
+    backgroundStyle.value = groupBackgroundStyle.value
+  } else {
+    backgroundStyle.value = {
+      backgroundSize: 'cover',
+      backgroundPosition: 'center'
+    }
+  }
+
+  const cached = imageCache.get(bgPath)
   if (cached) {
     backgroundImage.value = cached
     return
   }
-  const base64 = await window.electronAPI.readImageBase64(props.tile.background)
+  const base64 = await window.electronAPI.readImageBase64(bgPath)
   if (base64) {
-    imageCache.set(props.tile.background, base64)
+    imageCache.set(bgPath, base64)
     backgroundImage.value = base64
   }
 }
 
-watch(() => props.tile.background, loadBackground, { immediate: true })
+watch([() => props.tile.background, () => props.group?.background], loadBackground, { immediate: true })
 
 const contentLayout = computed(() => {
   switch (props.tile.size) {

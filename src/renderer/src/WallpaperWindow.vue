@@ -24,7 +24,7 @@
               :key="tile.id"
               class="preview-tile"
               :class="[`size-${tile.size}`, { selected: selectedTileId === tile.id }]"
-              :style="getTileStyle(tile)"
+              :style="getTileStyle(tile, group)"
               @click="selectedTileId = tile.id"
             ></div>
           </div>
@@ -173,21 +173,41 @@ const selectedTileName = computed(() => {
 const showIcon = computed(() => selectedTile.value?.showIcon !== false)
 const showName = computed(() => selectedTile.value?.showName !== false)
 
-function getTileStyle(tile: TileItem) {
+function getTileStyle(tile: TileItem, group?: TileGroup) {
   // 引用 refreshKey 触发响应式更新
   void refreshKey.value
   const style: Record<string, string> = {
     backgroundSize: 'cover',
     backgroundPosition: 'center'
   }
-  if (tile.background) {
-    // 用缓存的 base64，如果没有就先用路径（会异步加载）
-    const cached = imageCache.get(tile.background)
+
+  // 优先用磁贴自己的背景，否则用组背景
+  const bgPath = tile.background || group?.background
+
+  if (bgPath) {
+    // 如果是组背景，计算每个磁贴显示图片的不同部分
+    if (!tile.background && group?.background) {
+      // 计算组的网格范围
+      let maxRow = 0
+      let maxCol = 0
+      for (const t of group.tiles) {
+        const span = sizeSpan[t.size]
+        maxRow = Math.max(maxRow, t.row + span.rows)
+        maxCol = Math.max(maxCol, t.col + span.cols)
+      }
+      const cellSize = 50 // 预览中每个格子的大小
+      const groupWidth = maxCol * cellSize
+      const groupHeight = maxRow * cellSize
+      style.backgroundSize = `${groupWidth}px ${groupHeight}px`
+      style.backgroundPosition = `-${tile.col * cellSize}px -${tile.row * cellSize}px`
+    }
+
+    const cached = imageCache.get(bgPath)
     if (cached) {
       style.backgroundImage = `url(${cached})`
     } else {
       style.backgroundColor = 'rgba(255,255,255,0.1)'
-      loadTileBackground(tile.background)
+      loadTileBackground(bgPath)
     }
   } else {
     style.backgroundColor = 'rgba(255,255,255,0.1)'
@@ -336,11 +356,27 @@ function stopCropBoxDrag() {
   window.removeEventListener('mouseup', stopCropBoxDrag)
 }
 
-// 鼠标滚轮缩放
+// 鼠标滚轮缩放（以画面中心为锚点）
 function onWheelZoom(e: WheelEvent) {
   e.preventDefault()
+  const oldScale = cropDialog.scale
   const delta = e.deltaY > 0 ? -0.1 : 0.1
-  cropDialog.scale = Math.max(0.1, Math.min(5, cropDialog.scale + delta))
+  const newScale = Math.max(0.1, Math.min(5, oldScale + delta))
+
+  // 以容器中心为锚点缩放
+  if (cropContainerRef.value) {
+    const rect = cropContainerRef.value.getBoundingClientRect()
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    // 图片中心点在容器中的位置（考虑当前偏移和缩放）
+    // 图片原始中心点在 transform 之前是 (0,0)（因为 top:50%, left:50%）
+    // 缩放后，需要调整 offset 让中心点保持不变
+    const ratio = newScale / oldScale
+    cropDialog.offsetX = centerX - (centerX - cropDialog.offsetX) * ratio
+    cropDialog.offsetY = centerY - (centerY - cropDialog.offsetY) * ratio
+  }
+
+  cropDialog.scale = newScale
 }
 
 // 裁剪框四角缩放
@@ -396,39 +432,18 @@ const cropBoxStyle = computed(() => ({
 
 function confirmCrop() {
   if (cropDialog.mode === 'tile' && selectedTileId.value) {
-    // 单个磁贴：保存图片路径和裁切信息
+    // 单个磁贴：保存图片路径
     tilesStore.setTileBackground(selectedTileId.value, cropDialog.imagePath)
-    // 这里简化处理，实际裁切信息需要根据图片实际尺寸计算
   } else if (cropDialog.mode === 'group') {
-    // 组背景：根据每个磁贴在组内的位置自动切割
-    applyGroupBackground()
+    // 组背景：保存到组级别，每个磁贴自动显示图片的不同部分
+    tilesStore.setGroupBackground(cropDialog.targetGroupId, cropDialog.imagePath, {
+      x: cropDialog.cropBox.x,
+      y: cropDialog.cropBox.y,
+      width: cropDialog.cropBox.width,
+      height: cropDialog.cropBox.height
+    })
   }
   cropDialog.visible = false
-}
-
-function applyGroupBackground() {
-  const group = tilesStore.groups.find((g) => g.id === cropDialog.targetGroupId)
-  if (!group) return
-
-  // 计算组的网格范围
-  let maxRow = 0
-  let maxCol = 0
-  for (const tile of group.tiles) {
-    const span = sizeSpan[tile.size]
-    maxRow = Math.max(maxRow, tile.row + span.rows)
-    maxCol = Math.max(maxCol, tile.col + span.cols)
-  }
-
-  // 每个磁贴对应图片的一个区域
-  const cellWidth = cropDialog.cropBox.width / maxCol
-  const cellHeight = cropDialog.cropBox.height / maxRow
-
-  for (const tile of group.tiles) {
-    const span = sizeSpan[tile.size]
-    tilesStore.setTileBackground(tile.id, cropDialog.imagePath)
-    // 保存裁切信息（相对于图片的位置）
-    // 这里简化处理，实际需要根据图片实际尺寸和缩放计算
-  }
 }
 </script>
 

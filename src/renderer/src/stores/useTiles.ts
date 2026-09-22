@@ -382,6 +382,16 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
+  // 设置组背景
+  function setGroupBackground(groupId: string, background: string | undefined, crop?: { x: number; y: number; width: number; height: number }) {
+    const group = groups.value.find((g) => g.id === groupId)
+    if (group) {
+      group.background = background
+      group.backgroundCrop = crop
+      saveLayout()
+    }
+  }
+
   function getNotifications(tileId: string): TileNotification[] {
     return tileNotifications.value[tileId] || []
   }
@@ -411,6 +421,7 @@ export const useTilesStore = defineStore('tiles', () => {
     clearAllBackgrounds,
     setTileShowIcon,
     setTileShowName,
+    setGroupBackground,
     getNotifications
   }
 })
