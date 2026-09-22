@@ -50,15 +50,9 @@ const isFocused = ref(false)
   pointer-events: none;
 }
 
-/* 失焦时：从右往左收起 */
-.search-box:not(.focused) .pulse-layer {
-  transform-origin: right center;
-}
-
 /* 聚焦时：从左到右展开并保持 */
 .search-box.focused .pulse-layer {
   transform: scaleX(1);
-  transform-origin: left center;
 }
 
 .search-box input {
