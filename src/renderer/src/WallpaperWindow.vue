@@ -727,6 +727,23 @@ function cancelPendingChanges() {
   background: #1a1a1a;
 }
 
+.wallpaper-preview::-webkit-scrollbar {
+  width: 8px;
+}
+
+.wallpaper-preview::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wallpaper-preview::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.wallpaper-preview::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 .preview-group {
   margin-bottom: 24px;
 }
