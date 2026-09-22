@@ -22,7 +22,7 @@
         class="tile-front"
         :style="{
           background: tileColor,
-          backgroundImage: tile.background ? `url(file:///${tile.background.replace(/\\/g, '/')})` : undefined,
+          backgroundImage: tile.background ? `url(file:///${encodeURI(tile.background.replace(/\\/g, '/'))})` : undefined,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }"

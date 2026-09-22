@@ -179,7 +179,7 @@ function getTileStyle(tile: TileItem) {
     backgroundPosition: 'center'
   }
   if (tile.background) {
-    style.backgroundImage = `url(file:///${tile.background.replace(/\\/g, '/')})`
+    style.backgroundImage = `url(file:///${encodeURI(tile.background.replace(/\\/g, '/'))})`
     if (tile.backgroundCrop) {
       style.backgroundPosition = `${tile.backgroundCrop.x}px ${tile.backgroundCrop.y}px`
       style.backgroundSize = `${tile.backgroundCrop.width}px ${tile.backgroundCrop.height}px`
@@ -221,7 +221,7 @@ async function selectGroupBackground(group: TileGroup) {
 function openCropDialog(filePath: string, mode: 'tile' | 'group') {
   cropDialog.visible = true
   cropDialog.imagePath = filePath
-  cropDialog.imageUrl = `file:///${filePath.replace(/\\/g, '/')}`
+  cropDialog.imageUrl = `file:///${encodeURI(filePath.replace(/\\/g, '/'))}`
   cropDialog.mode = mode
   cropDialog.offsetX = 0
   cropDialog.offsetY = 0
