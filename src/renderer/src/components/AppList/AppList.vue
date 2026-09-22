@@ -1,5 +1,5 @@
 <template>
-  <div class="app-list win7-style">
+  <div class="app-list win7-style" @click="closeFolderMenu">
     <!-- 搜索框 -->
     <SearchBox @search="handleSearch" />
 
@@ -79,6 +79,26 @@
 
     <!-- 底部用户栏 -->
     <UserBar />
+
+    <!-- 文件夹右键菜单 -->
+    <div
+      v-if="folderMenu.visible"
+      class="folder-context-menu"
+      :style="{ left: folderMenu.x + 'px', top: folderMenu.y + 'px' }"
+      @click.stop
+      @contextmenu.prevent
+    >
+      <div class="menu-item" @click="handleFolderRename">
+        <span class="menu-label">✏️ 重命名</span>
+      </div>
+      <div
+        class="menu-item danger"
+        :class="{ disabled: !folderMenu.isEmpty }"
+        @click="handleFolderDelete"
+      >
+        <span class="menu-label">🗑️ 删除文件夹</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -91,6 +111,15 @@ import { useAppsStore } from '../../stores/useApps'
 import { ref } from 'vue'
 
 const appsStore = useAppsStore()
+
+// 文件夹右键菜单状态
+const folderMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  folderId: '',
+  isEmpty: false
+})
 
 function handleSearch(query: string) {
   appsStore.setSearchQuery(query)
@@ -141,73 +170,55 @@ function handleSectionDrop(e: DragEvent) {
 function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
   e.preventDefault()
   e.stopPropagation()
+  folderMenu.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    folderId: folder.id,
+    isEmpty: folder.appIds.length === 0
+  }
+}
 
-  // 关闭已存在的菜单
-  const existing = document.querySelector('.folder-context-menu')
-  if (existing) existing.remove()
+function closeFolderMenu() {
+  folderMenu.value.visible = false
+}
 
-  const isEmpty = folder.appIds.length === 0
-  const menu = document.createElement('div')
-  menu.className = 'folder-context-menu'
-  menu.style.left = `${e.clientX}px`
-  menu.style.top = `${e.clientY}px`
-
-  const renameItem = document.createElement('div')
-  renameItem.className = 'menu-item'
-  renameItem.dataset.action = 'rename'
-  renameItem.textContent = '✏️ 重命名'
-  renameItem.addEventListener('click', (ev) => {
-    ev.stopPropagation()
+function handleFolderRename() {
+  const folder = appsStore.folders.find((f) => f.id === folderMenu.value.folderId)
+  if (folder) {
     window.showInputDialog('重命名文件夹', folder.name, (newName: string) => {
       appsStore.renameFolder(folder.id, newName)
     })
-    menu.remove()
-    document.removeEventListener('click', handleOutsideClick)
-  })
-
-  const deleteItem = document.createElement('div')
-  deleteItem.className = isEmpty ? 'menu-item danger' : 'menu-item danger disabled'
-  deleteItem.dataset.action = 'delete'
-  deleteItem.textContent = '🗑️ 删除文件夹'
-  deleteItem.addEventListener('click', (ev) => {
-    ev.stopPropagation()
-    if (!isEmpty) {
-      window.showConfirmDialog({
-        title: '无法删除',
-        message: `文件夹"${folder.name}"不为空，请先移出里面的应用后再删除。`,
-        confirmText: '知道了',
-        danger: false,
-        onConfirm: () => {}
-      })
-    } else {
-      window.showConfirmDialog({
-        title: '删除文件夹',
-        message: `确定删除文件夹"${folder.name}"吗？`,
-        confirmText: '删除',
-        danger: true,
-        onConfirm: () => {
-          appsStore.deleteFolder(folder.id)
-        }
-      })
-    }
-    menu.remove()
-    document.removeEventListener('click', handleOutsideClick)
-  })
-
-  menu.appendChild(renameItem)
-  menu.appendChild(deleteItem)
-  document.body.appendChild(menu)
-
-  // 点击菜单外部关闭
-  const handleOutsideClick = (ev: MouseEvent) => {
-    if (!menu.contains(ev.target as Node)) {
-      menu.remove()
-      document.removeEventListener('click', handleOutsideClick)
-    }
   }
-  setTimeout(() => {
-    document.addEventListener('click', handleOutsideClick)
-  }, 0)
+  closeFolderMenu()
+}
+
+function handleFolderDelete() {
+  const folder = appsStore.folders.find((f) => f.id === folderMenu.value.folderId)
+  if (!folder) {
+    closeFolderMenu()
+    return
+  }
+  if (!folderMenu.value.isEmpty) {
+    window.showConfirmDialog({
+      title: '无法删除',
+      message: `文件夹"${folder.name}"不为空，请先移出里面的应用后再删除。`,
+      confirmText: '知道了',
+      danger: false,
+      onConfirm: () => {}
+    })
+  } else {
+    window.showConfirmDialog({
+      title: '删除文件夹',
+      message: `确定删除文件夹"${folder.name}"吗？`,
+      confirmText: '删除',
+      danger: true,
+      onConfirm: () => {
+        appsStore.deleteFolder(folder.id)
+      }
+    })
+  }
+  closeFolderMenu()
 }
 
 function createNewFolder() {
@@ -314,24 +325,26 @@ function createNewFolder() {
   border-color: var(--accent-color);
   color: #fff;
 }
-</style>
 
-/* 全局右键菜单样式 */
+/* 文件夹右键菜单 */
 .folder-context-menu {
   position: fixed;
-  background: #2a2a2a;
+  background: rgba(45, 45, 45, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 4px 0;
-  min-width: 140px;
+  min-width: 160px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   z-index: 9999;
+  backdrop-filter: blur(20px);
 }
 
 .folder-context-menu .menu-item {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
-  font-size: 12.5px;
-  color: #ccc;
+  font-size: 13px;
+  color: #e0e0e0;
   cursor: pointer;
   transition: background 0.1s ease;
 }
@@ -359,3 +372,8 @@ function createNewFolder() {
   background: transparent;
   color: #555;
 }
+
+.folder-context-menu .menu-label {
+  flex: 1;
+}
+</style>
