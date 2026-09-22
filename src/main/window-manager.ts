@@ -1,7 +1,14 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow, screen, app } from 'electron'
 import { join } from 'path'
 import type Store from 'electron-store'
 import { setAcrylicEffect } from './acrylic'
+
+// 获取图标路径（开发环境和打包后路径不同）
+function getIconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icons/icon.png')
+    : join(__dirname, '../../resources/icons/icon.png')
+}
 
 interface StoreType {
   tileLayout: unknown
@@ -47,6 +54,7 @@ export class WindowManager {
       alwaysOnTop: false,
       fullscreenable: false,
       backgroundColor: '#00000000',
+      icon: getIconPath(),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -148,6 +156,7 @@ export class WindowManager {
       resizable: true,
       title: '磁贴壁纸设置',
       backgroundColor: '#1e1e1e',
+      icon: getIconPath(),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,

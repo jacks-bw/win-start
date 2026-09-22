@@ -1,11 +1,18 @@
-import { Tray, Menu, nativeImage } from 'electron'
+import { Tray, Menu, nativeImage, app } from 'electron'
+import path from 'path'
 import type { WindowManager } from './window-manager'
 
 let tray: Tray | null = null
 
+// 获取图标路径（开发环境和打包后路径不同）
+function getIconPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'icons/icon.png')
+    : path.join(__dirname, '../../resources/icons/icon.png')
+}
+
 export function createTray(windowManager: WindowManager): void {
-  // 使用一个 16x16 的透明图标作为占位
-  const icon = nativeImage.createEmpty()
+  const icon = nativeImage.createFromPath(getIconPath())
   tray = new Tray(icon)
 
   const contextMenu = Menu.buildFromTemplate([
