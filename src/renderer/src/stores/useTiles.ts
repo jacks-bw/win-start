@@ -382,12 +382,16 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
-  // 设置组背景
+  // 设置组背景（会清除该组所有磁贴自己的背景）
   function setGroupBackground(groupId: string, background: string | undefined, crop?: { x: number; y: number; width: number; height: number }) {
     const group = groups.value.find((g) => g.id === groupId)
     if (group) {
       group.background = background
       group.backgroundCrop = crop
+      // 清除该组所有磁贴自己的背景，让组背景生效
+      for (const tile of group.tiles) {
+        tile.background = undefined
+      }
       saveLayout()
     }
   }
