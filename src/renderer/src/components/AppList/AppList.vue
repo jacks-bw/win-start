@@ -141,60 +141,72 @@ function handleSectionDrop(e: DragEvent) {
 function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
   e.preventDefault()
   e.stopPropagation()
-  // 用自定义菜单
+
+  // 关闭已存在的菜单
+  const existing = document.querySelector('.folder-context-menu')
+  if (existing) existing.remove()
+
+  const isEmpty = folder.appIds.length === 0
   const menu = document.createElement('div')
   menu.className = 'folder-context-menu'
   menu.style.left = `${e.clientX}px`
   menu.style.top = `${e.clientY}px`
-  const isEmpty = folder.appIds.length === 0
-  const deleteClass = isEmpty ? 'menu-item danger' : 'menu-item danger disabled'
-  menu.innerHTML = `
-    <div class="menu-item" data-action="rename">✏️ 重命名</div>
-    <div class="${deleteClass}" data-action="delete">🗑️ 删除文件夹</div>
-  `
+
+  const renameItem = document.createElement('div')
+  renameItem.className = 'menu-item'
+  renameItem.dataset.action = 'rename'
+  renameItem.textContent = '✏️ 重命名'
+  renameItem.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    window.showInputDialog('重命名文件夹', folder.name, (newName: string) => {
+      appsStore.renameFolder(folder.id, newName)
+    })
+    menu.remove()
+    document.removeEventListener('click', handleOutsideClick)
+  })
+
+  const deleteItem = document.createElement('div')
+  deleteItem.className = isEmpty ? 'menu-item danger' : 'menu-item danger disabled'
+  deleteItem.dataset.action = 'delete'
+  deleteItem.textContent = '🗑️ 删除文件夹'
+  deleteItem.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    if (!isEmpty) {
+      window.showConfirmDialog({
+        title: '无法删除',
+        message: `文件夹"${folder.name}"不为空，请先移出里面的应用后再删除。`,
+        confirmText: '知道了',
+        danger: false,
+        onConfirm: () => {}
+      })
+    } else {
+      window.showConfirmDialog({
+        title: '删除文件夹',
+        message: `确定删除文件夹"${folder.name}"吗？`,
+        confirmText: '删除',
+        danger: true,
+        onConfirm: () => {
+          appsStore.deleteFolder(folder.id)
+        }
+      })
+    }
+    menu.remove()
+    document.removeEventListener('click', handleOutsideClick)
+  })
+
+  menu.appendChild(renameItem)
+  menu.appendChild(deleteItem)
   document.body.appendChild(menu)
 
-  const handleClick = (ev: MouseEvent) => {
-    const target = ev.target as HTMLElement
-    if (target.classList.contains('menu-item')) {
-      const action = target.dataset.action
-      if (action === 'rename') {
-        window.showInputDialog('重命名文件夹', folder.name, (newName: string) => {
-          appsStore.renameFolder(folder.id, newName)
-        })
-      } else if (action === 'delete') {
-        if (!isEmpty) {
-          window.showConfirmDialog({
-            title: '无法删除',
-            message: `文件夹"${folder.name}"不为空，请先移出里面的应用后再删除。`,
-            confirmText: '知道了',
-            cancelText: '',
-            danger: false,
-            onConfirm: () => {}
-          })
-        } else {
-          window.showConfirmDialog({
-            title: '删除文件夹',
-            message: `确定删除文件夹"${folder.name}"吗？`,
-            confirmText: '删除',
-            danger: true,
-            onConfirm: () => {
-              appsStore.deleteFolder(folder.id)
-            }
-          })
-        }
-      }
+  // 点击菜单外部关闭
+  const handleOutsideClick = (ev: MouseEvent) => {
+    if (!menu.contains(ev.target as Node)) {
+      menu.remove()
+      document.removeEventListener('click', handleOutsideClick)
     }
-    cleanup()
   }
-
-  const cleanup = () => {
-    document.removeEventListener('click', handleClick)
-    menu.remove()
-  }
-
   setTimeout(() => {
-    document.addEventListener('click', handleClick)
+    document.addEventListener('click', handleOutsideClick)
   }, 0)
 }
 
