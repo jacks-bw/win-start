@@ -18,14 +18,15 @@
   >
     <div class="tile-inner">
       <!-- 正面 -->
-      <div
-        class="tile-front"
-        :style="{
-          background: tileColor,
-          backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
-          ...backgroundStyle
-        }"
-      >
+      <div class="tile-front">
+        <div
+          class="tile-bg"
+          :style="{
+            background: tileColor,
+            backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
+            ...backgroundStyle
+          }"
+        ></div>
         <div class="tile-content" :style="contentStyle">
           <div v-if="showIcon" class="tile-icon" :style="iconContainerStyle">
             <span
@@ -64,7 +65,8 @@
       </div>
 
       <!-- 背面（通知内容） -->
-      <div class="tile-back" :style="{ background: tileColor }">
+      <div class="tile-back">
+        <div class="tile-bg" :style="{ background: tileColor }"></div>
         <div class="tile-content" :style="contentStyle">
           <div v-if="nextNotification" class="tile-text">
             <div class="tile-title">{{ nextNotification.title || tileName }}</div>
@@ -399,23 +401,19 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.tile-container:hover .tile-front::before {
-  opacity: 1;
-}
-
-.tile-front::before {
-  content: '';
+/* 背景层：悬停时缩放，不影响图标和文字 */
+.tile-bg {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.15);
-  opacity: 0;
-  transition: opacity 0.1s ease;
   border-radius: 2px;
-  z-index: 0;
-  pointer-events: none;
+  transition: transform 0.1s ease;
+}
+
+.tile-container:hover .tile-bg {
+  transform: scale(0.98);
 }
 
 .tile-container.dragging {
