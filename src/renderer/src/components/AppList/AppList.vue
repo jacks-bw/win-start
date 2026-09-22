@@ -298,7 +298,7 @@ function createNewFolder() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: rgba(28, 28, 28, 0.98);
+  background: transparent;
 }
 
 /* Win7 风格：更紧凑的间距和字体 */
