@@ -388,6 +388,20 @@ export const useTilesStore = defineStore('tiles', () => {
       const tile = group.tiles.find((t) => t.id === tileId)
       if (tile) {
         tile.customIcon = iconName
+        tile.customIconImage = undefined // 清除外部图标
+        saveLayout()
+        return
+      }
+    }
+  }
+
+  // 设置外部图标图片
+  function setTileCustomIconImage(tileId: string, imagePath: string | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.customIconImage = imagePath
+        tile.customIcon = undefined // 清除 lucide icon
         saveLayout()
         return
       }
@@ -462,6 +476,7 @@ export const useTilesStore = defineStore('tiles', () => {
     setTileShowIcon,
     setTileShowName,
     setTileCustomIcon,
+    setTileCustomIconImage,
     setTileIconColor,
     setTileNameColor,
     setGroupBackground,

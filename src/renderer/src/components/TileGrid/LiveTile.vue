@@ -28,8 +28,13 @@
       >
         <div class="tile-content" :class="contentLayout">
           <div v-if="showIcon" class="tile-icon">
+            <span
+              v-if="customIconImageBase64"
+              class="icon-img"
+              :style="{ backgroundImage: `url(${customIconImageBase64})`, width: `${iconSize}px`, height: `${iconSize}px` }"
+            ></span>
             <component
-              v-if="customIconComponent"
+              v-else-if="customIconComponent"
               :is="customIconComponent"
               :size="iconSize"
               :color="tile.iconColor || '#fff'"
@@ -227,6 +232,28 @@ async function loadBackground() {
 }
 
 watch(currentBgPath, loadBackground, { immediate: true })
+
+// 外部自定义图标 base64
+const customIconImageBase64 = ref<string | undefined>(undefined)
+
+async function loadCustomIconImage() {
+  if (!props.tile.customIconImage) {
+    customIconImageBase64.value = undefined
+    return
+  }
+  const cached = imageCache.get(props.tile.customIconImage)
+  if (cached) {
+    customIconImageBase64.value = cached
+    return
+  }
+  const base64 = await window.electronAPI.readImageBase64(props.tile.customIconImage)
+  if (base64) {
+    imageCache.set(props.tile.customIconImage, base64)
+    customIconImageBase64.value = base64
+  }
+}
+
+watch(() => props.tile.customIconImage, loadCustomIconImage, { immediate: true })
 
 // 自定义 icon 组件
 const customIconComponent = computed(() => {

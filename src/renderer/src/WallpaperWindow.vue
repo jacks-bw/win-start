@@ -32,14 +32,21 @@
               :style="{
                 gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`,
                 gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}`,
-                ...getTileStyle(tile, group)
+                ...getTileStyle(tile, group),
+                // 引用 iconRefreshKey 触发图标异步加载后的重渲染
+                ['--icon-refresh' as any]: iconRefreshKey
               }"
               @click="selectedTileId = tile.id"
             >
               <div class="preview-tile-content" :class="previewContentLayout(tile.size)">
                 <div v-if="tile.showIcon !== false" class="preview-tile-icon">
+                  <span
+                    v-if="tile.customIconImage"
+                    class="preview-icon-img"
+                    :style="{ backgroundImage: `url(${getIconImageBase64(tile.customIconImage)})`, width: `${previewIconSize(tile.size)}px`, height: `${previewIconSize(tile.size)}px` }"
+                  ></span>
                   <component
-                    v-if="getCustomIconComponent(tile.customIcon)"
+                    v-else-if="getCustomIconComponent(tile.customIcon)"
                     :is="getCustomIconComponent(tile.customIcon)"
                     :size="previewIconSize(tile.size)"
                     :color="tile.iconColor || '#fff'"
@@ -93,17 +100,26 @@
         <!-- 自定义 Icon -->
         <div v-if="selectedTile" class="custom-section">
           <div class="section-label">自定义图标</div>
-          <div class="color-row">
-            <button class="action-btn small" @click="showIconPicker = true">
-              {{ selectedTile.customIcon ? '✏️ 更换图标' : '➕ 选择图标' }}
+          <div class="icon-actions">
+            <button class="action-btn" @click="showIconPicker = true">
+              🎨 内置图标
+            </button>
+            <button class="action-btn" @click="importCustomIcon">
+              📁 导入图标
             </button>
             <button
-              v-if="selectedTile.customIcon"
-              class="action-btn small danger"
+              v-if="selectedTile.customIcon || selectedTile.customIconImage"
+              class="action-btn danger"
               @click="clearCustomIcon"
             >
-              ✕
+              ↩️ 默认图标
             </button>
+          </div>
+          <div v-if="selectedTile.customIcon" class="current-icon-hint">
+            当前：内置图标「{{ selectedTile.customIcon }}」
+          </div>
+          <div v-else-if="selectedTile.customIconImage" class="current-icon-hint">
+            当前：自定义图片
           </div>
         </div>
 
@@ -299,9 +315,18 @@ function selectIcon(iconName: string) {
   showIconPicker.value = false
 }
 
+async function importCustomIcon() {
+  if (!selectedTileId.value) return
+  const filePath = await window.electronAPI.selectImage()
+  if (filePath) {
+    tilesStore.setTileCustomIconImage(selectedTileId.value, filePath)
+  }
+}
+
 function clearCustomIcon() {
   if (selectedTileId.value) {
     tilesStore.setTileCustomIcon(selectedTileId.value, undefined)
+    tilesStore.setTileCustomIconImage(selectedTileId.value, undefined)
   }
 }
 
@@ -394,6 +419,26 @@ function getAppIcon(appId: string): string {
   const app = appsStore.apps.find((a) => a.id === appId)
   return app?.icon || ''
 }
+
+// 图标图片 base64 缓存
+const iconImageCache = new Map<string, string>()
+
+function getIconImageBase64(filePath: string): string {
+  if (!filePath) return ''
+  const cached = iconImageCache.get(filePath)
+  if (cached) return cached
+  // 异步加载
+  window.electronAPI.readImageBase64(filePath).then((base64) => {
+    if (base64) {
+      iconImageCache.set(filePath, base64)
+      // 触发响应式更新
+      iconRefreshKey.value++
+    }
+  })
+  return ''
+}
+
+const iconRefreshKey = ref(0)
 
 // 获取自定义 icon 组件
 function getCustomIconComponent(iconName?: string) {
@@ -1106,13 +1151,31 @@ function cancelPendingChanges() {
 }
 
 .wallpaper-actions {
-  width: 220px;
+  width: 240px;
   padding: 20px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   background: #252525;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.wallpaper-actions::-webkit-scrollbar {
+  width: 8px;
+}
+
+.wallpaper-actions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wallpaper-actions::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.wallpaper-actions::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .selected-tile-info {
@@ -1404,6 +1467,25 @@ function cancelPendingChanges() {
 .color-input::-webkit-color-swatch {
   border: none;
   border-radius: 2px;
+}
+
+.icon-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.icon-actions .action-btn {
+  width: 100%;
+}
+
+.current-icon-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #888;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
 }
 
 .action-btn.small {
