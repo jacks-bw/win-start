@@ -70,6 +70,7 @@ interface TileItem {
   iconBgColor?: string // icon 圆角背景颜色
   iconOpacity?: number // icon 透明度 0-1
   nameColor?: string // 应用名称颜色
+  contentAlign?: string // 内容对齐方式：top-left/top-center/top-right/center-left/center/center-right/bottom-left/bottom-center/bottom-right
 }
 
 interface Window {

@@ -456,6 +456,18 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
+  // 设置内容对齐方式
+  function setTileContentAlign(tileId: string, align: string | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.contentAlign = align
+        saveLayout()
+        return
+      }
+    }
+  }
+
   // 设置组背景（会清除该组所有磁贴自己的背景）
   function setGroupBackground(groupId: string, background: string | undefined, crop?: { x: number; y: number; width: number; height: number }) {
     const group = groups.value.find((g) => g.id === groupId)
@@ -505,6 +517,7 @@ export const useTilesStore = defineStore('tiles', () => {
     setTileIconOpacity,
     setTileIconColor,
     setTileNameColor,
+    setTileContentAlign,
     setGroupBackground,
     getNotifications
   }

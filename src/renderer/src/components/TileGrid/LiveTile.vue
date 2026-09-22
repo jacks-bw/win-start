@@ -26,7 +26,7 @@
           ...backgroundStyle
         }"
       >
-        <div class="tile-content" :class="contentLayout">
+        <div class="tile-content" :style="contentStyle">
           <div v-if="showIcon" class="tile-icon" :style="iconContainerStyle">
             <span
               v-if="customIconImageBase64"
@@ -55,7 +55,7 @@
 
       <!-- 背面（通知内容） -->
       <div class="tile-back" :style="{ background: tileColor }">
-        <div class="tile-content" :class="contentLayout">
+        <div class="tile-content" :style="contentStyle">
           <div v-if="nextNotification" class="tile-text">
             <div class="tile-title">{{ nextNotification.title || tileName }}</div>
             <div class="tile-body">{{ nextNotification.body }}</div>
@@ -301,18 +301,34 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-const contentLayout = computed(() => {
-  switch (props.tile.size) {
-    case 'small':
-      return 'center-icon'
-    case 'medium':
-      return 'bottom-left'
-    case 'wide':
-      return 'bottom-left'
-    case 'large':
-      return 'top-left'
-    default:
-      return 'bottom-left'
+// 对齐方式映射
+const alignMap: Record<string, { justify: string; align: string }> = {
+  'top-left': { justify: 'flex-start', align: 'flex-start' },
+  'top-center': { justify: 'flex-start', align: 'center' },
+  'top-right': { justify: 'flex-start', align: 'flex-end' },
+  'center-left': { justify: 'center', align: 'flex-start' },
+  'center': { justify: 'center', align: 'center' },
+  'center-right': { justify: 'center', align: 'flex-end' },
+  'bottom-left': { justify: 'flex-end', align: 'flex-start' },
+  'bottom-center': { justify: 'flex-end', align: 'center' },
+  'bottom-right': { justify: 'flex-end', align: 'flex-end' }
+}
+
+// 默认对齐方式（按尺寸）
+const defaultAlignMap: Record<string, string> = {
+  small: 'center',
+  medium: 'bottom-left',
+  wide: 'bottom-left',
+  large: 'top-left'
+}
+
+const contentStyle = computed(() => {
+  const align = props.tile.contentAlign || defaultAlignMap[props.tile.size] || 'bottom-left'
+  const mapped = alignMap[align] || alignMap['bottom-left']
+  return {
+    flexDirection: 'column' as const,
+    justifyContent: mapped.justify,
+    alignItems: mapped.align
   }
 })
 

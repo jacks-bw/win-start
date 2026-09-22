@@ -48,7 +48,7 @@
               }"
               @click="selectedTileId = tile.id"
             >
-              <div class="preview-tile-content" :class="previewContentLayout(tile.size)">
+              <div class="preview-tile-content" :style="previewContentStyle(tile)">
                 <div v-if="tile.showIcon !== false" class="preview-tile-icon" :style="previewIconContainerStyle(tile)">
                   <span
                     v-if="tile.customIconImage"
@@ -199,6 +199,20 @@
               :value="selectedTile.iconOpacity ?? 1"
               @input="setIconOpacity(parseFloat(($event.target as HTMLInputElement).value))"
             />
+          </div>
+
+          <div class="section-label" style="margin-top: 12px;">内容位置</div>
+          <div class="align-grid">
+            <button
+              v-for="pos in alignPositions"
+              :key="pos.value"
+              class="align-btn"
+              :class="{ active: (selectedTile.contentAlign || defaultAlignForSize(selectedTile.size)) === pos.value }"
+              @click="setContentAlign(pos.value)"
+              :title="pos.label"
+            >
+              <span class="align-dot"></span>
+            </button>
           </div>
         </div>
 
@@ -440,6 +454,43 @@ function clearIconOpacity() {
   }
 }
 
+// 9宫格对齐位置
+const alignPositions = [
+  { value: 'top-left', label: '左上' },
+  { value: 'top-center', label: '上中' },
+  { value: 'top-right', label: '右上' },
+  { value: 'center-left', label: '左中' },
+  { value: 'center', label: '正中' },
+  { value: 'center-right', label: '右中' },
+  { value: 'bottom-left', label: '左下' },
+  { value: 'bottom-center', label: '下中' },
+  { value: 'bottom-right', label: '右下' }
+]
+
+// 按尺寸的默认对齐
+function defaultAlignForSize(size: string): string {
+  const map: Record<string, string> = {
+    small: 'center',
+    medium: 'bottom-left',
+    wide: 'bottom-left',
+    large: 'top-left'
+  }
+  return map[size] || 'bottom-left'
+}
+
+function setContentAlign(align: string) {
+  if (selectedTileId.value) {
+    // 如果和默认一致，则清除自定义设置
+    const tile = tilesStore.groups.flatMap(g => g.tiles).find(t => t.id === selectedTileId.value)
+    if (tile && defaultAlignForSize(tile.size) === align) {
+      tilesStore.setTileContentAlign(selectedTileId.value, undefined)
+    } else {
+      tilesStore.setTileContentAlign(selectedTileId.value, align)
+    }
+    notifyLayoutUpdatedDebounced()
+  }
+}
+
 const sizeSpan: Record<string, { rows: number; cols: number }> = {
   small: { rows: 1, cols: 1 },
   medium: { rows: 2, cols: 2 },
@@ -548,13 +599,31 @@ function previewIconSize(size: string): number {
 }
 
 // 预览内容布局
-function previewContentLayout(size: string): string {
-  switch (size) {
-    case 'small': return 'center-icon'
-    case 'medium': return 'bottom-left'
-    case 'wide': return 'bottom-left'
-    case 'large': return 'top-left'
-    default: return 'bottom-left'
+// 预览内容对齐样式
+function previewContentStyle(tile: TileItem): Record<string, string> {
+  const alignMap: Record<string, { justify: string; align: string }> = {
+    'top-left': { justify: 'flex-start', align: 'flex-start' },
+    'top-center': { justify: 'flex-start', align: 'center' },
+    'top-right': { justify: 'flex-start', align: 'flex-end' },
+    'center-left': { justify: 'center', align: 'flex-start' },
+    'center': { justify: 'center', align: 'center' },
+    'center-right': { justify: 'center', align: 'flex-end' },
+    'bottom-left': { justify: 'flex-end', align: 'flex-start' },
+    'bottom-center': { justify: 'flex-end', align: 'center' },
+    'bottom-right': { justify: 'flex-end', align: 'flex-end' }
+  }
+  const defaultAlignMap: Record<string, string> = {
+    small: 'center',
+    medium: 'bottom-left',
+    wide: 'bottom-left',
+    large: 'top-left'
+  }
+  const align = tile.contentAlign || defaultAlignMap[tile.size] || 'bottom-left'
+  const mapped = alignMap[align] || alignMap['bottom-left']
+  return {
+    flexDirection: 'column',
+    justifyContent: mapped.justify,
+    alignItems: mapped.align
   }
 }
 
@@ -1706,6 +1775,62 @@ function cancelPendingChanges() {
   cursor: pointer;
   border: 2px solid #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 9宫格对齐选择器 */
+.align-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.align-btn {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.align-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.align-btn.active {
+  background: rgba(0, 120, 215, 0.2);
+  border-color: #0078d7;
+}
+
+.align-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #888;
+}
+
+.align-btn.active .align-dot {
+  background: #0078d7;
+}
+
+/* 根据位置定位 dot */
+.align-btn:nth-child(1) .align-dot { align-self: flex-start; justify-self: flex-start; }
+.align-btn:nth-child(2) .align-dot { align-self: flex-start; }
+.align-btn:nth-child(3) .align-dot { align-self: flex-start; justify-self: flex-end; }
+.align-btn:nth-child(4) .align-dot { justify-self: flex-start; }
+.align-btn:nth-child(5) .align-dot { }
+.align-btn:nth-child(6) .align-dot { justify-self: flex-end; }
+.align-btn:nth-child(7) .align-dot { align-self: flex-end; justify-self: flex-start; }
+.align-btn:nth-child(8) .align-dot { align-self: flex-end; }
+.align-btn:nth-child(9) .align-dot { align-self: flex-end; justify-self: flex-end; }
+
+.align-btn {
+  display: grid;
 }
 
 .action-btn.small {
