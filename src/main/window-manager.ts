@@ -89,8 +89,7 @@ export class WindowManager {
     this.isVisible = true
 
     // 设置 Windows Acrylic 毛玻璃效果（通过 PowerShell 调用原生 API）
-    // alpha 越低越透明，60 约 24% 不透明
-    setAcrylicEffect(this.startMenuWindow, 60)
+    setAcrylicEffect(this.startMenuWindow, 20)
 
     // 通知渲染进程开始菜单已打开
     this.startMenuWindow.webContents.send('menu:open')
