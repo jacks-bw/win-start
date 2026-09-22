@@ -72,7 +72,7 @@
         <div class="divider"></div>
 
         <button
-          v-if="selectedTile && (selectedTile.background || pendingBackgrounds[selectedTile.id])"
+          v-if="selectedTile && (selectedTile.background || (pendingBackgrounds[selectedTile.id] && pendingBackgrounds[selectedTile.id] !== CLEAR_MARKER))"
           class="action-btn danger"
           @click="clearTileBackground"
         >
@@ -228,6 +228,11 @@ function getTileStyle(tile: TileItem, group?: TileGroup) {
 
   // 优先显示待应用的临时背景
   const pendingBg = pendingBackgrounds[tile.id]
+  // 如果标记为清除，则不显示背景
+  if (pendingBg === CLEAR_MARKER) {
+    style.backgroundColor = 'rgba(255,255,255,0.1)'
+    return style
+  }
   // 优先用磁贴自己的背景，否则用组背景
   const bgPath = pendingBg || tile.background || group?.background
 
@@ -381,10 +386,12 @@ function openCropDialog(filePath: string, imageUrl: string, mode: 'tile' | 'grou
   img.src = imageUrl
 }
 
+const CLEAR_MARKER = '__CLEAR__'
+
 function clearTileBackground() {
   if (selectedTileId.value) {
-    tilesStore.setTileBackground(selectedTileId.value, undefined)
-    delete pendingBackgrounds[selectedTileId.value]
+    pendingBackgrounds[selectedTileId.value] = CLEAR_MARKER
+    hasPendingChanges.value = true
   }
 }
 
@@ -392,16 +399,22 @@ function clearGroupBackground(groupId: string) {
   const group = tilesStore.groups.find((g) => g.id === groupId)
   if (group) {
     for (const tile of group.tiles) {
-      tilesStore.setTileBackground(tile.id, undefined)
-      delete pendingBackgrounds[tile.id]
+      pendingBackgrounds[tile.id] = CLEAR_MARKER
     }
+    hasPendingChanges.value = true
   }
 }
 
 function clearAllBackgrounds() {
-  tilesStore.clearAllBackgrounds()
-  for (const key of Object.keys(pendingBackgrounds)) delete pendingBackgrounds[key]
-  hasPendingChanges.value = false
+  // 对所有有背景的磁贴标记为清除
+  for (const group of tilesStore.groups) {
+    for (const tile of group.tiles) {
+      if (tile.background) {
+        pendingBackgrounds[tile.id] = CLEAR_MARKER
+      }
+    }
+  }
+  hasPendingChanges.value = true
 }
 
 // 图片拖动
@@ -656,7 +669,11 @@ async function splitImageToTiles() {
 // 保存待应用的背景到实际磁贴
 function savePendingBackgrounds() {
   for (const [tileId, bgPath] of Object.entries(pendingBackgrounds)) {
-    tilesStore.setTileBackground(tileId, bgPath)
+    if (bgPath === CLEAR_MARKER) {
+      tilesStore.setTileBackground(tileId, undefined)
+    } else {
+      tilesStore.setTileBackground(tileId, bgPath)
+    }
   }
   for (const key of Object.keys(pendingBackgrounds)) delete pendingBackgrounds[key]
   hasPendingChanges.value = false
