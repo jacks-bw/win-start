@@ -146,9 +146,11 @@ function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
   menu.className = 'folder-context-menu'
   menu.style.left = `${e.clientX}px`
   menu.style.top = `${e.clientY}px`
+  const isEmpty = folder.appIds.length === 0
+  const deleteClass = isEmpty ? 'menu-item danger' : 'menu-item danger disabled'
   menu.innerHTML = `
     <div class="menu-item" data-action="rename">✏️ 重命名</div>
-    <div class="menu-item danger" data-action="delete">🗑️ 删除文件夹</div>
+    <div class="${deleteClass}" data-action="delete">🗑️ 删除文件夹</div>
   `
   document.body.appendChild(menu)
 
@@ -161,15 +163,26 @@ function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
           appsStore.renameFolder(folder.id, newName)
         })
       } else if (action === 'delete') {
-        window.showConfirmDialog({
-          title: '删除文件夹',
-          message: `确定删除文件夹"${folder.name}"吗？里面的应用会移出来。`,
-          confirmText: '删除',
-          danger: true,
-          onConfirm: () => {
-            appsStore.deleteFolder(folder.id)
-          }
-        })
+        if (!isEmpty) {
+          window.showConfirmDialog({
+            title: '无法删除',
+            message: `文件夹"${folder.name}"不为空，请先移出里面的应用后再删除。`,
+            confirmText: '知道了',
+            cancelText: '',
+            danger: false,
+            onConfirm: () => {}
+          })
+        } else {
+          window.showConfirmDialog({
+            title: '删除文件夹',
+            message: `确定删除文件夹"${folder.name}"吗？`,
+            confirmText: '删除',
+            danger: true,
+            onConfirm: () => {
+              appsStore.deleteFolder(folder.id)
+            }
+          })
+        }
       }
     }
     cleanup()
@@ -322,4 +335,15 @@ function createNewFolder() {
 
 .folder-context-menu .menu-item.danger:hover {
   background: rgba(255, 100, 100, 0.15);
+}
+
+.folder-context-menu .menu-item.disabled {
+  color: #555;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.folder-context-menu .menu-item.disabled:hover {
+  background: transparent;
+  color: #555;
 }
