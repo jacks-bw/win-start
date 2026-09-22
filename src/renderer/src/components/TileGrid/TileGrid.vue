@@ -234,10 +234,12 @@ onMounted(() => {
 .tile-grid {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
   padding: 16px 0;
   height: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tile-grid::-webkit-scrollbar {
@@ -276,11 +278,12 @@ onMounted(() => {
 .tile-group-section {
   flex-shrink: 0;
   width: 460px; /* 6列磁贴450 + 10边距 */
-  height: 100%;
+  max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0;
   scrollbar-gutter: stable;
+  margin-bottom: 16px;
 }
 
 .group-header {
