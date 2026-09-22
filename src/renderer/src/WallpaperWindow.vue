@@ -79,29 +79,6 @@
 
       <!-- 右侧：操作区 -->
       <div class="wallpaper-actions">
-        <!-- 全局外观设置 -->
-        <div class="global-settings">
-          <div class="section-label">外观设置</div>
-          <div class="opacity-control">
-            <div class="opacity-label">
-              <span>背景透明度</span>
-              <span class="opacity-value">{{ settingsStore.opacity }}%</span>
-            </div>
-            <input
-              type="range"
-              class="opacity-slider"
-              min="0"
-              max="100"
-              step="1"
-              :value="settingsStore.opacity"
-              @input="settingsStore.setOpacity(parseInt(($event.target as HTMLInputElement).value))"
-            />
-            <div class="opacity-hint">0% = 默认不透明度，100% = 完全透明</div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
         <div v-if="selectedTile" class="selected-tile-info">
           <div class="tile-name">{{ selectedTileName }}</div>
           <div class="tile-size">尺寸：{{ sizeName[selectedTile.size] }}</div>
@@ -340,10 +317,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch, markRaw, onMounted } from 'vue'
+import { ref, computed, reactive, watch, markRaw } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
-import { useSettingsStore } from './stores/useSettings'
 import * as LucideIcons from 'lucide-vue-next'
 
 // 解构模板中用到的图标组件
@@ -352,11 +328,6 @@ const { Save, Image: ImageIcon, Trash2, ImagePlus, Palette, Upload, Undo2, X, Er
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
-const settingsStore = useSettingsStore()
-
-onMounted(() => {
-  settingsStore.loadOpacity()
-})
 
 const selectedTileId = ref<string | null>(null)
 const cropContainerRef = ref<HTMLElement | null>(null)
@@ -1808,30 +1779,6 @@ function cancelPendingChanges() {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-/* 全局外观设置 */
-.global-settings {
-  margin-bottom: 4px;
-}
-
-.opacity-control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.opacity-label {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: #ccc;
-}
-
-.opacity-hint {
-  font-size: 10.5px;
-  color: #777;
 }
 
 .opacity-slider {
