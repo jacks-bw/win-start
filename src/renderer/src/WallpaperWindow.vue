@@ -29,7 +29,11 @@
               :key="tile.id"
               class="preview-tile"
               :class="[`size-${tile.size}`, { selected: selectedTileId === tile.id }]"
-              :style="getTileStyle(tile, group)"
+              :style="{
+                gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`,
+                gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}`,
+                ...getTileStyle(tile, group)
+              }"
               @click="selectedTileId = tile.id"
             ></div>
           </div>
@@ -247,7 +251,7 @@ function getTileStyle(tile: TileItem, group?: TileGroup) {
         maxRow = Math.max(maxRow, t.row + span.rows)
         maxCol = Math.max(maxCol, t.col + span.cols)
       }
-      const cellSize = 50 // 预览中每个格子的大小
+      const cellSize = 76 // 每个格子占据的大小（70内容+6gap），与实际磁贴一致
       const groupWidth = maxCol * cellSize
       const groupHeight = maxRow * cellSize
       style.backgroundSize = `${groupWidth}px ${groupHeight}px`
@@ -770,21 +774,17 @@ function cancelPendingChanges() {
 
 .preview-grid {
   display: grid;
-  grid-template-columns: repeat(6, 50px);
-  grid-auto-rows: 50px;
-  gap: 5px;
+  grid-template-columns: repeat(6, 70px);
+  grid-auto-rows: 70px;
+  gap: 6px;
 }
-
-.preview-tile.size-small { grid-column: span 1; grid-row: span 1; }
-.preview-tile.size-medium { grid-column: span 2; grid-row: span 2; }
-.preview-tile.size-wide { grid-column: span 4; grid-row: span 2; }
-.preview-tile.size-large { grid-column: span 4; grid-row: span 4; }
 
 .preview-tile {
   border-radius: 3px;
   cursor: pointer;
   transition: outline 0.1s ease, transform 0.1s ease;
   border: 2px solid transparent;
+  overflow: hidden;
 }
 
 .preview-tile:hover {

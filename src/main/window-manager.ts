@@ -152,6 +152,9 @@ export class WindowManager {
       this.wallpaperWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/wallpaper' })
     }
 
+    // 隐藏原生菜单栏
+    this.wallpaperWindow.setMenuBarVisibility(false)
+
     this.wallpaperWindow.on('closed', () => {
       this.wallpaperWindow = null
     })
