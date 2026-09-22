@@ -277,19 +277,25 @@ const iconSize = computed(() => {
   }
 })
 
-// icon 容器样式（圆角背景 + 透明度）
+// icon 容器样式（圆角背景 + 背景透明度）
 const iconContainerStyle = computed(() => {
   const style: Record<string, string> = {}
   if (props.tile.iconBgColor) {
-    style.backgroundColor = props.tile.iconBgColor
+    const opacity = props.tile.iconOpacity !== undefined ? props.tile.iconOpacity : 1
+    style.backgroundColor = hexToRgba(props.tile.iconBgColor, opacity)
     style.borderRadius = '8px'
     style.padding = '6px'
   }
-  if (props.tile.iconOpacity !== undefined) {
-    style.opacity = String(props.tile.iconOpacity)
-  }
   return style
 })
+
+// hex 颜色转 rgba
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 
 const contentLayout = computed(() => {
   switch (props.tile.size) {

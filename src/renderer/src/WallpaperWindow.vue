@@ -199,13 +199,6 @@
               :value="selectedTile.iconOpacity ?? 1"
               @input="setIconOpacity(parseFloat(($event.target as HTMLInputElement).value))"
             />
-            <button
-              v-if="selectedTile.iconOpacity !== undefined && selectedTile.iconOpacity !== 1"
-              class="action-btn small danger"
-              @click="clearIconOpacity"
-            >
-              重置
-            </button>
           </div>
         </div>
 
@@ -565,18 +558,24 @@ function previewContentLayout(size: string): string {
   }
 }
 
-// 预览 icon 容器样式（圆角背景 + 透明度）
+// 预览 icon 容器样式（圆角背景 + 背景透明度）
 function previewIconContainerStyle(tile: TileItem): Record<string, string> {
   const style: Record<string, string> = {}
   if (tile.iconBgColor) {
-    style.backgroundColor = tile.iconBgColor
+    const opacity = tile.iconOpacity !== undefined ? tile.iconOpacity : 1
+    style.backgroundColor = hexToRgba(tile.iconBgColor, opacity)
     style.borderRadius = '6px'
     style.padding = '4px'
   }
-  if (tile.iconOpacity !== undefined) {
-    style.opacity = String(tile.iconOpacity)
-  }
   return style
+}
+
+// hex 颜色转 rgba
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 const selectedTile = computed(() => {
