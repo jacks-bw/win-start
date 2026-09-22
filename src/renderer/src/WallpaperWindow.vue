@@ -125,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
 
@@ -167,7 +167,7 @@ const cropDialog = reactive({
 })
 
 // 待应用的临时背景（预览用，点击保存后才真正应用）
-const pendingBackgrounds = ref<Map<string, string>>(new Map()) // tileId -> filePath
+const pendingBackgrounds = reactive(new Map<string, string>()) // tileId -> filePath
 const hasPendingChanges = ref(false)
 
 // 图片完整 transform（图片左上角定位，计算居中位置）
@@ -217,7 +217,7 @@ function getTileStyle(tile: TileItem, group?: TileGroup) {
   }
 
   // 优先显示待应用的临时背景
-  const pendingBg = pendingBackgrounds.value.get(tile.id)
+  const pendingBg = pendingBackgrounds.get(tile.id)
   // 优先用磁贴自己的背景，否则用组背景
   const bgPath = pendingBg || tile.background || group?.background
 
@@ -374,11 +374,14 @@ function openCropDialog(filePath: string, imageUrl: string, mode: 'tile' | 'grou
 function clearTileBackground() {
   if (selectedTileId.value) {
     tilesStore.setTileBackground(selectedTileId.value, undefined)
+    pendingBackgrounds.delete(selectedTileId.value)
   }
 }
 
 function clearAllBackgrounds() {
   tilesStore.clearAllBackgrounds()
+  pendingBackgrounds.clear()
+  hasPendingChanges.value = false
 }
 
 // 图片拖动
@@ -522,7 +525,7 @@ async function confirmCrop() {
     if (base64) {
       const savedPath = await window.electronAPI.saveImage(base64, `tile-${cropDialog.targetTileId}-${Date.now()}`)
       if (savedPath) {
-        pendingBackgrounds.value.set(cropDialog.targetTileId, savedPath)
+        pendingBackgrounds.set(cropDialog.targetTileId, savedPath)
         hasPendingChanges.value = true
       }
     }
@@ -623,7 +626,7 @@ async function splitImageToTiles() {
     const base64 = canvas.toDataURL('image/png')
     const savedPath = await window.electronAPI.saveImage(base64, `tile-${tile.id}-${Date.now()}`)
     if (savedPath) {
-      pendingBackgrounds.value.set(tile.id, savedPath)
+      pendingBackgrounds.set(tile.id, savedPath)
     }
   }
 
@@ -635,13 +638,13 @@ function savePendingBackgrounds() {
   for (const [tileId, bgPath] of pendingBackgrounds.value) {
     tilesStore.setTileBackground(tileId, bgPath)
   }
-  pendingBackgrounds.value.clear()
+  pendingBackgrounds.clear()
   hasPendingChanges.value = false
 }
 
 // 取消待应用的更改
 function cancelPendingChanges() {
-  pendingBackgrounds.value.clear()
+  pendingBackgrounds.clear()
   hasPendingChanges.value = false
 }
 </script>
