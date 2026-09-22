@@ -250,16 +250,23 @@ onMounted(() => {
 }
 
 .tile-group-section::-webkit-scrollbar {
+  width: 0;
+  transition: width 0.2s ease;
+}
+
+.tile-group-section:hover::-webkit-scrollbar {
   width: 8px;
 }
 
 .tile-group-section::-webkit-scrollbar-track {
   background: transparent;
+  margin: 6px 0;
 }
 
 .tile-group-section::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
+  margin: 0 6px;
 }
 
 .tile-group-section::-webkit-scrollbar-thumb:hover {
@@ -273,6 +280,7 @@ onMounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0;
+  scrollbar-gutter: stable;
 }
 
 .group-header {
