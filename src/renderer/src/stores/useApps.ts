@@ -129,8 +129,18 @@ export const useAppsStore = defineStore('apps', () => {
       groups[app.group].push(app)
     })
 
+    // 同一分组内按名称排序（中文按拼音）
+    Object.values(groups).forEach((items) => {
+      items.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    })
+
     return Object.entries(groups)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => {
+        // # 分组排最后
+        if (a === '#') return 1
+        if (b === '#') return -1
+        return a.localeCompare(b)
+      })
       .map(([group, items]) => ({ group, items }))
   })
 
