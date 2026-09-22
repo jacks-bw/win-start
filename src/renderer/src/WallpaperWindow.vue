@@ -174,6 +174,8 @@ const showIcon = computed(() => selectedTile.value?.showIcon !== false)
 const showName = computed(() => selectedTile.value?.showName !== false)
 
 function getTileStyle(tile: TileItem) {
+  // 引用 refreshKey 触发响应式更新
+  void refreshKey.value
   const style: Record<string, string> = {
     backgroundSize: 'cover',
     backgroundPosition: 'center'
@@ -195,12 +197,14 @@ function getTileStyle(tile: TileItem) {
 
 // 图片缓存
 const imageCache = new Map<string, string>()
+const refreshKey = ref(0)
 
 async function loadTileBackground(filePath: string) {
   if (imageCache.has(filePath)) return
   const base64 = await window.electronAPI.readImageBase64(filePath)
   if (base64) {
     imageCache.set(filePath, base64)
+    refreshKey.value++
   }
 }
 
