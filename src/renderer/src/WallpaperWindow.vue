@@ -27,7 +27,7 @@
             <span class="preview-group-name">{{ group.name }}</span>
             <div class="group-actions">
               <button class="group-bg-btn" @click="selectGroupBackground(group)">
-                <Image :size="13" class="btn-icon" />
+                <ImageIcon :size="13" class="btn-icon" />
                 组背景
               </button>
               <button class="group-bg-btn danger" @click="clearGroupBackground(group.id)">
@@ -323,7 +323,8 @@ import { useAppsStore } from './stores/useApps'
 import * as LucideIcons from 'lucide-vue-next'
 
 // 解构模板中用到的图标组件
-const { Save, Image, Trash2, ImagePlus, Palette, Upload, Undo2, X, Eraser, Check } = LucideIcons
+// 注意：Image 重命名为 ImageIcon，避免覆盖 JS 内置的 Image 构造函数（new Image() 加载图片会失败）
+const { Save, Image: ImageIcon, Trash2, ImagePlus, Palette, Upload, Undo2, X, Eraser, Check } = LucideIcons
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
