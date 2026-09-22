@@ -382,6 +382,42 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
+  // 设置自定义 icon
+  function setTileCustomIcon(tileId: string, iconName: string | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.customIcon = iconName
+        saveLayout()
+        return
+      }
+    }
+  }
+
+  // 设置 icon 颜色
+  function setTileIconColor(tileId: string, color: string | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.iconColor = color
+        saveLayout()
+        return
+      }
+    }
+  }
+
+  // 设置名称颜色
+  function setTileNameColor(tileId: string, color: string | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.nameColor = color
+        saveLayout()
+        return
+      }
+    }
+  }
+
   // 设置组背景（会清除该组所有磁贴自己的背景）
   function setGroupBackground(groupId: string, background: string | undefined, crop?: { x: number; y: number; width: number; height: number }) {
     const group = groups.value.find((g) => g.id === groupId)
@@ -425,6 +461,9 @@ export const useTilesStore = defineStore('tiles', () => {
     clearAllBackgrounds,
     setTileShowIcon,
     setTileShowName,
+    setTileCustomIcon,
+    setTileIconColor,
+    setTileNameColor,
     setGroupBackground,
     getNotifications
   }

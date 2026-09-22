@@ -64,6 +64,9 @@ interface TileItem {
   backgroundCrop?: { x: number; y: number; width: number; height: number }
   showIcon?: boolean
   showName?: boolean
+  customIcon?: string // lucide icon 名称
+  iconColor?: string // icon 颜色
+  nameColor?: string // 应用名称颜色
 }
 
 interface Window {

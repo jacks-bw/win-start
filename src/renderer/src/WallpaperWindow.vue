@@ -73,6 +73,60 @@
           </label>
         </div>
 
+        <!-- 自定义 Icon -->
+        <div v-if="selectedTile" class="custom-section">
+          <div class="section-label">自定义图标</div>
+          <div class="color-row">
+            <button class="action-btn small" @click="showIconPicker = true">
+              {{ selectedTile.customIcon ? '✏️ 更换图标' : '➕ 选择图标' }}
+            </button>
+            <button
+              v-if="selectedTile.customIcon"
+              class="action-btn small danger"
+              @click="clearCustomIcon"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- 颜色设置 -->
+        <div v-if="selectedTile" class="custom-section">
+          <div class="section-label">图标颜色</div>
+          <div class="color-row">
+            <input
+              type="color"
+              class="color-input"
+              :value="selectedTile.iconColor || '#ffffff'"
+              @input="setIconColor(($event.target as HTMLInputElement).value)"
+            />
+            <button
+              v-if="selectedTile.iconColor"
+              class="action-btn small danger"
+              @click="clearIconColor"
+            >
+              ✕ 清除
+            </button>
+          </div>
+
+          <div class="section-label" style="margin-top: 12px;">名称颜色</div>
+          <div class="color-row">
+            <input
+              type="color"
+              class="color-input"
+              :value="selectedTile.nameColor || '#ffffff'"
+              @input="setNameColor(($event.target as HTMLInputElement).value)"
+            />
+            <button
+              v-if="selectedTile.nameColor"
+              class="action-btn small danger"
+              @click="clearNameColor"
+            >
+              ✕ 清除
+            </button>
+          </div>
+        </div>
+
         <div class="divider"></div>
 
         <button
@@ -135,19 +189,128 @@
         </div>
       </div>
     </div>
+
+    <!-- Icon 选择面板 -->
+    <div v-if="showIconPicker" class="icon-picker-overlay" @click.self="showIconPicker = false">
+      <div class="icon-picker-dialog">
+        <div class="icon-picker-header">
+          <span>选择图标</span>
+          <button class="icon-picker-close" @click="showIconPicker = false">✕</button>
+        </div>
+        <div class="icon-picker-search">
+          <input
+            type="text"
+            v-model="iconSearchQuery"
+            placeholder="搜索图标..."
+            class="icon-search-input"
+          />
+        </div>
+        <div class="icon-picker-grid">
+          <button
+            v-for="icon in filteredIcons"
+            :key="icon.name"
+            class="icon-picker-item"
+            :class="{ active: selectedTile?.customIcon === icon.name }"
+            @click="selectIcon(icon.name)"
+            :title="icon.name"
+          >
+            <component :is="icon.component" :size="24" />
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch } from 'vue'
+import { ref, computed, reactive, watch, markRaw } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
+import * as LucideIcons from 'lucide-vue-next'
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
 
 const selectedTileId = ref<string | null>(null)
 const cropContainerRef = ref<HTMLElement | null>(null)
+
+// Icon 选择器
+const showIconPicker = ref(false)
+const iconSearchQuery = ref('')
+
+// 常用 icon 列表（精选一组）
+const popularIconNames = [
+  'home', 'user', 'settings', 'search', 'heart', 'star', 'mail', 'phone',
+  'camera', 'image', 'music', 'video', 'gamepad-2', 'book', 'file', 'folder',
+  'download', 'upload', 'share', 'link', 'lock', 'unlock', 'key', 'shield',
+  'globe', 'map', 'navigation', 'compass', 'clock', 'calendar', 'bell', 'flag',
+  'sun', 'moon', 'cloud', 'cloud-rain', 'wind', 'zap', 'droplets', 'thermometer',
+  'cpu', 'hard-drive', 'monitor', 'smartphone', 'tablet', 'laptop', 'wifi', 'bluetooth',
+  'code', 'terminal', 'git-branch', 'package', 'box', 'archive', 'layers', 'grid',
+  'palette', 'brush', 'pen', 'pencil', 'scissors', 'crop', 'zoom-in', 'zoom-out',
+  'trash', 'edit', 'copy', 'clipboard', 'save', 'printer', 'send', 'inbox',
+  'shopping-cart', 'shopping-bag', 'tag', 'gift', 'credit-card', 'dollar-sign', 'percent', 'pie-chart',
+  'bar-chart', 'line-chart', 'activity', 'trending-up', 'trending-down', 'target', 'award', 'trophy',
+  'rocket', 'plane', 'car', 'bike', 'train', 'ship', 'footprints', 'umbrella',
+  'coffee', 'utensils', 'apple', 'pizza', 'ice-cream', 'cake', 'wine', 'beer',
+  'dumbbell', 'heart-pulse', 'stethoscope', 'pill', 'brain', 'eye', 'ear', 'smile'
+]
+
+const iconList = computed(() => {
+  return popularIconNames
+    .map((name) => {
+      const componentName = name
+        .split('-')
+        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+        .join('')
+      const component = (LucideIcons as Record<string, unknown>)[componentName]
+      return component ? { name, component: markRaw(component) } : null
+    })
+    .filter(Boolean) as { name: string; component: unknown }[]
+})
+
+const filteredIcons = computed(() => {
+  if (!iconSearchQuery.value) return iconList.value
+  const q = iconSearchQuery.value.toLowerCase()
+  return iconList.value.filter((icon) => icon.name.includes(q))
+})
+
+function selectIcon(iconName: string) {
+  if (selectedTileId.value) {
+    tilesStore.setTileCustomIcon(selectedTileId.value, iconName)
+  }
+  showIconPicker.value = false
+}
+
+function clearCustomIcon() {
+  if (selectedTileId.value) {
+    tilesStore.setTileCustomIcon(selectedTileId.value, undefined)
+  }
+}
+
+function setIconColor(color: string) {
+  if (selectedTileId.value) {
+    tilesStore.setTileIconColor(selectedTileId.value, color)
+  }
+}
+
+function clearIconColor() {
+  if (selectedTileId.value) {
+    tilesStore.setTileIconColor(selectedTileId.value, undefined)
+  }
+}
+
+function setNameColor(color: string) {
+  if (selectedTileId.value) {
+    tilesStore.setTileNameColor(selectedTileId.value, color)
+  }
+}
+
+function clearNameColor() {
+  if (selectedTileId.value) {
+    tilesStore.setTileNameColor(selectedTileId.value, undefined)
+  }
+}
 
 const sizeSpan: Record<string, { rows: number; cols: number }> = {
   small: { rows: 1, cols: 1 },
@@ -1076,5 +1239,163 @@ function cancelPendingChanges() {
 
 .dialog-btn.primary:hover {
   background: #106ebe;
+}
+
+/* 自定义设置区域 */
+.custom-section {
+  margin-top: 12px;
+}
+
+.section-label {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 6px;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-input {
+  width: 40px;
+  height: 28px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.action-btn.small {
+  padding: 4px 10px;
+  font-size: 12px;
+  flex: 1;
+}
+
+/* Icon 选择面板 */
+.icon-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.icon-picker-dialog {
+  background: #2a2a2a;
+  border-radius: 8px;
+  width: 520px;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.icon-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #3a3a3a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.icon-picker-close {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.icon-picker-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.icon-picker-search {
+  padding: 12px 18px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.icon-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+}
+
+.icon-search-input:focus {
+  border-color: #0078d7;
+}
+
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  padding: 14px 18px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.icon-picker-item {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #ccc;
+  transition: all 0.15s ease;
+}
+
+.icon-picker-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.icon-picker-item.active {
+  background: rgba(0, 120, 215, 0.2);
+  border-color: #0078d7;
+  color: #fff;
+}
+
+.icon-picker-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.icon-picker-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.icon-picker-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.icon-picker-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 </style>

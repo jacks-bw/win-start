@@ -28,12 +28,19 @@
       >
         <div class="tile-content" :class="contentLayout">
           <div v-if="showIcon" class="tile-icon">
-            <span v-if="appIcon" class="icon-img" :style="{ backgroundImage: `url(${appIcon})` }"></span>
+            <component
+              v-if="customIconComponent"
+              :is="customIconComponent"
+              :size="iconSize"
+              :color="tile.iconColor || '#fff'"
+              :stroke-width="2"
+            />
+            <span v-else-if="appIcon" class="icon-img" :style="{ backgroundImage: `url(${appIcon})` }"></span>
             <span v-else-if="tileIcon" class="icon-emoji">{{ tileIcon }}</span>
             <span v-else class="icon-placeholder">{{ tileName.charAt(0) }}</span>
           </div>
           <div v-if="showName && tileSize !== 'small'" class="tile-text">
-            <div class="tile-title">{{ tileName }}</div>
+            <div class="tile-title" :style="{ color: tile.nameColor || undefined }">{{ tileName }}</div>
             <div v-if="currentNotification?.body" class="tile-body">
               {{ currentNotification.body }}
             </div>
@@ -55,9 +62,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, markRaw } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
+import * as LucideIcons from 'lucide-vue-next'
 
 // 图片 base64 缓存
 const imageCache = new Map<string, string>()
@@ -219,6 +227,28 @@ async function loadBackground() {
 }
 
 watch(currentBgPath, loadBackground, { immediate: true })
+
+// 自定义 icon 组件
+const customIconComponent = computed(() => {
+  if (!props.tile.customIcon) return null
+  const iconName = props.tile.customIcon
+    .split('-')
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join('')
+  const component = (LucideIcons as Record<string, unknown>)[iconName]
+  return component ? markRaw(component) : null
+})
+
+// icon 尺寸根据磁贴大小调整
+const iconSize = computed(() => {
+  switch (props.tile.size) {
+    case 'small': return 28
+    case 'medium': return 36
+    case 'wide': return 36
+    case 'large': return 48
+    default: return 36
+  }
+})
 
 const contentLayout = computed(() => {
   switch (props.tile.size) {
