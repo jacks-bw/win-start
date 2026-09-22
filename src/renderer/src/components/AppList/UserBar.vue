@@ -24,30 +24,6 @@
       <div class="settings-item" @click="openWallpaperWindow">
         <span class="settings-icon"><Palette :size="14" /></span> 自定义壁纸
       </div>
-
-      <div class="dropdown-divider"></div>
-
-      <!-- 独立的外观设置 -->
-      <div class="settings-section">
-        <div class="settings-section-title">
-          <Droplet :size="13" /> 外观设置
-        </div>
-        <div class="opacity-control">
-          <div class="opacity-label">
-            <span>背景透明度</span>
-            <span class="opacity-value">{{ settingsStore.opacity }}%</span>
-          </div>
-          <input
-            type="range"
-            class="opacity-slider"
-            min="0"
-            max="100"
-            step="1"
-            :value="settingsStore.opacity"
-            @input="settingsStore.setOpacity(parseInt(($event.target as HTMLInputElement).value))"
-          />
-        </div>
-      </div>
     </div>
 
     <!-- 电源选项下拉 -->
@@ -66,18 +42,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Plus, Palette, Moon, Power, RotateCcw, User, Settings, Droplet } from 'lucide-vue-next'
-import { useSettingsStore } from '../../stores/useSettings'
-
-const settingsStore = useSettingsStore()
+import { ref } from 'vue'
+import { Plus, Palette, Moon, Power, RotateCcw, User, Settings } from 'lucide-vue-next'
 
 const showPowerMenu = ref(false)
 const showSettingsMenu = ref(false)
-
-onMounted(() => {
-  settingsStore.loadOpacity()
-})
 
 function powerAction(action: string) {
   showPowerMenu.value = false
@@ -204,73 +173,5 @@ function openWallpaperWindow() {
 .power-icon {
   margin-right: 8px;
   font-size: 13px;
-}
-
-/* 下拉菜单分隔线 */
-.dropdown-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 4px 8px;
-}
-
-/* 外观设置区域 */
-.settings-section {
-  padding: 8px 12px;
-}
-
-.settings-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11.5px;
-  color: #888;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.opacity-control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.opacity-label {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: #ccc;
-}
-
-.opacity-value {
-  color: #0078d4;
-  font-weight: 600;
-}
-
-.opacity-slider {
-  width: 100%;
-  height: 4px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-}
-
-.opacity-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #0078d4;
-  cursor: pointer;
-  transition: transform 0.1s ease;
-}
-
-.opacity-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
 }
 </style>
