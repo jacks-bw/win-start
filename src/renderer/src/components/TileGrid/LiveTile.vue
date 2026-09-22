@@ -397,11 +397,25 @@ onUnmounted(() => {
 .tile-container {
   position: relative;
   cursor: pointer;
-  transition: transform 0.1s ease;
 }
 
-.tile-container:hover {
-  transform: scale(0.98);
+.tile-container:hover .tile-front::before {
+  opacity: 1;
+}
+
+.tile-front::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  border-radius: 2px;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .tile-container.dragging {
@@ -427,6 +441,8 @@ onUnmounted(() => {
 }
 
 .tile-content {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   padding: 10px;
