@@ -81,12 +81,20 @@ export class WindowManager {
 
     const primaryDisplay = screen.getPrimaryDisplay()
     const { height: screenHeight } = primaryDisplay.workAreaSize
-    const [, y] = this.startMenuWindow.getPosition()
+    const [width, height] = this.startMenuWindow.getSize()
 
-    this.startMenuWindow.setPosition(0, screenHeight - this.startMenuWindow.getSize()[1])
+    this.startMenuWindow.setPosition(0, screenHeight - height)
     this.startMenuWindow.show()
     this.startMenuWindow.focus()
     this.isVisible = true
+
+    // 修复 Windows 透明窗口首次显示时 Acrylic/透明效果不生效的问题
+    // 显示后触发一次重绘，让透明和 Acrylic 效果立即生效
+    setTimeout(() => {
+      if (this.startMenuWindow && !this.startMenuWindow.isDestroyed()) {
+        this.startMenuWindow.setBounds({ x: 0, y: screenHeight - height, width, height })
+      }
+    }, 0)
 
     // 通知渲染进程开始菜单已打开
     this.startMenuWindow.webContents.send('menu:open')
