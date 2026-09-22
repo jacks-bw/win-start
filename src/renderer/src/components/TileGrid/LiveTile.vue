@@ -45,7 +45,13 @@
               class="icon-img"
               :style="appIconStyle"
             ></span>
-            <span v-else-if="tileIcon" class="icon-emoji">{{ tileIcon }}</span>
+            <component
+              v-else-if="defaultIconComponent"
+              :is="defaultIconComponent"
+              :size="iconSize"
+              :color="tile.iconColor || '#fff'"
+              :stroke-width="2"
+            />
             <span v-else class="icon-placeholder">{{ tileName.charAt(0) }}</span>
           </div>
           <div v-if="showName && tileSize !== 'small'" class="tile-text">
@@ -142,12 +148,19 @@ const tileIcon = computed(() => {
     return '' // 使用 app.icon
   }
   const iconMap: Record<string, string> = {
-    calc: '🧮',
-    notepad: '📝',
-    browser: '🌐',
-    files: '📁'
+    calc: 'Calculator',
+    notepad: 'FileText',
+    browser: 'Globe',
+    files: 'Folder'
   }
   return iconMap[props.tile.appId] || ''
+})
+
+// 默认占位图标组件（lucide）
+const defaultIconComponent = computed(() => {
+  if (!tileIcon.value) return null
+  const component = (LucideIcons as Record<string, unknown>)[tileIcon.value]
+  return component ? markRaw(component) : null
 })
 
 // 真实程序图标（base64）

@@ -9,7 +9,8 @@
           :class="{ active: hasPendingChanges }"
           @click="savePendingBackgrounds"
         >
-          💾 保存应用
+          <Save :size="14" class="btn-icon" />
+          保存应用
         </button>
       </div>
     </div>
@@ -26,10 +27,12 @@
             <span class="preview-group-name">{{ group.name }}</span>
             <div class="group-actions">
               <button class="group-bg-btn" @click="selectGroupBackground(group)">
-                🖼️ 组背景
+                <Image :size="13" class="btn-icon" />
+                组背景
               </button>
               <button class="group-bg-btn danger" @click="clearGroupBackground(group.id)">
-                🗑️ 清除组
+                <Trash2 :size="13" class="btn-icon" />
+                清除组
               </button>
             </div>
           </div>
@@ -85,14 +88,16 @@
         </div>
 
         <button class="action-btn" :disabled="!selectedTile" @click="selectTileImage">
-          📷 选择图片
+          <ImagePlus :size="14" class="btn-icon" />
+          选择图片
         </button>
         <button
           v-if="selectedTile?.background"
           class="action-btn danger"
           @click="clearTileBackground"
         >
-          🗑️ 清除背景
+          <Trash2 :size="14" class="btn-icon" />
+          清除背景
         </button>
 
         <!-- 图标和名称控制 -->
@@ -112,17 +117,20 @@
           <div class="section-label">自定义图标</div>
           <div class="icon-actions">
             <button class="action-btn" @click="showIconPicker = true">
-              🎨 内置图标
+              <Palette :size="14" class="btn-icon" />
+              内置图标
             </button>
             <button class="action-btn" @click="importCustomIcon">
-              📁 导入图标
+              <Upload :size="14" class="btn-icon" />
+              导入图标
             </button>
             <button
               v-if="selectedTile.customIcon || selectedTile.customIconImage"
               class="action-btn danger"
               @click="clearCustomIcon"
             >
-              ↩️ 默认图标
+              <Undo2 :size="14" class="btn-icon" />
+              默认图标
             </button>
           </div>
           <div v-if="selectedTile.customIcon" class="current-icon-hint">
@@ -148,7 +156,8 @@
               class="action-btn small danger"
               @click="clearIconColor"
             >
-              ✕ 清除
+              <X :size="14" class="btn-icon" />
+              清除
             </button>
           </div>
 
@@ -165,7 +174,8 @@
               class="action-btn small danger"
               @click="clearNameColor"
             >
-              ✕ 清除
+              <X :size="14" class="btn-icon" />
+              清除
             </button>
           </div>
 
@@ -216,11 +226,13 @@
           class="action-btn danger"
           @click="clearTileBackground"
         >
-          🗑️ 清除此磁贴背景
+          <Trash2 :size="14" class="btn-icon" />
+          清除此磁贴背景
         </button>
 
         <button class="action-btn" @click="clearAllBackgrounds">
-          🧹 清除全部背景
+          <Eraser :size="14" class="btn-icon" />
+          清除全部背景
         </button>
       </div>
     </div>
@@ -230,7 +242,7 @@
       <div class="crop-dialog">
         <div class="crop-header">
           <span>裁剪图片</span>
-          <button class="close-btn" @click="cropDialog.visible = false">×</button>
+          <button class="close-btn" @click="cropDialog.visible = false"><X :size="18" /></button>
         </div>
         <div class="crop-body">
           <div class="crop-container" ref="cropContainerRef" @wheel="onWheelZoom">
@@ -269,7 +281,7 @@
       <div class="icon-picker-dialog">
         <div class="icon-picker-header">
           <span>选择图标</span>
-          <button class="icon-picker-close" @click="showIconPicker = false">✕</button>
+          <button class="icon-picker-close" @click="showIconPicker = false"><X :size="16" /></button>
         </div>
         <div class="icon-picker-search">
           <input
@@ -297,7 +309,7 @@
     <!-- Toast 提示 -->
     <Transition name="toast">
       <div v-if="toastVisible" class="toast">
-        <span class="toast-icon">✓</span>
+        <span class="toast-icon"><Check :size="16" /></span>
         <span>{{ toastMessage }}</span>
       </div>
     </Transition>
@@ -309,6 +321,9 @@ import { ref, computed, reactive, watch, markRaw } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
 import * as LucideIcons from 'lucide-vue-next'
+
+// 解构模板中用到的图标组件
+const { Save, Image, Trash2, ImagePlus, Palette, Upload, Undo2, X, Eraser, Check } = LucideIcons
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
@@ -1242,6 +1257,11 @@ function cancelPendingChanges() {
 
 .header-save-btn.active:hover {
   background: #106ebe;
+}
+
+.btn-icon {
+  vertical-align: middle;
+  margin-right: 5px;
 }
 
 .wallpaper-body {

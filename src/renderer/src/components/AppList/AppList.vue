@@ -95,14 +95,14 @@
       @contextmenu.prevent
     >
       <div class="menu-item" @click="handleFolderRename">
-        <span class="menu-label">✏️ 重命名</span>
+        <span class="menu-label"><Pencil :size="14" class="menu-icon" /> 重命名</span>
       </div>
       <div
         class="menu-item danger"
         :class="{ disabled: !folderMenu.isEmpty }"
         @click="handleFolderDelete"
       >
-        <span class="menu-label">🗑️ 删除文件夹</span>
+        <span class="menu-label"><Trash2 :size="14" class="menu-icon" /> 删除文件夹</span>
       </div>
     </div>
 
@@ -137,6 +137,7 @@ import FolderItem from './FolderItem.vue'
 import UserBar from './UserBar.vue'
 import { useAppsStore } from '../../stores/useApps'
 import { ref, computed } from 'vue'
+import { Pencil, Trash2 } from 'lucide-vue-next'
 
 const appsStore = useAppsStore()
 
@@ -445,6 +446,11 @@ function createNewFolder() {
 
 .folder-context-menu .menu-label {
   flex: 1;
+}
+
+.folder-context-menu .menu-icon {
+  vertical-align: middle;
+  margin-right: 6px;
 }
 
 /* 字母跳转面板 */

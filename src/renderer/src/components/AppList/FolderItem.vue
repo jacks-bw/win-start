@@ -9,9 +9,12 @@
       @dragleave="handleDragLeave"
       @drop.prevent="handleDrop"
     >
-      <span class="folder-arrow">{{ isExpanded ? '▼' : '▶' }}</span>
+      <span class="folder-arrow">
+        <ChevronDown v-if="isExpanded" :size="14" />
+        <ChevronRight v-else :size="14" />
+      </span>
       <div class="folder-icon">
-        <span class="folder-icon-img">📁</span>
+        <Folder :size="18" class="folder-icon-img" />
       </div>
       <template v-if="!isEditing">
         <span class="folder-name" @dblclick.stop="startEdit">{{ folder.name }}</span>
@@ -55,6 +58,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { useAppsStore } from '../../stores/useApps'
+import { Folder, ChevronDown, ChevronRight } from 'lucide-vue-next'
 
 const props = defineProps<{
   folder: AppFolder

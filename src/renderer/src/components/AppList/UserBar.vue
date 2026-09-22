@@ -24,23 +24,23 @@
     <!-- 设置选项下拉 -->
     <div v-if="showSettingsMenu" class="settings-dropdown" @click.stop>
       <div class="settings-item" @click="addGroup">
-        <span class="settings-icon">➕</span> 新增分组
+        <span class="settings-icon"><Plus :size="14" /></span> 新增分组
       </div>
       <div class="settings-item" @click="openWallpaperWindow">
-        <span class="settings-icon">🎨</span> 自定义壁纸
+        <span class="settings-icon"><Palette :size="14" /></span> 自定义壁纸
       </div>
     </div>
 
     <!-- 电源选项下拉 -->
     <div v-if="showPowerMenu" class="power-dropdown" @click.stop>
       <div class="power-item" @click="powerAction('sleep')">
-        <span class="power-icon">💤</span> 睡眠
+        <span class="power-icon"><Moon :size="14" /></span> 睡眠
       </div>
       <div class="power-item" @click="powerAction('shutdown')">
-        <span class="power-icon">⏻</span> 关机
+        <span class="power-icon"><Power :size="14" /></span> 关机
       </div>
       <div class="power-item" @click="powerAction('restart')">
-        <span class="power-icon">🔄</span> 重启
+        <span class="power-icon"><RotateCcw :size="14" /></span> 重启
       </div>
     </div>
   </div>
@@ -48,6 +48,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { Plus, Palette, Moon, Power, RotateCcw } from 'lucide-vue-next'
 
 const showPowerMenu = ref(false)
 const showSettingsMenu = ref(false)
