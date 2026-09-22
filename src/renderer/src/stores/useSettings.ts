@@ -28,10 +28,10 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // 根据透明度计算实际背景 alpha
-  // 基础值：列表区 0.25，磁贴区 0.2，列表始终比磁贴深 5%
+  // 基础值：列表区 0.3，磁贴区 0.2，列表始终比磁贴深 10%
   // opacity 越大，alpha 越小（越透明）
   function getListAlpha(): number {
-    return 0.25 * (1 - opacity.value / 100)
+    return 0.3 * (1 - opacity.value / 100)
   }
 
   function getTileAlpha(): number {
