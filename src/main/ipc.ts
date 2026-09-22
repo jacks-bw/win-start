@@ -201,12 +201,13 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
     windowManager.notifyLayoutUpdated()
   })
 
-  // 系统电源操作：shutdown / restart / sleep
-  ipcMain.handle('system:power', (_event, action: 'shutdown' | 'restart' | 'sleep') => {
+  // 系统电源操作：shutdown / restart / sleep / lock
+  ipcMain.handle('system:power', (_event, action: 'shutdown' | 'restart' | 'sleep' | 'lock') => {
     const commands: Record<string, string> = {
       shutdown: 'shutdown /s /t 0',
       restart: 'shutdown /r /t 0',
-      sleep: 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0'
+      sleep: 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0',
+      lock: 'rundll32.exe user32.dll,LockWorkStation'
     }
     const cmd = commands[action]
     if (!cmd) return

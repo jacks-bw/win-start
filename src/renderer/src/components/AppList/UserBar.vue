@@ -28,6 +28,9 @@
 
     <!-- 电源选项下拉 -->
     <div v-if="showPowerMenu" class="power-dropdown" @click.stop>
+      <div class="power-item" @click="powerAction('lock')">
+        <span class="power-icon"><Lock :size="14" /></span> 锁定
+      </div>
       <div class="power-item" @click="powerAction('sleep')">
         <span class="power-icon"><Moon :size="14" /></span> 睡眠
       </div>
@@ -43,7 +46,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Plus, Palette, Moon, Power, RotateCcw, User, Settings } from 'lucide-vue-next'
+import { Plus, Palette, Moon, Power, RotateCcw, User, Settings, Lock } from 'lucide-vue-next'
 
 const showPowerMenu = ref(false)
 const showSettingsMenu = ref(false)
@@ -62,7 +65,7 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 
-function powerAction(action: 'shutdown' | 'restart' | 'sleep') {
+function powerAction(action: 'shutdown' | 'restart' | 'sleep' | 'lock') {
   showPowerMenu.value = false
   window.electronAPI.powerAction?.(action)
 }
