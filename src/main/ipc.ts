@@ -113,6 +113,12 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
     return clamped
   })
 
+  // 设置 Acrylic 透明度（0-255）
+  ipcMain.handle('acrylic:set', (_event, alpha: number) => {
+    windowManager.setAcrylicAlpha(alpha)
+    return alpha
+  })
+
   // 选择图片
   ipcMain.handle('dialog:select-image', async () => {
     const result = await dialog.showOpenDialog({

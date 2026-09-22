@@ -110,6 +110,13 @@ export class WindowManager {
     }
   }
 
+  // 动态设置 Acrylic 透明度（0-255）
+  setAcrylicAlpha(alpha: number): void {
+    if (!this.startMenuWindow || this.startMenuWindow.isDestroyed()) return
+    const clamped = Math.max(0, Math.min(255, alpha))
+    setAcrylicEffect(this.startMenuWindow, clamped)
+  }
+
   getWindow(): BrowserWindow | null {
     return this.startMenuWindow
   }

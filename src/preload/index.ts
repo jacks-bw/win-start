@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getOpacity: () => ipcRenderer.invoke('opacity:get'),
   setOpacity: (opacity: number) => ipcRenderer.invoke('opacity:set', opacity),
 
+  // Acrylic 透明度
+  setAcrylicAlpha: (alpha: number) => ipcRenderer.invoke('acrylic:set', alpha),
+
   // 图片选择
   selectImage: () => ipcRenderer.invoke('dialog:select-image'),
   selectSvg: () => ipcRenderer.invoke('dialog:select-svg'),
