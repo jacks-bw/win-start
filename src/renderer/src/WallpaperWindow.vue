@@ -62,7 +62,7 @@
                     :color="tile.iconColor || '#fff'"
                     :stroke-width="2"
                   />
-                  <span v-else-if="getAppIcon(tile.appId)" class="preview-icon-img" :style="{ backgroundImage: `url(${getAppIcon(tile.appId)})` }"></span>
+                  <span v-else-if="getAppIcon(tile.appId)" class="preview-icon-img" :style="previewAppIconStyle(tile)"></span>
                   <span v-else class="preview-icon-placeholder">{{ getAppName(tile.appId).charAt(0) }}</span>
                 </div>
                 <div v-if="tile.showName !== false && tile.size !== 'small'" class="preview-tile-text">
@@ -174,16 +174,9 @@
             <input
               type="color"
               class="color-input"
-              :value="selectedTile.iconBgColor || '#0078d7'"
+              :value="selectedTile.iconBgColor || '#ffffff'"
               @input="setIconBgColor(($event.target as HTMLInputElement).value)"
             />
-            <button
-              v-if="selectedTile.iconBgColor"
-              class="action-btn small danger"
-              @click="clearIconBgColor"
-            >
-              ✕ 清除
-            </button>
           </div>
 
           <div class="section-label" style="margin-top: 12px;">
@@ -374,7 +367,7 @@ function selectIcon(iconName: string) {
 
 async function importCustomIcon() {
   if (!selectedTileId.value) return
-  const filePath = await window.electronAPI.selectImage()
+  const filePath = await window.electronAPI.selectSvg()
   if (filePath) {
     tilesStore.setTileCustomIconImage(selectedTileId.value, filePath)
     notifyLayoutUpdatedDebounced()
@@ -630,11 +623,12 @@ function previewContentStyle(tile: TileItem): Record<string, string> {
 // 预览 icon 容器样式（圆角背景 + 背景透明度）
 function previewIconContainerStyle(tile: TileItem): Record<string, string> {
   const style: Record<string, string> = {}
-  if (tile.iconBgColor) {
-    const opacity = tile.iconOpacity !== undefined ? tile.iconOpacity : 1
+  const bgColor = tile.iconBgColor || '#ffffff'
+  const opacity = tile.iconOpacity !== undefined ? tile.iconOpacity : 0
+  if (opacity > 0) {
     const size = previewIconSize(tile.size)
     const pad = 4
-    style.backgroundColor = hexToRgba(tile.iconBgColor, opacity)
+    style.backgroundColor = hexToRgba(bgColor, opacity)
     style.borderRadius = '6px'
     style.padding = `${pad}px`
     style.width = `${size + pad * 2}px`
@@ -642,6 +636,28 @@ function previewIconContainerStyle(tile: TileItem): Record<string, string> {
     style.boxSizing = 'border-box'
   }
   return style
+}
+
+// 预览应用图标样式（支持用 mask 改颜色）
+function previewAppIconStyle(tile: TileItem): Record<string, string> {
+  const icon = getAppIcon(tile.appId)
+  if (tile.iconColor && icon) {
+    return {
+      backgroundImage: 'none',
+      backgroundColor: tile.iconColor,
+      WebkitMaskImage: `url(${icon})`,
+      maskImage: `url(${icon})`,
+      WebkitMaskSize: 'contain',
+      maskSize: 'contain',
+      WebkitMaskRepeat: 'no-repeat',
+      maskRepeat: 'no-repeat',
+      WebkitMaskPosition: 'center',
+      maskPosition: 'center'
+    }
+  }
+  return {
+    backgroundImage: `url(${icon})`
+  }
 }
 
 // hex 颜色转 rgba

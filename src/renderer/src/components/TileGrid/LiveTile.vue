@@ -40,7 +40,11 @@
               :color="tile.iconColor || '#fff'"
               :stroke-width="2"
             />
-            <span v-else-if="appIcon" class="icon-img" :style="{ backgroundImage: `url(${appIcon})` }"></span>
+            <span
+              v-else-if="appIcon"
+              class="icon-img"
+              :style="appIconStyle"
+            ></span>
             <span v-else-if="tileIcon" class="icon-emoji">{{ tileIcon }}</span>
             <span v-else class="icon-placeholder">{{ tileName.charAt(0) }}</span>
           </div>
@@ -266,6 +270,27 @@ const customIconComponent = computed(() => {
   return component ? markRaw(component) : null
 })
 
+// 应用图标样式（支持用 mask 改颜色）
+const appIconStyle = computed(() => {
+  if (props.tile.iconColor && appIcon.value) {
+    return {
+      backgroundImage: 'none',
+      backgroundColor: props.tile.iconColor,
+      WebkitMaskImage: `url(${appIcon.value})`,
+      maskImage: `url(${appIcon.value})`,
+      WebkitMaskSize: 'contain',
+      maskSize: 'contain',
+      WebkitMaskRepeat: 'no-repeat',
+      maskRepeat: 'no-repeat',
+      WebkitMaskPosition: 'center',
+      maskPosition: 'center'
+    }
+  }
+  return {
+    backgroundImage: `url(${appIcon.value})`
+  }
+})
+
 // icon 尺寸根据磁贴大小调整
 const iconSize = computed(() => {
   switch (props.tile.size) {
@@ -280,10 +305,12 @@ const iconSize = computed(() => {
 // icon 容器样式（圆角背景 + 背景透明度）
 const iconContainerStyle = computed(() => {
   const style: Record<string, string> = {}
-  if (props.tile.iconBgColor) {
-    const opacity = props.tile.iconOpacity !== undefined ? props.tile.iconOpacity : 1
+  // 默认白色背景，透明度默认0（完全透明），用户可直接调整透明度
+  const bgColor = props.tile.iconBgColor || '#ffffff'
+  const opacity = props.tile.iconOpacity !== undefined ? props.tile.iconOpacity : 0
+  if (opacity > 0) {
     const pad = 6
-    style.backgroundColor = hexToRgba(props.tile.iconBgColor, opacity)
+    style.backgroundColor = hexToRgba(bgColor, opacity)
     style.borderRadius = '8px'
     style.padding = `${pad}px`
     style.width = `${iconSize.value + pad * 2}px`

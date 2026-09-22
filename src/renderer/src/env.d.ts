@@ -19,6 +19,7 @@ interface ElectronAPI {
   getTheme: () => Promise<'light' | 'dark'>
   setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>
   selectImage: () => Promise<string | null>
+  selectSvg: () => Promise<string | null>
   readImageBase64: (filePath: string) => Promise<string | null>
   saveImage: (base64Data: string, fileName: string) => Promise<string | null>
   openWallpaperWindow: () => Promise<void>

@@ -115,6 +115,20 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
     return result.filePaths[0]
   })
 
+  // 选择 SVG 图标
+  ipcMain.handle('dialog:select-svg', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'SVG 图标', extensions: ['svg'] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+    return result.filePaths[0]
+  })
+
   // 读取图片并转 base64
   ipcMain.handle('image:read-base64', async (_event, filePath: string) => {
     try {
