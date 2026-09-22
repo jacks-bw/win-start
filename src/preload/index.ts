@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 图片选择
   selectImage: () => ipcRenderer.invoke('dialog:select-image'),
+  openWallpaperWindow: () => ipcRenderer.invoke('wallpaper:open'),
 
   // 事件监听
   onMenuOpen: (callback: () => void) => {

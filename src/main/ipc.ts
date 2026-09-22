@@ -112,4 +112,9 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
     }
     return result.filePaths[0]
   })
+
+  // 打开壁纸设置窗口
+  ipcMain.handle('wallpaper:open', () => {
+    windowManager.showWallpaperWindow()
+  })
 }

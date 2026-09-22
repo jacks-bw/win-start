@@ -10,6 +10,7 @@ interface StoreType {
 
 export class WindowManager {
   private startMenuWindow: BrowserWindow | null = null
+  private wallpaperWindow: BrowserWindow | null = null
   private store: Store<StoreType>
   private isVisible = false
 
@@ -109,5 +110,41 @@ export class WindowManager {
 
   isMenuVisible(): boolean {
     return this.isVisible
+  }
+
+  // 创建/显示壁纸设置窗口
+  showWallpaperWindow(): void {
+    if (this.wallpaperWindow) {
+      this.wallpaperWindow.focus()
+      return
+    }
+
+    this.wallpaperWindow = new BrowserWindow({
+      width: 700,
+      height: 600,
+      minWidth: 600,
+      minHeight: 500,
+      frame: true,
+      resizable: true,
+      title: '磁贴壁纸设置',
+      backgroundColor: '#1e1e1e',
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    })
+
+    // 加载壁纸设置页面（用 hash 路由区分）
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      this.wallpaperWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/wallpaper`)
+    } else {
+      this.wallpaperWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/wallpaper' })
+    }
+
+    this.wallpaperWindow.on('closed', () => {
+      this.wallpaperWindow = null
+    })
   }
 }

@@ -1,5 +1,9 @@
 <template>
-  <div class="start-menu" :class="{ visible: isVisible }">
+  <!-- 壁纸设置窗口 -->
+  <WallpaperWindow v-if="isWallpaperRoute" />
+
+  <!-- 开始菜单主窗口 -->
+  <div v-else class="start-menu" :class="{ visible: isVisible }">
     <!-- 左侧：Win7 风格程序列表 -->
     <div class="app-list-panel" :style="{ width: appListWidth + 'px' }">
       <AppList />
@@ -74,16 +78,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import AppList from './components/AppList/AppList.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
+import WallpaperWindow from './WallpaperWindow.vue'
 import { useAppsStore } from './stores/useApps'
 import { useTilesStore } from './stores/useTiles'
 
 const appsStore = useAppsStore()
 const tilesStore = useTilesStore()
+
+// 判断是否是壁纸设置窗口（通过 hash 路由）
+const isWallpaperRoute = computed(() => window.location.hash.includes('/wallpaper'))
 
 const isVisible = ref(false)
 const contextMenu = ref({
