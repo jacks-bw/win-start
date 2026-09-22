@@ -243,12 +243,8 @@ onMounted(() => {
 }
 
 .tile-grid::-webkit-scrollbar {
-  height: 6px;
-}
-
-.tile-grid::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  width: 0;
+  height: 0;
 }
 
 .tile-group-section::-webkit-scrollbar {
