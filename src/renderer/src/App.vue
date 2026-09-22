@@ -348,7 +348,7 @@ onUnmounted(() => {
 .tile-grid-panel {
   flex: 1;
   min-width: 520px; /* 磁贴区最小宽度：1组450 + 70边距 */
-  max-width: 900px; /* 2组宽度 */
+  max-width: 960px; /* 2组宽度：460*2 + 间距 */
   overflow: hidden;
   display: flex;
   flex-direction: column;
