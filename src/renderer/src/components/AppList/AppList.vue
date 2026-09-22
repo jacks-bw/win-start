@@ -58,7 +58,13 @@
 
         <!-- 按字母分组的应用（排除文件夹里的） -->
         <template v-for="group in appsStore.groupedApps" :key="group.group">
-          <div class="letter-header">{{ group.group }}</div>
+          <div
+            :id="'letter-group-' + group.group"
+            class="letter-header"
+            @click="showLetterPicker(group.group)"
+          >
+            {{ group.group }}
+          </div>
           <AppItem
             v-for="app in group.items"
             :key="app.id"
@@ -99,6 +105,28 @@
         <span class="menu-label">🗑️ 删除文件夹</span>
       </div>
     </div>
+
+    <!-- 字母跳转面板 -->
+    <div
+      v-if="letterPicker.visible"
+      class="letter-picker-overlay"
+      @click="closeLetterPicker"
+    >
+      <div class="letter-picker" @click.stop>
+        <div class="letter-picker-title">跳转到</div>
+        <div class="letter-picker-grid">
+          <button
+            v-for="letter in allLetters"
+            :key="letter"
+            class="letter-picker-item"
+            :class="{ disabled: !availableLetters.has(letter), active: letterPicker.currentLetter === letter }"
+            @click="jumpToLetter(letter)"
+          >
+            {{ letter }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -108,7 +136,7 @@ import AppItem from './AppItem.vue'
 import FolderItem from './FolderItem.vue'
 import UserBar from './UserBar.vue'
 import { useAppsStore } from '../../stores/useApps'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const appsStore = useAppsStore()
 
@@ -120,6 +148,42 @@ const folderMenu = ref({
   folderId: '',
   isEmpty: false
 })
+
+// 字母跳转面板状态
+const letterPicker = ref({
+  visible: false,
+  currentLetter: ''
+})
+
+// 所有字母 A-Z + #
+const allLetters = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')]
+
+// 当前可用的字母（有应用的字母）
+const availableLetters = computed(() => {
+  const set = new Set<string>()
+  appsStore.groupedApps.forEach((g) => set.add(g.group))
+  return set
+})
+
+function showLetterPicker(currentLetter: string) {
+  letterPicker.value = {
+    visible: true,
+    currentLetter
+  }
+}
+
+function closeLetterPicker() {
+  letterPicker.value.visible = false
+}
+
+function jumpToLetter(letter: string) {
+  if (!availableLetters.value.has(letter)) return
+  const el = document.getElementById('letter-group-' + letter)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  closeLetterPicker()
+}
 
 function handleSearch(query: string) {
   appsStore.setSearchQuery(query)
@@ -283,6 +347,12 @@ function createNewFolder() {
   color: var(--text-secondary);
   font-weight: 600;
   text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.letter-header:hover {
+  color: var(--accent-color);
 }
 
 .empty-state {
@@ -375,5 +445,83 @@ function createNewFolder() {
 
 .folder-context-menu .menu-label {
   flex: 1;
+}
+
+/* 字母跳转面板 */
+.letter-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.letter-picker {
+  background: rgba(40, 40, 40, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.letter-picker-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.letter-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.letter-picker-item {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.letter-picker-item:hover:not(.disabled) {
+  background: rgba(0, 120, 215, 0.3);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+.letter-picker-item.active {
+  background: rgba(0, 120, 215, 0.2);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+.letter-picker-item.disabled {
+  color: #444;
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.letter-picker-item.disabled:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #444;
 }
 </style>
