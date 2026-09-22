@@ -1,7 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
-import { AcrylicBrowserWindow } from 'electron-acrylic-window'
 import { join } from 'path'
 import type Store from 'electron-store'
+import { setAcrylicEffect } from './acrylic'
 
 interface StoreType {
   tileLayout: unknown
@@ -27,7 +27,7 @@ export class WindowManager {
     const winWidth = 740
     const winHeight = Math.min(720, screenHeight - 60)
 
-    this.startMenuWindow = new AcrylicBrowserWindow({
+    this.startMenuWindow = new BrowserWindow({
       width: winWidth,
       height: winHeight,
       minWidth: 800, // 左侧280 + 磁贴区520（一组450 + 70）
@@ -47,14 +47,6 @@ export class WindowManager {
       alwaysOnTop: false,
       fullscreenable: false,
       backgroundColor: '#00000000',
-      vibrancy: 'acrylic',
-      vibrancyOptions: {
-        theme: 'dark',
-        effect: 'acrylic',
-        useCustomWindowRefreshMethod: true,
-        maximumRefreshRate: 60,
-        disableOnBlur: false
-      },
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -95,6 +87,9 @@ export class WindowManager {
     this.startMenuWindow.show()
     this.startMenuWindow.focus()
     this.isVisible = true
+
+    // 设置 Windows Acrylic 毛玻璃效果（通过 koffi 调用原生 API，无需编译）
+    setAcrylicEffect(this.startMenuWindow, 120)
 
     // 通知渲染进程开始菜单已打开
     this.startMenuWindow.webContents.send('menu:open')
