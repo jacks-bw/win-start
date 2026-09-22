@@ -22,18 +22,18 @@
         class="tile-front"
         :style="{
           background: tileColor,
-          backgroundImage: tile.background ? `url(${tile.background})` : undefined,
+          backgroundImage: tile.background ? `url(file:///${tile.background.replace(/\\/g, '/')})` : undefined,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }"
       >
         <div class="tile-content" :class="contentLayout">
-          <div class="tile-icon">
+          <div v-if="showIcon" class="tile-icon">
             <span v-if="appIcon" class="icon-img" :style="{ backgroundImage: `url(${appIcon})` }"></span>
             <span v-else-if="tileIcon" class="icon-emoji">{{ tileIcon }}</span>
             <span v-else class="icon-placeholder">{{ tileName.charAt(0) }}</span>
           </div>
-          <div v-if="tileSize !== 'small'" class="tile-text">
+          <div v-if="showName && tileSize !== 'small'" class="tile-text">
             <div class="tile-title">{{ tileName }}</div>
             <div v-if="currentNotification?.body" class="tile-body">
               {{ currentNotification.body }}
@@ -147,6 +147,9 @@ const tileColor = computed(() => {
 })
 
 const tileSize = computed(() => props.tile.size)
+
+const showIcon = computed(() => props.tile.showIcon !== false)
+const showName = computed(() => props.tile.showName !== false)
 
 const contentLayout = computed(() => {
   switch (props.tile.size) {

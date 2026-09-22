@@ -358,6 +358,30 @@ export const useTilesStore = defineStore('tiles', () => {
     saveLayout()
   }
 
+  // 设置磁贴显示图标
+  function setTileShowIcon(tileId: string, show: boolean) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.showIcon = show
+        saveLayout()
+        return
+      }
+    }
+  }
+
+  // 设置磁贴显示名称
+  function setTileShowName(tileId: string, show: boolean) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.showName = show
+        saveLayout()
+        return
+      }
+    }
+  }
+
   function getNotifications(tileId: string): TileNotification[] {
     return tileNotifications.value[tileId] || []
   }
@@ -385,6 +409,8 @@ export const useTilesStore = defineStore('tiles', () => {
     moveTileToGrid,
     setTileBackground,
     clearAllBackgrounds,
+    setTileShowIcon,
+    setTileShowName,
     getNotifications
   }
 })

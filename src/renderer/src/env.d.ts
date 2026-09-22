@@ -55,6 +55,9 @@ interface TileItem {
   row: number
   col: number
   background?: string
+  backgroundCrop?: { x: number; y: number; width: number; height: number }
+  showIcon?: boolean
+  showName?: boolean
 }
 
 interface Window {
