@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Acrylic 透明度
   setAcrylicAlpha: (alpha: number) => ipcRenderer.invoke('acrylic:set', alpha),
 
+  // 系统电源操作
+  powerAction: (action: 'shutdown' | 'restart' | 'sleep') => ipcRenderer.invoke('system:power', action),
+
   // 图片选择
   selectImage: () => ipcRenderer.invoke('dialog:select-image'),
   selectSvg: () => ipcRenderer.invoke('dialog:select-svg'),

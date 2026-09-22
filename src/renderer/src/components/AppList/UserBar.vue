@@ -62,9 +62,9 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 
-function powerAction(action: string) {
+function powerAction(action: 'shutdown' | 'restart' | 'sleep') {
   showPowerMenu.value = false
-  console.log('电源操作:', action)
+  window.electronAPI.powerAction?.(action)
 }
 
 function addGroup() {

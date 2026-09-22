@@ -1,6 +1,7 @@
 import { ipcMain, dialog, app } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { extname, join } from 'path'
+import { exec } from 'child_process'
 import type { WindowManager } from './window-manager'
 import { scanStartMenu } from './scanner'
 import { launchApp, showInFolder, uninstallProgram } from './launcher'
@@ -198,5 +199,19 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
   // 通知开始菜单窗口布局已更新
   ipcMain.handle('layout:notify-updated', () => {
     windowManager.notifyLayoutUpdated()
+  })
+
+  // 系统电源操作：shutdown / restart / sleep
+  ipcMain.handle('system:power', (_event, action: 'shutdown' | 'restart' | 'sleep') => {
+    const commands: Record<string, string> = {
+      shutdown: 'shutdown /s /t 0',
+      restart: 'shutdown /r /t 0',
+      sleep: 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0'
+    }
+    const cmd = commands[action]
+    if (!cmd) return
+    exec(cmd, (error) => {
+      if (error) console.error(`[Power] ${action} failed:`, error.message)
+    })
   })
 }
