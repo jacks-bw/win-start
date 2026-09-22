@@ -282,9 +282,13 @@ const iconContainerStyle = computed(() => {
   const style: Record<string, string> = {}
   if (props.tile.iconBgColor) {
     const opacity = props.tile.iconOpacity !== undefined ? props.tile.iconOpacity : 1
+    const pad = 6
     style.backgroundColor = hexToRgba(props.tile.iconBgColor, opacity)
     style.borderRadius = '8px'
-    style.padding = '6px'
+    style.padding = `${pad}px`
+    style.width = `${iconSize.value + pad * 2}px`
+    style.height = `${iconSize.value + pad * 2}px`
+    style.boxSizing = 'border-box'
   }
   return style
 })

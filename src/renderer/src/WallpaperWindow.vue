@@ -563,9 +563,14 @@ function previewIconContainerStyle(tile: TileItem): Record<string, string> {
   const style: Record<string, string> = {}
   if (tile.iconBgColor) {
     const opacity = tile.iconOpacity !== undefined ? tile.iconOpacity : 1
+    const size = previewIconSize(tile.size)
+    const pad = 4
     style.backgroundColor = hexToRgba(tile.iconBgColor, opacity)
     style.borderRadius = '6px'
-    style.padding = '4px'
+    style.padding = `${pad}px`
+    style.width = `${size + pad * 2}px`
+    style.height = `${size + pad * 2}px`
+    style.boxSizing = 'border-box'
   }
   return style
 }
