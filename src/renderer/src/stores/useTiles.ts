@@ -408,6 +408,30 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
+  // 设置 icon 圆角背景颜色
+  function setTileIconBgColor(tileId: string, color: string | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.iconBgColor = color
+        saveLayout()
+        return
+      }
+    }
+  }
+
+  // 设置 icon 透明度
+  function setTileIconOpacity(tileId: string, opacity: number | undefined) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        tile.iconOpacity = opacity
+        saveLayout()
+        return
+      }
+    }
+  }
+
   // 设置 icon 颜色
   function setTileIconColor(tileId: string, color: string | undefined) {
     for (const group of groups.value) {
@@ -477,6 +501,8 @@ export const useTilesStore = defineStore('tiles', () => {
     setTileShowName,
     setTileCustomIcon,
     setTileCustomIconImage,
+    setTileIconBgColor,
+    setTileIconOpacity,
     setTileIconColor,
     setTileNameColor,
     setGroupBackground,

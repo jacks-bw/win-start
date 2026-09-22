@@ -27,7 +27,7 @@
         }"
       >
         <div class="tile-content" :class="contentLayout">
-          <div v-if="showIcon" class="tile-icon">
+          <div v-if="showIcon" class="tile-icon" :style="iconContainerStyle">
             <span
               v-if="customIconImageBase64"
               class="icon-img"
@@ -275,6 +275,20 @@ const iconSize = computed(() => {
     case 'large': return 48
     default: return 36
   }
+})
+
+// icon 容器样式（圆角背景 + 透明度）
+const iconContainerStyle = computed(() => {
+  const style: Record<string, string> = {}
+  if (props.tile.iconBgColor) {
+    style.backgroundColor = props.tile.iconBgColor
+    style.borderRadius = '8px'
+    style.padding = '6px'
+  }
+  if (props.tile.iconOpacity !== undefined) {
+    style.opacity = String(props.tile.iconOpacity)
+  }
+  return style
 })
 
 const contentLayout = computed(() => {

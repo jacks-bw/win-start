@@ -67,6 +67,8 @@ interface TileItem {
   customIcon?: string // lucide icon 名称
   customIconImage?: string // 外部图标图片路径
   iconColor?: string // icon 颜色
+  iconBgColor?: string // icon 圆角背景颜色
+  iconOpacity?: number // icon 透明度 0-1
   nameColor?: string // 应用名称颜色
 }
 

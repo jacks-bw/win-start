@@ -49,7 +49,7 @@
               @click="selectedTileId = tile.id"
             >
               <div class="preview-tile-content" :class="previewContentLayout(tile.size)">
-                <div v-if="tile.showIcon !== false" class="preview-tile-icon">
+                <div v-if="tile.showIcon !== false" class="preview-tile-icon" :style="previewIconContainerStyle(tile)">
                   <span
                     v-if="tile.customIconImage"
                     class="preview-icon-img"
@@ -166,6 +166,45 @@
               @click="clearNameColor"
             >
               ✕ 清除
+            </button>
+          </div>
+
+          <div class="section-label" style="margin-top: 12px;">图标背景色</div>
+          <div class="color-row">
+            <input
+              type="color"
+              class="color-input"
+              :value="selectedTile.iconBgColor || '#0078d7'"
+              @input="setIconBgColor(($event.target as HTMLInputElement).value)"
+            />
+            <button
+              v-if="selectedTile.iconBgColor"
+              class="action-btn small danger"
+              @click="clearIconBgColor"
+            >
+              ✕ 清除
+            </button>
+          </div>
+
+          <div class="section-label" style="margin-top: 12px;">
+            图标透明度 <span class="opacity-value">{{ Math.round((selectedTile.iconOpacity ?? 1) * 100) }}%</span>
+          </div>
+          <div class="opacity-row">
+            <input
+              type="range"
+              class="opacity-slider"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="selectedTile.iconOpacity ?? 1"
+              @input="setIconOpacity(parseFloat(($event.target as HTMLInputElement).value))"
+            />
+            <button
+              v-if="selectedTile.iconOpacity !== undefined && selectedTile.iconOpacity !== 1"
+              class="action-btn small danger"
+              @click="clearIconOpacity"
+            >
+              重置
             </button>
           </div>
         </div>
@@ -380,6 +419,34 @@ function clearNameColor() {
   }
 }
 
+function setIconBgColor(color: string) {
+  if (selectedTileId.value) {
+    tilesStore.setTileIconBgColor(selectedTileId.value, color)
+    notifyLayoutUpdatedDebounced()
+  }
+}
+
+function clearIconBgColor() {
+  if (selectedTileId.value) {
+    tilesStore.setTileIconBgColor(selectedTileId.value, undefined)
+    notifyLayoutUpdatedDebounced()
+  }
+}
+
+function setIconOpacity(opacity: number) {
+  if (selectedTileId.value) {
+    tilesStore.setTileIconOpacity(selectedTileId.value, opacity)
+    notifyLayoutUpdatedDebounced()
+  }
+}
+
+function clearIconOpacity() {
+  if (selectedTileId.value) {
+    tilesStore.setTileIconOpacity(selectedTileId.value, undefined)
+    notifyLayoutUpdatedDebounced()
+  }
+}
+
 const sizeSpan: Record<string, { rows: number; cols: number }> = {
   small: { rows: 1, cols: 1 },
   medium: { rows: 2, cols: 2 },
@@ -496,6 +563,20 @@ function previewContentLayout(size: string): string {
     case 'large': return 'top-left'
     default: return 'bottom-left'
   }
+}
+
+// 预览 icon 容器样式（圆角背景 + 透明度）
+function previewIconContainerStyle(tile: TileItem): Record<string, string> {
+  const style: Record<string, string> = {}
+  if (tile.iconBgColor) {
+    style.backgroundColor = tile.iconBgColor
+    style.borderRadius = '6px'
+    style.padding = '4px'
+  }
+  if (tile.iconOpacity !== undefined) {
+    style.opacity = String(tile.iconOpacity)
+  }
+  return style
 }
 
 const selectedTile = computed(() => {
@@ -1577,6 +1658,50 @@ function cancelPendingChanges() {
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
+}
+
+.opacity-value {
+  color: #0078d7;
+  font-weight: 600;
+}
+
+.opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.opacity-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #0078d7;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.opacity-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #0078d7;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .action-btn.small {
