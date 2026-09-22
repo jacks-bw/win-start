@@ -1,14 +1,14 @@
 <template>
-  <div class="search-box win7-search">
-    <div class="pulse-layer" ref="pulseLayer"></div>
+  <div class="search-box win7-search" :class="{ focused: isFocused }">
+    <div class="pulse-layer"></div>
     <Search :size="14" class="search-icon" />
     <input
       v-model="query"
       type="text"
       placeholder="搜索程序和文件..."
       @input="emit('search', query)"
-      @focus="triggerPulse"
-      @click="triggerPulse"
+      @focus="isFocused = true"
+      @blur="isFocused = false"
     />
   </div>
 </template>
@@ -22,17 +22,7 @@ const emit = defineEmits<{
 }>()
 
 const query = ref('')
-const pulseLayer = ref<HTMLElement | null>(null)
-
-// 每次点击/聚焦时重新触发从左到右的脉冲动画
-function triggerPulse() {
-  const el = pulseLayer.value
-  if (!el) return
-  el.style.animation = 'none'
-  // 强制重排以重置动画
-  void el.offsetWidth
-  el.style.animation = ''
-}
+const isFocused = ref(false)
 </script>
 
 <style scoped>
@@ -46,7 +36,7 @@ function triggerPulse() {
   overflow: hidden;
 }
 
-/* 脉冲动画层：从左到右的半透明高亮 */
+/* 脉冲高亮层：聚焦时从左到右展开，失焦时从右往左收起 */
 .pulse-layer {
   position: absolute;
   left: 0;
@@ -56,23 +46,19 @@ function triggerPulse() {
   background: linear-gradient(90deg, rgba(0, 120, 212, 0.25), rgba(0, 120, 212, 0.1));
   transform: scaleX(0);
   transform-origin: left center;
+  transition: transform 0.35s ease-out;
   pointer-events: none;
-  animation: searchPulse 0.7s ease-out forwards;
 }
 
-@keyframes searchPulse {
-  0% {
-    transform: scaleX(0);
-    opacity: 1;
-  }
-  60% {
-    transform: scaleX(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scaleX(1);
-    opacity: 0;
-  }
+/* 失焦时：从右往左收起 */
+.search-box:not(.focused) .pulse-layer {
+  transform-origin: right center;
+}
+
+/* 聚焦时：从左到右展开并保持 */
+.search-box.focused .pulse-layer {
+  transform: scaleX(1);
+  transform-origin: left center;
 }
 
 .search-box input {
