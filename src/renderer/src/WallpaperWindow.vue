@@ -61,8 +61,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useTilesStore } from '../stores/useTiles'
-import { useAppsStore } from '../stores/useApps'
+import { useTilesStore } from './stores/useTiles'
+import { useAppsStore } from './stores/useApps'
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
