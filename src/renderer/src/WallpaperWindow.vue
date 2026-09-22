@@ -25,7 +25,7 @@
           </div>
           <div class="preview-grid">
             <div
-              v-for="tile in sortedTiles(group)"
+              v-for="tile in group.tiles"
               :key="tile.id"
               class="preview-tile"
               :class="[`size-${tile.size}`, { selected: selectedTileId === tile.id }]"
@@ -311,6 +311,7 @@ const filteredIcons = computed(() => {
 function selectIcon(iconName: string) {
   if (selectedTileId.value) {
     tilesStore.setTileCustomIcon(selectedTileId.value, iconName)
+    notifyLayoutUpdatedDebounced()
   }
   showIconPicker.value = false
 }
@@ -320,6 +321,7 @@ async function importCustomIcon() {
   const filePath = await window.electronAPI.selectImage()
   if (filePath) {
     tilesStore.setTileCustomIconImage(selectedTileId.value, filePath)
+    notifyLayoutUpdatedDebounced()
   }
 }
 
@@ -327,30 +329,44 @@ function clearCustomIcon() {
   if (selectedTileId.value) {
     tilesStore.setTileCustomIcon(selectedTileId.value, undefined)
     tilesStore.setTileCustomIconImage(selectedTileId.value, undefined)
+    notifyLayoutUpdatedDebounced()
   }
+}
+
+// 颜色修改防抖通知
+let colorNotifyTimer: ReturnType<typeof setTimeout> | null = null
+function notifyLayoutUpdatedDebounced() {
+  if (colorNotifyTimer) clearTimeout(colorNotifyTimer)
+  colorNotifyTimer = setTimeout(() => {
+    window.electronAPI.notifyLayoutUpdated()
+  }, 300)
 }
 
 function setIconColor(color: string) {
   if (selectedTileId.value) {
     tilesStore.setTileIconColor(selectedTileId.value, color)
+    notifyLayoutUpdatedDebounced()
   }
 }
 
 function clearIconColor() {
   if (selectedTileId.value) {
     tilesStore.setTileIconColor(selectedTileId.value, undefined)
+    notifyLayoutUpdatedDebounced()
   }
 }
 
 function setNameColor(color: string) {
   if (selectedTileId.value) {
     tilesStore.setTileNameColor(selectedTileId.value, color)
+    notifyLayoutUpdatedDebounced()
   }
 }
 
 function clearNameColor() {
   if (selectedTileId.value) {
     tilesStore.setTileNameColor(selectedTileId.value, undefined)
+    notifyLayoutUpdatedDebounced()
   }
 }
 
