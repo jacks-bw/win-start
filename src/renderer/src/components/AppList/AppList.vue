@@ -73,6 +73,41 @@
 
     <!-- 底部用户栏 -->
     <UserBar />
+
+    <!-- 自定义对话框 -->
+    <div v-if="dialogVisible" class="dialog-overlay" @click.self="closeDialog">
+      <div class="dialog-box">
+        <div class="dialog-title">
+          {{ dialogType === 'create' ? '新建文件夹' : dialogType === 'rename' ? '重命名文件夹' : '删除文件夹' }}
+        </div>
+        <div class="dialog-content">
+          <template v-if="dialogType === 'delete'">
+            <p>确定删除文件夹吗？里面的应用会移出来。</p>
+          </template>
+          <template v-else>
+            <input
+              ref="dialogInput"
+              class="dialog-input"
+              :value="dialogInputValue"
+              @input="dialogInputValue = ($event.target as HTMLInputElement).value"
+              @keydown.enter="confirmDialog"
+              @keydown.esc="closeDialog"
+              autofocus
+            />
+          </template>
+        </div>
+        <div class="dialog-buttons">
+          <button class="dialog-btn cancel" @click="closeDialog">取消</button>
+          <button
+            class="dialog-btn confirm"
+            :class="{ danger: dialogType === 'delete' }"
+            @click="confirmDialog"
+          >
+            {{ dialogType === 'delete' ? '删除' : '确定' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -125,16 +160,9 @@ function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
     if (target.classList.contains('menu-item')) {
       const action = target.dataset.action
       if (action === 'rename') {
-        appsStore.toggleFolder(folder.id)
-        // 触发重命名（通过 FolderItem 的方法比较复杂，这里用 prompt 替代）
-        const newName = prompt('重命名文件夹', folder.name)
-        if (newName && newName.trim()) {
-          appsStore.renameFolder(folder.id, newName.trim())
-        }
+        openDialog('rename', folder.id)
       } else if (action === 'delete') {
-        if (confirm(`确定删除文件夹"${folder.name}"吗？里面的应用会移出来。`)) {
-          appsStore.deleteFolder(folder.id)
-        }
+        openDialog('delete', folder.id)
       }
     }
     cleanup()
@@ -150,11 +178,48 @@ function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
   }, 0)
 }
 
-function createNewFolder() {
-  const name = prompt('输入文件夹名称', '新建文件夹')
-  if (name && name.trim()) {
-    appsStore.createFolder(name.trim())
+// 自定义对话框
+import { ref } from 'vue'
+const dialogVisible = ref(false)
+const dialogType = ref<'create' | 'rename' | 'delete'>('create')
+const dialogFolderId = ref('')
+const dialogInputValue = ref('')
+
+function openDialog(type: 'create' | 'rename' | 'delete', folderId = '') {
+  dialogType.value = type
+  dialogFolderId.value = folderId
+  if (type === 'create') {
+    dialogInputValue.value = '新建文件夹'
+  } else if (type === 'rename') {
+    const folder = appsStore.folders.find((f) => f.id === folderId)
+    dialogInputValue.value = folder?.name || ''
   }
+  dialogVisible.value = true
+}
+
+function closeDialog() {
+  dialogVisible.value = false
+}
+
+function confirmDialog() {
+  if (dialogType.value === 'create') {
+    if (dialogInputValue.value.trim()) {
+      appsStore.createFolder(dialogInputValue.value.trim())
+    }
+  } else if (dialogType.value === 'rename') {
+    if (dialogInputValue.value.trim() && dialogFolderId.value) {
+      appsStore.renameFolder(dialogFolderId.value, dialogInputValue.value.trim())
+    }
+  } else if (dialogType.value === 'delete') {
+    if (dialogFolderId.value) {
+      appsStore.deleteFolder(dialogFolderId.value)
+    }
+  }
+  closeDialog()
+}
+
+function createNewFolder() {
+  openDialog('create')
 }
 </script>
 
@@ -277,4 +342,105 @@ function createNewFolder() {
 
 .folder-context-menu .menu-item.danger:hover {
   background: rgba(255, 100, 100, 0.15);
+}
+
+/* 自定义对话框 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.dialog-box {
+  background: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.dialog-content {
+  margin-bottom: 20px;
+}
+
+.dialog-content p {
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dialog-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.dialog-input:focus {
+  border-color: var(--accent-color);
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dialog-btn {
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.dialog-btn.cancel {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ccc;
+}
+
+.dialog-btn.cancel:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.dialog-btn.confirm {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+.dialog-btn.confirm:hover {
+  background: #1a8ad4;
+}
+
+.dialog-btn.confirm.danger {
+  background: #e74c3c;
+}
+
+.dialog-btn.confirm.danger:hover {
+  background: #c0392b;
 }
