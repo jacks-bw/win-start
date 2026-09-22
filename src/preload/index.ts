@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTheme: () => ipcRenderer.invoke('theme:get'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('theme:set', theme),
 
+  // 背景透明度
+  getOpacity: () => ipcRenderer.invoke('opacity:get'),
+  setOpacity: (opacity: number) => ipcRenderer.invoke('opacity:set', opacity),
+
   // 图片选择
   selectImage: () => ipcRenderer.invoke('dialog:select-image'),
   selectSvg: () => ipcRenderer.invoke('dialog:select-svg'),

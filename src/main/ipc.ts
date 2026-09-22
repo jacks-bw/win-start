@@ -101,6 +101,18 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
     return theme
   })
 
+  // 获取背景透明度（0-100，默认0）
+  ipcMain.handle('opacity:get', () => {
+    return store.get('opacity', 0)
+  })
+
+  // 设置背景透明度
+  ipcMain.handle('opacity:set', (_event, opacity: number) => {
+    const clamped = Math.max(0, Math.min(100, opacity))
+    store.set('opacity', clamped)
+    return clamped
+  })
+
   // 选择图片
   ipcMain.handle('dialog:select-image', async () => {
     const result = await dialog.showOpenDialog({

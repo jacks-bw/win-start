@@ -5,7 +5,7 @@
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
     <!-- 左侧：Win7 风格程序列表 -->
-    <div class="app-list-panel" :style="{ width: appListWidth + 'px' }">
+    <div class="app-list-panel" :style="{ width: appListWidth + 'px', background: listPanelBg }">
       <AppList />
     </div>
 
@@ -13,7 +13,7 @@
     <div class="resizer" @mousedown="startDrag"></div>
 
     <!-- 右侧：Win10 磁贴区 -->
-    <div class="tile-grid-panel">
+    <div class="tile-grid-panel" :style="{ background: tilePanelBg }">
       <TileGrid />
     </div>
 
@@ -86,9 +86,15 @@ import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import WallpaperWindow from './WallpaperWindow.vue'
 import { useAppsStore } from './stores/useApps'
 import { useTilesStore } from './stores/useTiles'
+import { useSettingsStore } from './stores/useSettings'
 
 const appsStore = useAppsStore()
 const tilesStore = useTilesStore()
+const settingsStore = useSettingsStore()
+
+// 根据透明度设置动态计算两个面板的背景色
+const listPanelBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
+const tilePanelBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getTileAlpha()})`)
 
 // 判断是否是壁纸设置窗口（通过 hash 路由）
 const isWallpaperRoute = computed(() => window.location.hash.includes('/wallpaper'))
@@ -269,7 +275,7 @@ window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
 
 onMounted(async () => {
   // 加载数据
-  await Promise.all([appsStore.loadApps(), tilesStore.loadLayout()])
+  await Promise.all([appsStore.loadApps(), tilesStore.loadLayout(), settingsStore.loadOpacity()])
 
   // 监听菜单打开/关闭事件
   window.electronAPI.onMenuOpen(() => {
@@ -333,7 +339,6 @@ onUnmounted(() => {
   flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   height: 100%;
-  background: rgba(32, 32, 32, 0.4);
 }
 
 .resizer {
@@ -356,7 +361,6 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: rgba(32, 32, 32, 0.2);
 }
 
 /* 右下角窗口 resize 手柄 */
