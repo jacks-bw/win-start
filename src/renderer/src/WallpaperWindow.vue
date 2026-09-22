@@ -14,9 +14,14 @@
         >
           <div class="preview-group-header">
             <span class="preview-group-name">{{ group.name }}</span>
-            <button class="group-bg-btn" @click="selectGroupBackground(group)">
-              🖼️ 组背景
-            </button>
+            <div class="group-actions">
+              <button class="group-bg-btn" @click="selectGroupBackground(group)">
+                🖼️ 组背景
+              </button>
+              <button class="group-bg-btn danger" @click="clearGroupBackground(group.id)">
+                🗑️ 清除组
+              </button>
+            </div>
           </div>
           <div class="preview-grid">
             <div
@@ -66,13 +71,18 @@
 
         <div class="divider"></div>
 
+        <button
+          v-if="selectedTile && (selectedTile.background || pendingBackgrounds[selectedTile.id])"
+          class="action-btn danger"
+          @click="clearTileBackground"
+        >
+          🗑️ 清除此磁贴背景
+        </button>
+
         <div v-if="hasPendingChanges" class="pending-actions">
           <div class="pending-hint">有未保存的更改</div>
           <button class="action-btn primary" @click="savePendingBackgrounds">
             💾 保存应用
-          </button>
-          <button class="action-btn" @click="cancelPendingChanges">
-            ❌ 取消更改
           </button>
           <div class="divider"></div>
         </div>
@@ -167,7 +177,7 @@ const cropDialog = reactive({
 })
 
 // 待应用的临时背景（预览用，点击保存后才真正应用）
-const pendingBackgrounds = reactive(new Map<string, string>()) // tileId -> filePath
+const pendingBackgrounds = reactive<Record<string, string>>({}) // tileId -> filePath
 const hasPendingChanges = ref(false)
 
 // 图片完整 transform（图片左上角定位，计算居中位置）
@@ -217,7 +227,7 @@ function getTileStyle(tile: TileItem, group?: TileGroup) {
   }
 
   // 优先显示待应用的临时背景
-  const pendingBg = pendingBackgrounds.get(tile.id)
+  const pendingBg = pendingBackgrounds[tile.id]
   // 优先用磁贴自己的背景，否则用组背景
   const bgPath = pendingBg || tile.background || group?.background
 
@@ -374,13 +384,23 @@ function openCropDialog(filePath: string, imageUrl: string, mode: 'tile' | 'grou
 function clearTileBackground() {
   if (selectedTileId.value) {
     tilesStore.setTileBackground(selectedTileId.value, undefined)
-    pendingBackgrounds.delete(selectedTileId.value)
+    delete pendingBackgrounds[selectedTileId.value]
+  }
+}
+
+function clearGroupBackground(groupId: string) {
+  const group = tilesStore.groups.find((g) => g.id === groupId)
+  if (group) {
+    for (const tile of group.tiles) {
+      tilesStore.setTileBackground(tile.id, undefined)
+      delete pendingBackgrounds[tile.id]
+    }
   }
 }
 
 function clearAllBackgrounds() {
   tilesStore.clearAllBackgrounds()
-  pendingBackgrounds.clear()
+  for (const key of Object.keys(pendingBackgrounds)) delete pendingBackgrounds[key]
   hasPendingChanges.value = false
 }
 
@@ -525,7 +545,7 @@ async function confirmCrop() {
     if (base64) {
       const savedPath = await window.electronAPI.saveImage(base64, `tile-${cropDialog.targetTileId}-${Date.now()}`)
       if (savedPath) {
-        pendingBackgrounds.set(cropDialog.targetTileId, savedPath)
+        pendingBackgrounds[cropDialog.targetTileId] = savedPath
         hasPendingChanges.value = true
       }
     }
@@ -626,7 +646,7 @@ async function splitImageToTiles() {
     const base64 = canvas.toDataURL('image/png')
     const savedPath = await window.electronAPI.saveImage(base64, `tile-${tile.id}-${Date.now()}`)
     if (savedPath) {
-      pendingBackgrounds.set(tile.id, savedPath)
+      pendingBackgrounds[tile.id] = savedPath
     }
   }
 
@@ -635,16 +655,16 @@ async function splitImageToTiles() {
 
 // 保存待应用的背景到实际磁贴
 function savePendingBackgrounds() {
-  for (const [tileId, bgPath] of pendingBackgrounds.value) {
+  for (const [tileId, bgPath] of Object.entries(pendingBackgrounds)) {
     tilesStore.setTileBackground(tileId, bgPath)
   }
-  pendingBackgrounds.clear()
+  for (const key of Object.keys(pendingBackgrounds)) delete pendingBackgrounds[key]
   hasPendingChanges.value = false
 }
 
 // 取消待应用的更改
 function cancelPendingChanges() {
-  pendingBackgrounds.clear()
+  for (const key of Object.keys(pendingBackgrounds)) delete pendingBackgrounds[key]
   hasPendingChanges.value = false
 }
 </script>
@@ -714,6 +734,19 @@ function cancelPendingChanges() {
 
 .group-bg-btn:hover {
   background: #444;
+}
+
+.group-bg-btn.danger {
+  color: #ff8080;
+}
+
+.group-bg-btn.danger:hover {
+  background: rgba(255, 100, 100, 0.15);
+}
+
+.group-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .preview-grid {
