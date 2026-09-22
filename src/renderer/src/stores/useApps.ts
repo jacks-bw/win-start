@@ -147,14 +147,14 @@ export const useAppsStore = defineStore('apps', () => {
     )
   })
 
-  // 最近添加的应用（前5个）
+  // 最近添加的应用（前5个，排除已在文件夹里的）
   const recentApps = computed(() => {
-    return apps.value.filter((a) => a.recentlyAdded).slice(0, 5)
+    return apps.value.filter((a) => a.recentlyAdded && !a.folderId).slice(0, 5)
   })
 
-  // 已固定的应用
+  // 已固定的应用（排除已在文件夹里的）
   const pinnedAppList = computed(() => {
-    return apps.value.filter((a) => pinnedApps.value.includes(a.id))
+    return apps.value.filter((a) => pinnedApps.value.includes(a.id) && !a.folderId)
   })
 
   async function loadApps() {

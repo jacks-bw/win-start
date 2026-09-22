@@ -34,7 +34,13 @@
       </div>
 
       <!-- 所有应用 - 按字母分组 -->
-      <div class="section">
+      <div
+        class="section all-apps-section"
+        :class="{ 'drag-over': isSectionDragOver }"
+        @dragover.prevent="handleSectionDragOver"
+        @dragleave="handleSectionDragLeave"
+        @drop.prevent="handleSectionDrop"
+      >
         <div v-if="!appsStore.searchQuery" class="section-title all-apps-title">
           所有应用
           <button class="new-folder-btn" @click="createNewFolder" title="新建文件夹">+ 新建文件夹</button>
@@ -82,6 +88,7 @@ import AppItem from './AppItem.vue'
 import FolderItem from './FolderItem.vue'
 import UserBar from './UserBar.vue'
 import { useAppsStore } from '../../stores/useApps'
+import { ref } from 'vue'
 
 const appsStore = useAppsStore()
 
@@ -104,6 +111,31 @@ function handleContextMenu(e: MouseEvent, app: AppItem) {
 function handleAppDragStart(e: DragEvent, app: AppItem) {
   e.dataTransfer?.setData('text/plain', app.id)
   e.dataTransfer!.effectAllowed = 'move'
+}
+
+// 所有应用区域拖拽（用于从文件夹移出）
+const isSectionDragOver = ref(false)
+
+function handleSectionDragOver(e: DragEvent) {
+  e.preventDefault()
+  isSectionDragOver.value = true
+}
+
+function handleSectionDragLeave() {
+  isSectionDragOver.value = false
+}
+
+function handleSectionDrop(e: DragEvent) {
+  e.preventDefault()
+  isSectionDragOver.value = false
+  const appId = e.dataTransfer?.getData('text/plain')
+  if (appId) {
+    const app = appsStore.apps.find((a) => a.id === appId)
+    // 如果应用在文件夹里，移出文件夹
+    if (app && app.folderId) {
+      appsStore.removeAppFromFolder(appId)
+    }
+  }
 }
 
 function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
@@ -228,6 +260,17 @@ function createNewFolder() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.all-apps-section {
+  transition: background 0.15s ease;
+  border-radius: 4px;
+}
+
+.all-apps-section.drag-over {
+  background: rgba(0, 120, 215, 0.08);
+  outline: 1px dashed rgba(0, 120, 215, 0.4);
+  outline-offset: -2px;
 }
 
 .new-folder-btn {

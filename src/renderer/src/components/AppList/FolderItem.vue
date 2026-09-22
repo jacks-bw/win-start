@@ -112,6 +112,7 @@ function handleDragLeave() {
 
 function handleDrop(e: DragEvent) {
   e.preventDefault()
+  e.stopPropagation()
   isDragOver.value = false
   const appId = e.dataTransfer?.getData('text/plain')
   if (appId) {

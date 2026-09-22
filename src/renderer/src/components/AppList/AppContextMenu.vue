@@ -13,6 +13,10 @@
       <span class="menu-label">固定到任务栏</span>
     </div>
 
+    <div v-if="isInFolder" class="menu-item" @click="handleRemoveFromFolder">
+      <span class="menu-label">移出文件夹</span>
+    </div>
+
     <div class="menu-divider"></div>
 
     <div class="menu-item" @click="handleOpenLocation">
@@ -28,6 +32,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
+import { useAppsStore } from '../../stores/useApps'
 
 const props = defineProps<{
   x: number
@@ -40,6 +45,10 @@ const emit = defineEmits<{
 }>()
 
 const tilesStore = useTilesStore()
+const appsStore = useAppsStore()
+
+// 检查应用是否在文件夹里
+const isInFolder = computed(() => !!props.app.folderId)
 
 // 检查该程序是否已经固定为磁贴
 const isPinnedToStart = computed(() => {
@@ -74,6 +83,11 @@ function handlePinToStart() {
 function handlePinTaskbar() {
   // 调用 IPC 固定到任务栏
   window.electronAPI.pinToTaskbar(props.app.lnkPath)
+  emit('close')
+}
+
+function handleRemoveFromFolder() {
+  appsStore.removeAppFromFolder(props.app.id)
   emit('close')
 }
 
