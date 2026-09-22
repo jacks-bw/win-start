@@ -22,7 +22,7 @@
         class="tile-front"
         :style="{
           background: tileColor,
-          backgroundImage: backgroundImage.value ? `url(${backgroundImage.value})` : undefined,
+          backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }"
