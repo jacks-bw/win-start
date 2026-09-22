@@ -2,10 +2,10 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 // Acrylic 默认透明度（0-255）
-const DEFAULT_ACRYLIC_ALPHA = 20
+const DEFAULT_ACRYLIC_ALPHA = 40
 // CSS 背景默认透明度
-const DEFAULT_LIST_ALPHA = 0.15
-const DEFAULT_TILE_ALPHA = 0.1
+const DEFAULT_LIST_ALPHA = 0.4
+const DEFAULT_TILE_ALPHA = 0.3
 
 export const useSettingsStore = defineStore('settings', () => {
   // 背景透明度 0-100，默认0（使用默认透明度）

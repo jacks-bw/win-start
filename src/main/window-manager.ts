@@ -89,7 +89,7 @@ export class WindowManager {
     this.isVisible = true
 
     // 设置 Windows Acrylic 毛玻璃效果（通过 PowerShell 调用原生 API）
-    setAcrylicEffect(this.startMenuWindow, 20)
+    setAcrylicEffect(this.startMenuWindow, 40)
 
     // 通知渲染进程开始菜单已打开
     this.startMenuWindow.webContents.send('menu:open')
