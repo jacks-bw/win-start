@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 图片选择
   selectImage: () => ipcRenderer.invoke('dialog:select-image'),
   readImageBase64: (filePath: string) => ipcRenderer.invoke('image:read-base64', filePath),
+  saveImage: (base64Data: string, fileName: string) => ipcRenderer.invoke('image:save', base64Data, fileName),
   openWallpaperWindow: () => ipcRenderer.invoke('wallpaper:open'),
 
   // 事件监听

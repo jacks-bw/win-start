@@ -1,6 +1,6 @@
-import { ipcMain, dialog } from 'electron'
-import { readFileSync } from 'fs'
-import { extname } from 'path'
+import { ipcMain, dialog, app } from 'electron'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { extname, join } from 'path'
 import type { WindowManager } from './window-manager'
 import { scanStartMenu } from './scanner'
 import { launchApp, showInFolder, uninstallProgram } from './launcher'
@@ -132,6 +132,28 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
       return `data:${mime};base64,${data.toString('base64')}`
     } catch (err) {
       console.error('读取图片失败:', err)
+      return null
+    }
+  })
+
+  // 保存 base64 图片到用户数据目录，返回文件路径
+  ipcMain.handle('image:save', async (_event, base64Data: string, fileName: string) => {
+    try {
+      const userDataPath = app.getPath('userData')
+      const tileBgDir = join(userDataPath, 'tile-backgrounds')
+      mkdirSync(tileBgDir, { recursive: true })
+
+      // 解析 base64
+      const matches = base64Data.match(/^data:image\/(\w+);base64,(.+)$/)
+      if (!matches) return null
+      const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1]
+      const data = Buffer.from(matches[2], 'base64')
+
+      const filePath = join(tileBgDir, `${fileName}.${ext}`)
+      writeFileSync(filePath, data)
+      return filePath
+    } catch (err) {
+      console.error('保存图片失败:', err)
       return null
     }
   })

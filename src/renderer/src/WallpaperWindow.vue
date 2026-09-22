@@ -444,20 +444,121 @@ const cropBoxStyle = computed(() => ({
   height: `${cropDialog.cropBox.height}px`
 }))
 
-function confirmCrop() {
+async function confirmCrop() {
   if (cropDialog.mode === 'tile' && selectedTileId.value) {
     // 单个磁贴：保存图片路径
     tilesStore.setTileBackground(selectedTileId.value, cropDialog.imagePath)
   } else if (cropDialog.mode === 'group') {
-    // 组背景：保存到组级别，每个磁贴自动显示图片的不同部分
-    tilesStore.setGroupBackground(cropDialog.targetGroupId, cropDialog.imagePath, {
-      x: cropDialog.cropBox.x,
-      y: cropDialog.cropBox.y,
-      width: cropDialog.cropBox.width,
-      height: cropDialog.cropBox.height
-    })
+    // 组背景：用 canvas 把图片切割成每个磁贴独立的小图
+    await splitImageToTiles()
   }
   cropDialog.visible = false
+}
+
+// 把图片切割成每个磁贴独立的小图（参考 Tile Genie 原理）
+async function splitImageToTiles() {
+  const group = tilesStore.groups.find((g) => g.id === cropDialog.targetGroupId)
+  if (!group || !cropContainerRef.value) return
+
+  // 加载原图
+  const img = new Image()
+  img.src = cropDialog.imageUrl
+  await new Promise((resolve) => {
+    img.onload = resolve
+    img.onerror = resolve
+  })
+
+  const containerW = cropContainerRef.value.clientWidth
+  const containerH = cropContainerRef.value.clientHeight
+
+  // 计算裁剪框区域在原图上对应的坐标
+  // 图片在容器中的位置：top:50%, left:50% + translate(offsetX, offsetY) * scale(scale)
+  // 容器坐标转原图坐标公式：
+  // imgX = (containerX - containerW/2 - offsetX + img.width * scale / 2) / scale
+  // imgY = (containerY - containerH/2 - offsetY + img.height * scale / 2) / scale
+  const scale = cropDialog.scale
+  const offsetX = cropDialog.offsetX
+  const offsetY = cropDialog.offsetY
+
+  const toImgX = (containerX: number) =>
+    (containerX - containerW / 2 - offsetX + (img.width * scale) / 2) / scale
+  const toImgY = (containerY: number) =>
+    (containerY - containerH / 2 - offsetY + (img.height * scale) / 2) / scale
+
+  // 裁剪框在原图上的区域
+  const cropImgX = toImgX(cropDialog.cropBox.x)
+  const cropImgY = toImgY(cropDialog.cropBox.y)
+  const cropImgW = toImgX(cropDialog.cropBox.x + cropDialog.cropBox.width) - cropImgX
+  const cropImgH = toImgY(cropDialog.cropBox.y + cropDialog.cropBox.height) - cropImgY
+
+  // 计算组的网格范围
+  let maxRow = 0
+  let maxCol = 0
+  for (const tile of group.tiles) {
+    const span = sizeSpan[tile.size]
+    maxRow = Math.max(maxRow, tile.row + span.rows)
+    maxCol = Math.max(maxCol, tile.col + span.cols)
+  }
+
+  // 每个 cell 在原图上的大小
+  const cellW = cropImgW / maxCol
+  const cellH = cropImgH / maxRow
+
+  // 清除组背景（因为现在每个磁贴有自己独立的背景）
+  tilesStore.setGroupBackground(cropDialog.targetGroupId, undefined)
+
+  // 对每个磁贴，切割对应的图片区域并保存
+  for (const tile of group.tiles) {
+    const span = sizeSpan[tile.size]
+    const sx = cropImgX + tile.col * cellW
+    const sy = cropImgY + tile.row * cellH
+    const sw = span.cols * cellW
+    const sh = span.rows * cellH
+
+    // 边界检查
+    if (sx < 0 || sy < 0 || sx + sw > img.width || sy + sh > img.height) {
+      // 超出图片范围的部分用黑色填充
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(sw))
+      canvas.height = Math.max(1, Math.round(sh))
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        // 绘制可见部分
+        const visibleSx = Math.max(0, sx)
+        const visibleSy = Math.max(0, sy)
+        const visibleSw = Math.min(sw, img.width - sx)
+        const visibleSh = Math.min(sh, img.height - sy)
+        if (visibleSw > 0 && visibleSh > 0) {
+          ctx.drawImage(
+            img,
+            visibleSx, visibleSy, visibleSw, visibleSh,
+            visibleSx - sx, visibleSy - sy, visibleSw, visibleSh
+          )
+        }
+        const base64 = canvas.toDataURL('image/png')
+        const savedPath = await window.electronAPI.saveImage(base64, `tile-${tile.id}-${Date.now()}`)
+        if (savedPath) {
+          tilesStore.setTileBackground(tile.id, savedPath)
+        }
+      }
+    } else {
+      // 正常切割
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(sw)
+      canvas.height = Math.round(sh)
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+        const base64 = canvas.toDataURL('image/png')
+        const savedPath = await window.electronAPI.saveImage(base64, `tile-${tile.id}-${Date.now()}`)
+        if (savedPath) {
+          tilesStore.setTileBackground(tile.id, savedPath)
+        }
+      }
+    }
+  }
 }
 </script>
 
