@@ -667,7 +667,7 @@ async function splitImageToTiles() {
 }
 
 // 保存待应用的背景到实际磁贴
-function savePendingBackgrounds() {
+async function savePendingBackgrounds() {
   for (const [tileId, bgPath] of Object.entries(pendingBackgrounds)) {
     if (bgPath === CLEAR_MARKER) {
       tilesStore.setTileBackground(tileId, undefined)
@@ -677,6 +677,8 @@ function savePendingBackgrounds() {
   }
   for (const key of Object.keys(pendingBackgrounds)) delete pendingBackgrounds[key]
   hasPendingChanges.value = false
+  // 通知开始菜单窗口重新加载布局
+  await window.electronAPI.notifyLayoutUpdated()
 }
 
 // 取消待应用的更改

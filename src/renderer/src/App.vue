@@ -280,6 +280,11 @@ onMounted(async () => {
     isVisible.value = false
   })
 
+  // 监听布局更新事件（壁纸窗口保存后通知）
+  window.electronAPI.onLayoutUpdated(() => {
+    tilesStore.loadLayout()
+  })
+
   window.addEventListener('keydown', handleKeydown)
 
   // 点击任意位置关闭右键菜单（但点击菜单内部时不关闭）

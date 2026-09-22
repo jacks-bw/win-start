@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readImageBase64: (filePath: string) => ipcRenderer.invoke('image:read-base64', filePath),
   saveImage: (base64Data: string, fileName: string) => ipcRenderer.invoke('image:save', base64Data, fileName),
   openWallpaperWindow: () => ipcRenderer.invoke('wallpaper:open'),
+  notifyLayoutUpdated: () => ipcRenderer.invoke('layout:notify-updated'),
 
   // 事件监听
   onMenuOpen: (callback: () => void) => {
@@ -33,5 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuClose: (callback: () => void) => {
     ipcRenderer.on('menu:close', callback)
+  },
+  onLayoutUpdated: (callback: () => void) => {
+    ipcRenderer.on('layout:updated', callback)
   }
 })

@@ -113,6 +113,13 @@ export class WindowManager {
     return this.isVisible
   }
 
+  // 通知开始菜单窗口重新加载磁贴布局
+  notifyLayoutUpdated(): void {
+    if (this.startMenuWindow && !this.startMenuWindow.isDestroyed()) {
+      this.startMenuWindow.webContents.send('layout:updated')
+    }
+  }
+
   // 创建/显示壁纸设置窗口
   showWallpaperWindow(): void {
     if (this.wallpaperWindow) {

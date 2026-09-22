@@ -22,8 +22,10 @@ interface ElectronAPI {
   readImageBase64: (filePath: string) => Promise<string | null>
   saveImage: (base64Data: string, fileName: string) => Promise<string | null>
   openWallpaperWindow: () => Promise<void>
+  notifyLayoutUpdated: () => Promise<void>
   onMenuOpen: (callback: () => void) => void
   onMenuClose: (callback: () => void) => void
+  onLayoutUpdated: (callback: () => void) => void
 }
 
 interface AppItem {

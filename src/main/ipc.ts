@@ -162,4 +162,9 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
   ipcMain.handle('wallpaper:open', () => {
     windowManager.showWallpaperWindow()
   })
+
+  // 通知开始菜单窗口布局已更新
+  ipcMain.handle('layout:notify-updated', () => {
+    windowManager.notifyLayoutUpdated()
+  })
 }
