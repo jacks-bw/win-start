@@ -6,12 +6,12 @@
     </div>
     <div class="user-actions">
       <!-- 设置按钮 -->
-      <div class="action-btn" @click="showSettingsMenu = !showSettingsMenu">
+      <div class="action-btn" @click.stop="showSettingsMenu = !showSettingsMenu">
         <Settings :size="16" />
       </div>
 
       <!-- 电源按钮 -->
-      <div class="action-btn" @click="showPowerMenu = !showPowerMenu">
+      <div class="action-btn" @click.stop="showPowerMenu = !showPowerMenu">
         <Power :size="16" />
       </div>
     </div>
@@ -42,11 +42,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Plus, Palette, Moon, Power, RotateCcw, User, Settings } from 'lucide-vue-next'
 
 const showPowerMenu = ref(false)
 const showSettingsMenu = ref(false)
+
+// 点击菜单外部时关闭所有下拉菜单
+function handleClickOutside() {
+  showPowerMenu.value = false
+  showSettingsMenu.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 function powerAction(action: string) {
   showPowerMenu.value = false
