@@ -7,7 +7,6 @@
         <button
           class="header-save-btn"
           :class="{ active: hasPendingChanges }"
-          :disabled="!hasPendingChanges"
           @click="savePendingBackgrounds"
         >
           💾 保存应用
@@ -1030,17 +1029,21 @@ function cancelPendingChanges() {
   font-size: 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
-  background: transparent;
-  color: #888;
-  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccc;
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.header-save-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .header-save-btn.active {
   background: #0078d7;
   border-color: #0078d7;
   color: #fff;
-  cursor: pointer;
 }
 
 .header-save-btn.active:hover {
