@@ -401,7 +401,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-/* 背景层：悬停时缩放，不影响图标和文字 */
+/* 背景层：悬停时缩放+变暗，不影响图标和文字 */
 .tile-bg {
   position: absolute;
   top: 0;
@@ -412,8 +412,25 @@ onUnmounted(() => {
   transition: transform 0.1s ease;
 }
 
+.tile-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  border-radius: 2px;
+}
+
 .tile-container:hover .tile-bg {
   transform: scale(0.98);
+}
+
+.tile-container:hover .tile-bg::before {
+  opacity: 1;
 }
 
 .tile-container.dragging {
