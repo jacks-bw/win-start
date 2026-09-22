@@ -15,7 +15,6 @@
   "dependencies": {
     "electron-store": "^8.2.0",
     "extract-file-icon": "^0.3.2",
-    "koffi": "^3.3.1",
     "lucide-vue-next": "^0.577.0",
     "pinyin": "^4.0.0-alpha.1"
   },
