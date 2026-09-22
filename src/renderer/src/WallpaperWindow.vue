@@ -84,7 +84,7 @@
             <img
               :src="cropDialog.imageUrl"
               class="crop-image"
-              :style="{ transform: `translate(${cropDialog.offsetX}px, ${cropDialog.offsetY}px) scale(${cropDialog.scale})` }"
+              :style="imageTransformStyle"
               @mousedown="startImageDrag"
               draggable="false"
             />
@@ -146,9 +146,28 @@ const cropDialog = reactive({
   offsetX: 0,
   offsetY: 0,
   scale: 1,
+  imgWidth: 0,
+  imgHeight: 0,
   cropBox: { x: 50, y: 50, width: 200, height: 200 },
+  targetRatio: 1, // 裁剪框目标宽高比
   mode: 'tile' as 'tile' | 'group',
-  targetGroupId: ''
+  targetGroupId: '',
+  targetTileId: ''
+})
+
+// 图片完整 transform（图片左上角定位，计算居中位置）
+const imageTransformStyle = computed(() => {
+  if (!cropContainerRef.value || cropDialog.imgWidth === 0) return {}
+  const containerW = cropContainerRef.value.clientWidth
+  const containerH = cropContainerRef.value.clientHeight
+  const centerX = containerW / 2
+  const centerY = containerH / 2
+  const x = centerX - (cropDialog.imgWidth * cropDialog.scale) / 2 + cropDialog.offsetX
+  const y = centerY - (cropDialog.imgHeight * cropDialog.scale) / 2 + cropDialog.offsetY
+  return {
+    transform: `translate(${x}px, ${y}px) scale(${cropDialog.scale})`,
+    transformOrigin: 'top left'
+  }
 })
 
 function sortedTiles(group: TileGroup) {
@@ -246,6 +265,13 @@ async function selectTileImage() {
   if (filePath) {
     const base64 = await window.electronAPI.readImageBase64(filePath)
     if (base64) {
+      cropDialog.targetTileId = selectedTileId.value
+      // 计算单个磁贴的宽高比
+      const tile = findTile(selectedTileId.value)
+      if (tile) {
+        const span = sizeSpan[tile.size]
+        cropDialog.targetRatio = span.cols / span.rows
+      }
       openCropDialog(filePath, base64, 'tile')
     }
   }
@@ -257,9 +283,26 @@ async function selectGroupBackground(group: TileGroup) {
     const base64 = await window.electronAPI.readImageBase64(filePath)
     if (base64) {
       cropDialog.targetGroupId = group.id
+      // 计算整组磁贴的宽高比
+      let maxRow = 0
+      let maxCol = 0
+      for (const t of group.tiles) {
+        const span = sizeSpan[t.size]
+        maxRow = Math.max(maxRow, t.row + span.rows)
+        maxCol = Math.max(maxCol, t.col + span.cols)
+      }
+      cropDialog.targetRatio = maxCol / maxRow
       openCropDialog(filePath, base64, 'group')
     }
   }
+}
+
+function findTile(tileId: string): TileItem | null {
+  for (const group of tilesStore.groups) {
+    const tile = group.tiles.find((t) => t.id === tileId)
+    if (tile) return tile
+  }
+  return null
 }
 
 function openCropDialog(filePath: string, imageUrl: string, mode: 'tile' | 'group') {
@@ -278,23 +321,33 @@ function openCropDialog(filePath: string, imageUrl: string, mode: 'tile' | 'grou
     const containerW = cropContainerRef.value.clientWidth
     const containerH = cropContainerRef.value.clientHeight
 
+    cropDialog.imgWidth = img.width
+    cropDialog.imgHeight = img.height
+
     // 计算缩放比例，让图片适应容器（contain）
     const scaleX = containerW / img.width
     const scaleY = containerH / img.height
-    const scale = Math.min(scaleX, scaleY)
+    const scale = Math.min(scaleX, scaleY) * 0.9 // 留一点边距
 
     cropDialog.scale = scale
-    // 图片已经通过 CSS top:50%, left:50% 居中，offset 设为 0
     cropDialog.offsetX = 0
     cropDialog.offsetY = 0
 
-    // 默认裁剪框居中，大小为容器的 60%
-    const size = Math.min(containerW, containerH) * 0.6
+    // 按目标比例计算裁剪框大小，居中显示
+    const ratio = cropDialog.targetRatio
+    const maxW = containerW * 0.8
+    const maxH = containerH * 0.8
+    let cropW = maxW
+    let cropH = cropW / ratio
+    if (cropH > maxH) {
+      cropH = maxH
+      cropW = cropH * ratio
+    }
     cropDialog.cropBox = {
-      x: (containerW - size) / 2,
-      y: (containerH - size) / 2,
-      width: size,
-      height: size
+      x: (containerW - cropW) / 2,
+      y: (containerH - cropH) / 2,
+      width: cropW,
+      height: cropH
     }
   }
   img.src = imageUrl
@@ -373,24 +426,9 @@ function stopCropBoxDrag() {
 // 鼠标滚轮缩放（以画面中心为锚点）
 function onWheelZoom(e: WheelEvent) {
   e.preventDefault()
-  const oldScale = cropDialog.scale
   const delta = e.deltaY > 0 ? -0.1 : 0.1
-  const newScale = Math.max(0.1, Math.min(5, oldScale + delta))
-
-  // 以容器中心为锚点缩放
-  if (cropContainerRef.value) {
-    const rect = cropContainerRef.value.getBoundingClientRect()
-    const centerX = rect.width / 2
-    const centerY = rect.height / 2
-    // 图片中心点在容器中的位置（考虑当前偏移和缩放）
-    // 图片原始中心点在 transform 之前是 (0,0)（因为 top:50%, left:50%）
-    // 缩放后，需要调整 offset 让中心点保持不变
-    const ratio = newScale / oldScale
-    cropDialog.offsetX = centerX - (centerX - cropDialog.offsetX) * ratio
-    cropDialog.offsetY = centerY - (centerY - cropDialog.offsetY) * ratio
-  }
-
-  cropDialog.scale = newScale
+  // 图片中心位置 = center + offset，与 scale 无关，所以缩放时不需要调整 offset
+  cropDialog.scale = Math.max(0.1, Math.min(5, cropDialog.scale + delta))
 }
 
 // 裁剪框四角缩放
@@ -415,18 +453,33 @@ function onResize(e: MouseEvent) {
   if (!isResizing) return
   const dx = e.clientX - resizeStartX
   const dy = e.clientY - resizeStartY
+  const ratio = cropDialog.targetRatio
   const box = { ...resizeStartBox }
 
-  if (resizeCorner.includes('r')) box.width = Math.max(50, resizeStartBox.width + dx)
-  if (resizeCorner.includes('l')) {
-    box.x = resizeStartBox.x + dx
-    box.width = Math.max(50, resizeStartBox.width - dx)
+  // 保持宽高比，以水平拖动为主
+  let newWidth = resizeStartBox.width
+  if (resizeCorner.includes('r')) newWidth = resizeStartBox.width + dx
+  if (resizeCorner.includes('l')) newWidth = resizeStartBox.width - dx
+
+  // 如果垂直拖动更大，以垂直为主
+  let newHeight = resizeStartBox.height
+  if (resizeCorner.includes('b')) newHeight = resizeStartBox.height + dy
+  if (resizeCorner.includes('t')) newHeight = resizeStartBox.height - dy
+
+  // 取变化更大的那个方向，保持比例
+  if (Math.abs(newWidth - resizeStartBox.width) * ratio > Math.abs(newHeight - resizeStartBox.height)) {
+    newWidth = Math.max(50, newWidth)
+    newHeight = newWidth / ratio
+  } else {
+    newHeight = Math.max(50 / ratio, newHeight)
+    newWidth = newHeight * ratio
   }
-  if (resizeCorner.includes('b')) box.height = Math.max(50, resizeStartBox.height + dy)
-  if (resizeCorner.includes('t')) {
-    box.y = resizeStartBox.y + dy
-    box.height = Math.max(50, resizeStartBox.height - dy)
-  }
+
+  // 调整位置
+  if (resizeCorner.includes('l')) box.x = resizeStartBox.x + (resizeStartBox.width - newWidth)
+  if (resizeCorner.includes('t')) box.y = resizeStartBox.y + (resizeStartBox.height - newHeight)
+  box.width = newWidth
+  box.height = newHeight
 
   cropDialog.cropBox = box
 }
@@ -471,19 +524,18 @@ async function splitImageToTiles() {
   const containerW = cropContainerRef.value.clientWidth
   const containerH = cropContainerRef.value.clientHeight
 
-  // 计算裁剪框区域在原图上对应的坐标
-  // 图片在容器中的位置：top:50%, left:50% + translate(offsetX, offsetY) * scale(scale)
-  // 容器坐标转原图坐标公式：
-  // imgX = (containerX - containerW/2 - offsetX + img.width * scale / 2) / scale
-  // imgY = (containerY - containerH/2 - offsetY + img.height * scale / 2) / scale
+  // 新的图片定位：图片左上角在容器中的位置
+  // imgLeft = centerX - imgWidth*scale/2 + offsetX
+  // imgTop = centerY - imgHeight*scale/2 + offsetY
+  // 容器坐标转原图坐标：imgX = (containerX - imgLeft) / scale
   const scale = cropDialog.scale
-  const offsetX = cropDialog.offsetX
-  const offsetY = cropDialog.offsetY
+  const centerX = containerW / 2
+  const centerY = containerH / 2
+  const imgLeft = centerX - (img.width * scale) / 2 + cropDialog.offsetX
+  const imgTop = centerY - (img.height * scale) / 2 + cropDialog.offsetY
 
-  const toImgX = (containerX: number) =>
-    (containerX - containerW / 2 - offsetX + (img.width * scale) / 2) / scale
-  const toImgY = (containerY: number) =>
-    (containerY - containerH / 2 - offsetY + (img.height * scale) / 2) / scale
+  const toImgX = (containerX: number) => (containerX - imgLeft) / scale
+  const toImgY = (containerY: number) => (containerY - imgTop) / scale
 
   // 裁剪框在原图上的区域
   const cropImgX = toImgX(cropDialog.cropBox.x)
@@ -812,9 +864,8 @@ async function splitImageToTiles() {
 
 .crop-image {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform-origin: center center;
+  top: 0;
+  left: 0;
   max-width: none;
   user-select: none;
   -webkit-user-drag: none;
