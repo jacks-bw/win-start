@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 系统电源操作
   powerAction: (action: 'shutdown' | 'restart' | 'sleep' | 'lock') => ipcRenderer.invoke('system:power', action),
 
+  // 悬浮启动按钮点击
+  launcherClick: (displayId: number) => ipcRenderer.invoke('launcher:click', displayId),
+
   // 图片选择
   selectImage: () => ipcRenderer.invoke('dialog:select-image'),
   selectSvg: () => ipcRenderer.invoke('dialog:select-svg'),
@@ -48,5 +51,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onLayoutUpdated: (callback: () => void) => {
     ipcRenderer.on('layout:updated', callback)
+  },
+
+  // 悬浮按钮编辑模式切换
+  onLauncherEditMode: (callback: (editing: boolean) => void) => {
+    ipcRenderer.on('launcher:edit-mode', (_event, editing: boolean) => callback(editing))
   }
 })

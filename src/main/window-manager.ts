@@ -84,14 +84,35 @@ export class WindowManager {
     }
   }
 
-  showStartMenu(): void {
+  showStartMenu(displayId?: number, buttonBounds?: { x: number; y: number; width: number }): void {
     if (!this.startMenuWindow) return
 
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { height: screenHeight } = primaryDisplay.workAreaSize
     const [, height] = this.startMenuWindow.getSize()
 
-    this.startMenuWindow.setPosition(0, screenHeight - height)
+    if (buttonBounds) {
+      // 菜单显示在按钮上方，左对齐
+      const x = buttonBounds.x
+      const y = buttonBounds.y - height
+      this.startMenuWindow.setPosition(x, y)
+    } else if (displayId !== undefined) {
+      // 指定屏幕的左下角
+      const displays = screen.getAllDisplays()
+      const display = displays.find((d) => d.id === displayId)
+      if (display) {
+        this.startMenuWindow.setPosition(
+          display.workArea.x,
+          display.workArea.y + display.workArea.height - height
+        )
+      } else {
+        const primary = screen.getPrimaryDisplay()
+        this.startMenuWindow.setPosition(0, primary.workAreaSize.height - height)
+      }
+    } else {
+      // 默认：主屏左下角
+      const primaryDisplay = screen.getPrimaryDisplay()
+      this.startMenuWindow.setPosition(0, primaryDisplay.workAreaSize.height - height)
+    }
+
     this.startMenuWindow.show()
     this.startMenuWindow.focus()
     this.isVisible = true
@@ -101,6 +122,19 @@ export class WindowManager {
 
     // 通知渲染进程开始菜单已打开
     this.startMenuWindow.webContents.send('menu:open')
+  }
+
+  /** 点击悬浮按钮时切换菜单：在按钮上方显示，再次点击隐藏 */
+  toggleStartMenuAt(displayId: number, buttonBounds: { x: number; y: number; width: number }): void {
+    if (this.isVisible && this.startMenuWindow) {
+      const [menuX] = this.startMenuWindow.getPosition()
+      // 如果菜单已经在这个按钮上方，点击则隐藏
+      if (menuX === buttonBounds.x) {
+        this.hideStartMenu()
+        return
+      }
+    }
+    this.showStartMenu(displayId, buttonBounds)
   }
 
   hideStartMenu(): void {

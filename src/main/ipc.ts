@@ -7,7 +7,13 @@ import { scanStartMenu } from './scanner'
 import { launchApp, showInFolder, uninstallProgram } from './launcher'
 import type Store from 'electron-store'
 
-export function setupIpc(windowManager: WindowManager, store: Store<any>): void {
+import type { LaunchButtonManager } from './launch-button-manager'
+
+export function setupIpc(
+  windowManager: WindowManager,
+  store: Store<any>,
+  launchButtonManager?: LaunchButtonManager
+): void {
   // 扫描程序列表
   ipcMain.handle('app:list', async () => {
     const apps = await scanStartMenu()
@@ -214,5 +220,10 @@ export function setupIpc(windowManager: WindowManager, store: Store<any>): void 
     exec(cmd, (error) => {
       if (error) console.error(`[Power] ${action} failed:`, error.message)
     })
+  })
+
+  // 悬浮启动按钮点击
+  ipcMain.handle('launcher:click', (_event, displayId: number) => {
+    launchButtonManager?.handleButtonClick(displayId)
   })
 }

@@ -1,6 +1,7 @@
 import { Tray, Menu, nativeImage, app } from 'electron'
 import path from 'path'
 import type { WindowManager } from './window-manager'
+import type { LaunchButtonManager } from './launch-button-manager'
 
 let tray: Tray | null = null
 
@@ -11,32 +12,53 @@ function getIconPath(): string {
     : path.join(__dirname, '../../resources/icons/icon.ico')
 }
 
-export function createTray(windowManager: WindowManager): void {
+export function createTray(
+  windowManager: WindowManager,
+  launchButtonManager?: LaunchButtonManager
+): void {
   const iconPath = getIconPath()
   const icon = nativeImage.createFromPath(iconPath)
   console.log('[Tray] Icon path:', iconPath)
   console.log('[Tray] Icon isEmpty:', icon.isEmpty(), 'size:', icon.getSize())
   tray = new Tray(icon)
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: '打开开始菜单',
-      click: () => windowManager.showStartMenu()
-    },
-    {
-      type: 'separator'
-    },
-    {
-      label: '退出',
-      click: () => {
-        windowManager.getWindow()?.close()
-        process.exit(0)
+  const buildMenu = () => {
+    const editMode = launchButtonManager?.isEditMode() ?? false
+    return Menu.buildFromTemplate([
+      {
+        label: '打开开始菜单',
+        click: () => windowManager.showStartMenu()
+      },
+      {
+        type: 'separator'
+      },
+      {
+        label: editMode ? '完成编辑按钮' : '编辑按钮位置',
+        type: 'checkbox' as const,
+        checked: editMode,
+        click: () => {
+          if (!launchButtonManager) return
+          const next = !launchButtonManager.isEditMode()
+          launchButtonManager.setEditMode(next)
+          // 刷新菜单勾选状态
+          if (tray) tray.setContextMenu(buildMenu())
+        }
+      },
+      {
+        type: 'separator'
+      },
+      {
+        label: '退出',
+        click: () => {
+          windowManager.getWindow()?.close()
+          process.exit(0)
+        }
       }
-    }
-  ])
+    ])
+  }
 
   tray.setToolTip('Win10 开始菜单')
-  tray.setContextMenu(contextMenu)
+  tray.setContextMenu(buildMenu())
 
   // 左键点击托盘图标切换开始菜单
   tray.on('click', () => {
