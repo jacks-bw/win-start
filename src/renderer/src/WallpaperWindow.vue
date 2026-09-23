@@ -4,6 +4,9 @@
       <span class="title">磁贴壁纸设置</span>
       <div class="header-actions">
         <span v-if="hasPendingChanges" class="pending-dot"></span>
+        <button class="header-refresh-btn" @click="refreshLayout" title="刷新磁贴布局">
+          <RefreshCw :size="14" class="btn-icon" />
+        </button>
         <button
           class="header-save-btn"
           :class="{ active: hasPendingChanges }"
@@ -324,14 +327,23 @@ import * as LucideIcons from 'lucide-vue-next'
 
 // 解构模板中用到的图标组件
 // 注意：Image 重命名为 ImageIcon，避免覆盖 JS 内置的 Image 构造函数（new Image() 加载图片会失败）
-const { Save, Image: ImageIcon, Trash2, ImagePlus, Palette, Upload, Undo2, X, Eraser, Check } = LucideIcons
+const { Save, Image: ImageIcon, Trash2, ImagePlus, Palette, Upload, Undo2, X, Eraser, Check, RefreshCw } = LucideIcons
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
 
+// 强制刷新磁贴布局
+async function refreshLayout() {
+  await tilesStore.loadLayout()
+  selectedTileId.value = null
+  console.log('[Wallpaper] 磁贴布局已刷新')
+}
+
 // 壁纸设置窗口是独立渲染进程，需要主动加载布局数据
 onMounted(async () => {
   await tilesStore.loadLayout()
+  // 窗口获得焦点时自动刷新，确保数据和主窗口一致
+  window.addEventListener('focus', refreshLayout)
 })
 
 const selectedTileId = ref<string | null>(null)
@@ -1263,6 +1275,23 @@ function cancelPendingChanges() {
 
 .header-save-btn.active:hover {
   background: #106ebe;
+}
+
+.header-refresh-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-right: 8px;
+}
+
+.header-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .btn-icon {
