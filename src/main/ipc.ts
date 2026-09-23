@@ -9,6 +9,9 @@ import type Store from 'electron-store'
 
 import type { LaunchButtonManager } from './launch-button-manager'
 
+// 内存缓存：确保独立渲染进程（壁纸设置窗口）能读到最新布局
+let cachedTileLayout: unknown = null
+
 export function setupIpc(
   windowManager: WindowManager,
   store: Store<any>,
@@ -84,12 +87,15 @@ export function setupIpc(
 
   // 保存磁贴布局
   ipcMain.handle('tile:layout-save', (_event, layout: unknown) => {
+    cachedTileLayout = layout
     store.set('tileLayout', layout)
   })
 
-  // 加载磁贴布局
+  // 加载磁贴布局（优先从内存缓存读取，确保独立窗口读到最新数据）
   ipcMain.handle('tile:layout-load', () => {
-    return store.get('tileLayout')
+    const layout = cachedTileLayout || store.get('tileLayout')
+    cachedTileLayout = layout
+    return layout
   })
 
   // 隐藏开始菜单
