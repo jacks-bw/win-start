@@ -85,6 +85,15 @@ npm run build:dir
 npm run build:portable
 ```
 
+> **国内网络注意**：如果打包时下载 `winCodeSign` 等依赖超时，先设置 electron-builder 二进制镜像再打包：
+> ```bash
+> # 设置 electron-builder 二进制镜像
+> set ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
+>
+> # 重新打包
+> npm run build
+> ```
+
 ### 产物位置
 ```
 dist/
