@@ -19,6 +19,7 @@ interface StoreType {
 export class WindowManager {
   private startMenuWindow: BrowserWindow | null = null
   private wallpaperWindow: BrowserWindow | null = null
+  private shortcutsWindow: BrowserWindow | null = null
   private store: Store<StoreType>
   private isVisible = false
 
@@ -212,6 +213,45 @@ export class WindowManager {
 
     this.wallpaperWindow.on('closed', () => {
       this.wallpaperWindow = null
+    })
+  }
+
+  // 创建/显示快捷键设置窗口
+  showShortcutsWindow(): void {
+    if (this.shortcutsWindow) {
+      this.shortcutsWindow.focus()
+      return
+    }
+
+    this.shortcutsWindow = new BrowserWindow({
+      width: 480,
+      height: 320,
+      minWidth: 400,
+      minHeight: 280,
+      resizable: false,
+      frame: true,
+      title: '快捷键设置',
+      backgroundColor: '#1e1e1e',
+      icon: getIconPath(),
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: false
+      }
+    })
+
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      this.shortcutsWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/shortcuts`)
+    } else {
+      this.shortcutsWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/shortcuts' })
+    }
+
+    this.shortcutsWindow.setMenuBarVisibility(false)
+
+    this.shortcutsWindow.on('closed', () => {
+      this.shortcutsWindow = null
     })
   }
 }

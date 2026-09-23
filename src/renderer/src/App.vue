@@ -2,6 +2,9 @@
   <!-- 壁纸设置窗口 -->
   <WallpaperWindow v-if="isWallpaperRoute" />
 
+  <!-- 快捷键设置窗口 -->
+  <ShortcutsWindow v-else-if="isShortcutsRoute" />
+
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
     <!-- 左侧：Win7 风格程序列表 -->
@@ -84,6 +87,7 @@ import TileGrid from './components/TileGrid/TileGrid.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import WallpaperWindow from './WallpaperWindow.vue'
+import ShortcutsWindow from './ShortcutsWindow.vue'
 import { useAppsStore } from './stores/useApps'
 import { useTilesStore } from './stores/useTiles'
 import { useSettingsStore } from './stores/useSettings'
@@ -98,6 +102,9 @@ const tilePanelBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getTileAlph
 
 // 判断是否是壁纸设置窗口（通过 hash 路由）
 const isWallpaperRoute = computed(() => window.location.hash.includes('/wallpaper'))
+
+// 判断是否是快捷键设置窗口（通过 hash 路由）
+const isShortcutsRoute = computed(() => window.location.hash.includes('/shortcuts'))
 
 const isVisible = ref(false)
 const contextMenu = ref({

@@ -43,6 +43,10 @@ export function createTray(
         }
       },
       {
+        label: '快捷键设置',
+        click: () => windowManager.showShortcutsWindow()
+      },
+      {
         type: 'separator'
       },
       {

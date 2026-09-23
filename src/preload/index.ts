@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 悬浮启动按钮点击
   launcherClick: (displayId: number) => ipcRenderer.invoke('launcher:click', displayId),
 
+  // 全局快捷键
+  getShortcut: () => ipcRenderer.invoke('shortcuts:get'),
+  setShortcut: (shortcut: string) => ipcRenderer.invoke('shortcuts:set', shortcut),
+
   // 图片选择
   selectImage: () => ipcRenderer.invoke('dialog:select-image'),
   selectSvg: () => ipcRenderer.invoke('dialog:select-svg'),

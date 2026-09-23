@@ -1,4 +1,4 @@
-import { ipcMain, dialog, app } from 'electron'
+import { ipcMain, dialog, app, globalShortcut } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { extname, join } from 'path'
 import { exec } from 'child_process'
@@ -225,5 +225,32 @@ export function setupIpc(
   // 悬浮启动按钮点击
   ipcMain.handle('launcher:click', (_event, displayId: number) => {
     launchButtonManager?.handleButtonClick(displayId)
+  })
+
+  // 获取当前全局快捷键
+  ipcMain.handle('shortcuts:get', () => {
+    return store.get('globalShortcut', 'Alt+Space')
+  })
+
+  // 设置全局快捷键
+  ipcMain.handle('shortcuts:set', (_event, shortcut: string) => {
+    const oldShortcut = store.get('globalShortcut', 'Alt+Space') as string
+    // 先取消旧快捷键
+    globalShortcut.unregister(oldShortcut)
+    // 注册新快捷键
+    const success = globalShortcut.register(shortcut, () => {
+      windowManager.toggleStartMenu()
+    })
+    if (success) {
+      store.set('globalShortcut', shortcut)
+      console.log('[Shortcuts] Registered:', shortcut)
+    } else {
+      console.error('[Shortcuts] Failed to register:', shortcut)
+      // 注册失败，恢复旧快捷键
+      globalShortcut.register(oldShortcut, () => {
+        windowManager.toggleStartMenu()
+      })
+    }
+    return success
   })
 }

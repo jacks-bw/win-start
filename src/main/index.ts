@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, globalShortcut } from 'electron'
 import { WindowManager } from './window-manager'
 import { createTray } from './tray'
 import { setupIpc } from './ipc'
@@ -21,12 +21,28 @@ app.whenReady().then(() => {
   createTray(windowManager, launchButtonManager)
   setupIpc(windowManager, store, launchButtonManager)
 
+  // 注册全局快捷键（默认 Alt+Space）
+  const defaultShortcut = store.get('globalShortcut', 'Alt+Space') as string
+  const success = globalShortcut.register(defaultShortcut, () => {
+    windowManager?.toggleStartMenu()
+  })
+  if (success) {
+    console.log('[Shortcuts] Registered:', defaultShortcut)
+  } else {
+    console.error('[Shortcuts] Failed to register:', defaultShortcut)
+  }
+
   // 启动后自动显示开始菜单窗口
   windowManager.showStartMenu()
 
   app.on('activate', () => {
     windowManager?.showStartMenu()
   })
+})
+
+// 退出时取消所有快捷键
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 app.on('window-all-closed', () => {
