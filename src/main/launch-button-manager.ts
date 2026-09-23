@@ -123,9 +123,11 @@ export class LaunchButtonManager {
     overflow: hidden;
   }
   body.edit-mode {
-    background: rgba(0, 120, 212, 0.3);
+    background: rgba(0, 120, 212, 0.25);
     border: 2px dashed #0078d4;
     box-sizing: border-box;
+    cursor: move;
+    -webkit-app-region: drag;
   }
 </style>
 </head>
@@ -133,9 +135,9 @@ export class LaunchButtonManager {
 <script>
   const displayId = ${displayId};
   document.body.addEventListener('click', function() {
+    if (document.body.classList.contains('edit-mode')) return;
     window.electronAPI && window.electronAPI.launcherClick && window.electronAPI.launcherClick(displayId);
   });
-  // 监听编辑模式切换
   if (window.electronAPI && window.electronAPI.onLauncherEditMode) {
     window.electronAPI.onLauncherEditMode(function(editing) {
       document.body.classList.toggle('edit-mode', editing);

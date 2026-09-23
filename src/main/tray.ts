@@ -40,8 +40,6 @@ export function createTray(
           if (!launchButtonManager) return
           const next = !launchButtonManager.isEditMode()
           launchButtonManager.setEditMode(next)
-          // 刷新菜单勾选状态
-          if (tray) tray.setContextMenu(buildMenu())
         }
       },
       {
@@ -58,7 +56,12 @@ export function createTray(
   }
 
   tray.setToolTip('Win10 开始菜单')
-  tray.setContextMenu(buildMenu())
+
+  // 右键手动弹出菜单，确保在任务栏上方
+  tray.on('right-click', () => {
+    const menu = buildMenu()
+    tray.popUpContextMenu(menu)
+  })
 
   // 左键点击托盘图标切换开始菜单
   tray.on('click', () => {
