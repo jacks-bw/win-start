@@ -10,6 +10,10 @@ files:
   - out/**/*
   - resources/**/*
 
+extraResources:
+  - from: resources/icons
+    to: icons
+
 win:
   icon: resources/icons/icon.ico
   target:
