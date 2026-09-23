@@ -265,7 +265,7 @@ export function setupIpc(
     return store.get('userAvatar', null)
   })
 
-  // 选择并保存用户头像
+  // 选择用户头像图片（只返回路径，不保存，由渲染进程裁剪后再保存）
   ipcMain.handle('user:avatar-select', async () => {
     const result = await dialog.showOpenDialog({
       title: '选择用户头像',
@@ -273,16 +273,17 @@ export function setupIpc(
       properties: ['openFile']
     })
     if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
 
-    const srcPath = result.filePaths[0]
+  // 保存裁剪后的用户头像（接收 base64）
+  ipcMain.handle('user:avatar-save', (_event, base64Data: string) => {
     const userDataPath = app.getPath('userData')
     const avatarDir = join(userDataPath, 'avatars')
     mkdirSync(avatarDir, { recursive: true })
-
-    const ext = extname(srcPath).toLowerCase()
-    const destPath = join(avatarDir, `user-avatar${ext}`)
-    copyFileSync(srcPath, destPath)
-
+    const destPath = join(avatarDir, 'user-avatar.png')
+    const base64 = base64Data.replace(/^data:image\/png;base64,/, '')
+    writeFileSync(destPath, Buffer.from(base64, 'base64'))
     store.set('userAvatar', destPath)
     return destPath
   })

@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 用户头像
   getUserAvatar: () => ipcRenderer.invoke('user:avatar-get'),
   selectUserAvatar: () => ipcRenderer.invoke('user:avatar-select'),
+  saveUserAvatar: (base64Data: string) => ipcRenderer.invoke('user:avatar-save', base64Data),
 
   // 系统功能
   openControlPanel: () => ipcRenderer.invoke('system:open-control-panel'),

@@ -47,16 +47,26 @@
         <span class="power-icon"><RotateCcw :size="14" /></span> 重启
       </div>
     </div>
+
+    <!-- 头像裁剪弹窗 -->
+    <AvatarCrop
+      v-if="cropImagePath"
+      :image-path="cropImagePath"
+      @confirm="onCropConfirm"
+      @cancel="cropImagePath = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Plus, Moon, Power, RotateCcw, User, Lock, Settings, SlidersHorizontal, Image as ImageIcon } from 'lucide-vue-next'
+import AvatarCrop from '../AvatarCrop.vue'
 
 const showPowerMenu = ref(false)
 const showUserMenu = ref(false)
 const avatarPath = ref<string | null>(null)
+const cropImagePath = ref<string | null>(null)
 
 // 头像图片 URL（file:// 协议）
 const avatarUrl = computed(() => {
@@ -94,11 +104,18 @@ function addGroup() {
   }
 }
 
-// 选择用户头像
+// 选择用户头像（打开裁剪弹窗）
 async function selectAvatar() {
   showUserMenu.value = false
   const path = await window.electronAPI.selectUserAvatar?.()
-  if (path) avatarPath.value = path
+  if (path) cropImagePath.value = path
+}
+
+// 裁剪确认：保存裁剪后的头像
+async function onCropConfirm(base64: string) {
+  const savedPath = await window.electronAPI.saveUserAvatar?.(base64)
+  if (savedPath) avatarPath.value = savedPath
+  cropImagePath.value = null
 }
 
 // 打开控制面板
