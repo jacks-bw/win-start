@@ -71,6 +71,7 @@ function addGroup() {
 <style scoped>
 /* Win7 风格用户栏 */
 .user-bar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -126,7 +127,7 @@ function addGroup() {
 /* 电源下拉菜单 */
 .power-dropdown {
   position: absolute;
-  bottom: 50px;
+  bottom: 46px;
   right: 12px;
   min-width: 140px;
   background: #2d2d2d;
