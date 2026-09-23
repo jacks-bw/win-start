@@ -317,7 +317,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch, markRaw } from 'vue'
+import { ref, computed, reactive, watch, markRaw, onMounted } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
 import * as LucideIcons from 'lucide-vue-next'
@@ -328,6 +328,11 @@ const { Save, Image: ImageIcon, Trash2, ImagePlus, Palette, Upload, Undo2, X, Er
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
+
+// 壁纸设置窗口是独立渲染进程，需要主动加载布局数据
+onMounted(async () => {
+  await tilesStore.loadLayout()
+})
 
 const selectedTileId = ref<string | null>(null)
 const cropContainerRef = ref<HTMLElement | null>(null)

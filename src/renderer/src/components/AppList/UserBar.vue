@@ -47,6 +47,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Plus, Palette, Moon, Power, RotateCcw, User, Settings, Lock } from 'lucide-vue-next'
+import { useTilesStore } from '../../stores/useTiles'
+
+const tilesStore = useTilesStore()
 
 const showPowerMenu = ref(false)
 const showSettingsMenu = ref(false)
@@ -80,8 +83,10 @@ function addGroup() {
   }
 }
 
-function openWallpaperWindow() {
+async function openWallpaperWindow() {
   showSettingsMenu.value = false
+  // 先保存当前布局，确保壁纸设置窗口（独立渲染进程）能读到最新数据
+  await tilesStore.saveLayout()
   // 通过 IPC 打开独立壁纸设置窗口
   window.electronAPI.openWallpaperWindow?.()
 }
