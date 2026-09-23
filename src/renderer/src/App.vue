@@ -98,7 +98,7 @@ const settingsStore = useSettingsStore()
 
 // 根据透明度设置动态计算两个面板的背景色
 const listPanelBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
-const tilePanelBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getTileAlpha()})`)
+const tilePanelBg = computed(() => 'transparent')
 
 // 判断是否是壁纸设置窗口（通过 hash 路由）
 const isWallpaperRoute = computed(() => window.location.hash.includes('/wallpaper'))
