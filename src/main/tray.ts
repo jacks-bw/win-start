@@ -24,7 +24,6 @@ export function createTray(
 
   const buildMenu = () => {
     const editMode = launchButtonManager?.isEditMode() ?? false
-    const autoLaunch = app.getLoginItemSettings().openAtLogin
     return Menu.buildFromTemplate([
       {
         label: '打开开始菜单',
@@ -52,10 +51,12 @@ export function createTray(
         click: () => windowManager.showWallpaperWindow()
       },
       {
-        label: '开机自启',
+        label: app.isPackaged ? '开机自启' : '开机自启（打包后可用）',
         type: 'checkbox' as const,
-        checked: autoLaunch,
+        checked: app.isPackaged && app.getLoginItemSettings().openAtLogin,
+        enabled: app.isPackaged,
         click: () => {
+          if (!app.isPackaged) return
           const current = app.getLoginItemSettings().openAtLogin
           app.setLoginItemSettings({
             openAtLogin: !current,
