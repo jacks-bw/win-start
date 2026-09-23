@@ -17,6 +17,7 @@ interface StoreSchema {
   pinnedApps: string[]
   theme: 'light' | 'dark'
   recentApps: string[]
+  userAvatar: string | null
 }
 
 const defaults: StoreSchema = {
@@ -36,7 +37,8 @@ const defaults: StoreSchema = {
   },
   pinnedApps: [],
   theme: 'dark',
-  recentApps: []
+  recentApps: [],
+  userAvatar: null
 }
 
 export function createStore(): Store<StoreSchema> {

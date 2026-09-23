@@ -1,5 +1,5 @@
-import { ipcMain, dialog, app, globalShortcut } from 'electron'
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { ipcMain, dialog, app, globalShortcut, shell } from 'electron'
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { extname, join } from 'path'
 import { exec } from 'child_process'
 import type { WindowManager } from './window-manager'
@@ -258,5 +258,42 @@ export function setupIpc(
       })
     }
     return success
+  })
+
+  // 获取用户头像路径
+  ipcMain.handle('user:avatar-get', () => {
+    return store.get('userAvatar', null)
+  })
+
+  // 选择并保存用户头像
+  ipcMain.handle('user:avatar-select', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '选择用户头像',
+      filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
+      properties: ['openFile']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const srcPath = result.filePaths[0]
+    const userDataPath = app.getPath('userData')
+    const avatarDir = join(userDataPath, 'avatars')
+    mkdirSync(avatarDir, { recursive: true })
+
+    const ext = extname(srcPath).toLowerCase()
+    const destPath = join(avatarDir, `user-avatar${ext}`)
+    copyFileSync(srcPath, destPath)
+
+    store.set('userAvatar', destPath)
+    return destPath
+  })
+
+  // 打开控制面板
+  ipcMain.handle('system:open-control-panel', () => {
+    exec('control')
+  })
+
+  // 打开系统设置
+  ipcMain.handle('system:open-settings', () => {
+    shell.openExternal('ms-settings:')
   })
 }

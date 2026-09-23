@@ -31,6 +31,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 系统电源操作
   powerAction: (action: 'shutdown' | 'restart' | 'sleep' | 'lock') => ipcRenderer.invoke('system:power', action),
 
+  // 用户头像
+  getUserAvatar: () => ipcRenderer.invoke('user:avatar-get'),
+  selectUserAvatar: () => ipcRenderer.invoke('user:avatar-select'),
+
+  // 系统功能
+  openControlPanel: () => ipcRenderer.invoke('system:open-control-panel'),
+  openSystemSettings: () => ipcRenderer.invoke('system:open-settings'),
+
   // 悬浮启动按钮点击
   launcherClick: (displayId: number) => ipcRenderer.invoke('launcher:click', displayId),
 
