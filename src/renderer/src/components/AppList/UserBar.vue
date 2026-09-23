@@ -57,11 +57,12 @@ import { Plus, Moon, Power, RotateCcw, User, Lock, Settings, SlidersHorizontal, 
 const showPowerMenu = ref(false)
 const showUserMenu = ref(false)
 const avatarPath = ref<string | null>(null)
+const avatarVersion = ref(0)
 
-// 头像图片 URL（file:// 协议）
+// 头像图片 URL（file:// 协议，加版本号强制刷新缓存）
 const avatarUrl = computed(() => {
   if (!avatarPath.value) return ''
-  return `file:///${avatarPath.value.replace(/\\/g, '/')}`
+  return `file:///${avatarPath.value.replace(/\\/g, '/')}?v=${avatarVersion.value}`
 })
 
 // 点击菜单外部时关闭所有下拉菜单
@@ -73,7 +74,10 @@ function handleClickOutside() {
 // 重新加载头像
 async function reloadAvatar() {
   const saved = await window.electronAPI.getUserAvatar?.()
-  if (saved) avatarPath.value = saved
+  if (saved) {
+    avatarPath.value = saved
+    avatarVersion.value++ // 递增版本号，强制浏览器重新加载图片
+  }
 }
 
 onMounted(async () => {
