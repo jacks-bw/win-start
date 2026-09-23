@@ -24,6 +24,9 @@
       <div class="settings-item" @click="openWallpaperWindow">
         <span class="settings-icon"><Palette :size="14" /></span> 自定义壁纸
       </div>
+      <div class="settings-item" @click="refreshTiles">
+        <span class="settings-icon"><RefreshCw :size="14" /></span> 刷新磁贴
+      </div>
     </div>
 
     <!-- 电源选项下拉 -->
@@ -46,10 +49,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Plus, Palette, Moon, Power, RotateCcw, User, Settings, Lock } from 'lucide-vue-next'
+import { Plus, Palette, Moon, Power, RotateCcw, User, Settings, Lock, RefreshCw } from 'lucide-vue-next'
 import { useTilesStore } from '../../stores/useTiles'
+import { useAppsStore } from '../../stores/useApps'
 
 const tilesStore = useTilesStore()
+const appsStore = useAppsStore()
 
 const showPowerMenu = ref(false)
 const showSettingsMenu = ref(false)
@@ -89,6 +94,20 @@ async function openWallpaperWindow() {
   await tilesStore.saveLayout()
   // 通过 IPC 打开独立壁纸设置窗口
   window.electronAPI.openWallpaperWindow?.()
+}
+
+// 强制刷新磁贴：重新从主进程加载布局和应用列表
+async function refreshTiles() {
+  showSettingsMenu.value = false
+  try {
+    await Promise.all([
+      tilesStore.loadLayout(),
+      appsStore.loadApps()
+    ])
+    console.log('[Refresh] 磁贴和应用列表已刷新')
+  } catch (e) {
+    console.error('[Refresh] 刷新失败:', e)
+  }
 }
 </script>
 
