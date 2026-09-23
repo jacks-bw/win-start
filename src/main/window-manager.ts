@@ -6,8 +6,8 @@ import { setAcrylicEffect } from './acrylic'
 // 获取图标路径（开发环境和打包后路径不同）
 function getIconPath(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, 'icons/icon.png')
-    : join(__dirname, '../../resources/icons/icon.png')
+    ? join(process.resourcesPath, 'icons/icon.ico')
+    : join(__dirname, '../../resources/icons/icon.ico')
 }
 
 interface StoreType {

@@ -11,7 +11,7 @@ files:
   - resources/**/*
 
 win:
-  icon: build/icon.ico
+  icon: resources/icons/icon.ico
   target:
     - target: nsis
       arch:

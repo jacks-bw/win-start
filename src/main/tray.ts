@@ -7,8 +7,8 @@ let tray: Tray | null = null
 // 获取图标路径（开发环境和打包后路径不同）
 function getIconPath(): string {
   return app.isPackaged
-    ? path.join(process.resourcesPath, 'icons/icon.png')
-    : path.join(__dirname, '../../resources/icons/icon.png')
+    ? path.join(process.resourcesPath, 'icons/icon.ico')
+    : path.join(__dirname, '../../resources/icons/icon.ico')
 }
 
 export function createTray(windowManager: WindowManager): void {
