@@ -57,10 +57,23 @@ export function createTray(
 
   tray.setToolTip('Win10 开始菜单')
 
-  // 右键手动弹出菜单，确保在任务栏上方
+  // 右键手动弹出菜单：固定在托盘图标位置，临时降低按钮层级避免遮挡
   tray.on('right-click', () => {
+    if (!tray) return
+    const bounds = tray.getBounds()
     const menu = buildMenu()
-    tray.popUpContextMenu(menu)
+
+    // 临时降低悬浮按钮层级，避免遮挡托盘菜单
+    launchButtonManager?.setAllButtonsAlwaysOnTop(false)
+
+    menu.popup({
+      x: bounds.x,
+      y: bounds.y,
+      callback: () => {
+        // 菜单关闭后恢复按钮置顶
+        launchButtonManager?.setAllButtonsAlwaysOnTop(true)
+      }
+    })
   })
 
   // 左键点击托盘图标切换开始菜单

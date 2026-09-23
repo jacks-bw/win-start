@@ -90,6 +90,13 @@ export class LaunchButtonManager {
     // 确保在最上层（覆盖全屏应用和任务栏）
     win.setAlwaysOnTop(true, 'screen-saver')
 
+    // 失焦后重新置顶，防止被任务栏或其他窗口覆盖
+    win.on('blur', () => {
+      if (!win.isDestroyed()) {
+        win.setAlwaysOnTop(true, 'screen-saver')
+      }
+    })
+
     // 加载透明按钮页面（通过 URL 参数传递 displayId）
     const html = this.getButtonHtml(displayId)
     win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
@@ -168,6 +175,18 @@ export class LaunchButtonManager {
       win.setResizable(edit)
       win.setMovable(edit)
       win.webContents.send('launcher:edit-mode', edit)
+    }
+  }
+
+  /** 临时设置所有按钮的置顶状态（托盘菜单弹出时降低层级，避免遮挡菜单） */
+  setAllButtonsAlwaysOnTop(enable: boolean): void {
+    for (const [, win] of this.buttons) {
+      if (win.isDestroyed()) continue
+      if (enable) {
+        win.setAlwaysOnTop(true, 'screen-saver')
+      } else {
+        win.setAlwaysOnTop(false)
+      }
     }
   }
 
