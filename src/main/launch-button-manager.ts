@@ -77,6 +77,8 @@ export class LaunchButtonManager {
       skipTaskbar: true,
       resizable: this.editMode,
       movable: this.editMode,
+      minimizable: false,
+      maximizable: false,
       hasShadow: false,
       focusable: true,
       webPreferences: {
@@ -95,6 +97,15 @@ export class LaunchButtonManager {
       if (!win.isDestroyed()) {
         win.setAlwaysOnTop(true, 'screen-saver')
       }
+    })
+
+    // 防止"显示桌面"最小化按钮窗口
+    win.on('minimize', (e) => {
+      e.preventDefault()
+      if (!win.isDestroyed()) win.restore()
+    })
+    win.on('hide', () => {
+      if (!win.isDestroyed()) win.show()
     })
 
     // 加载透明按钮页面（通过 URL 参数传递 displayId）
