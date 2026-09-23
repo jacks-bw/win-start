@@ -47,8 +47,6 @@
         <span class="power-icon"><RotateCcw :size="14" /></span> 重启
       </div>
     </div>
-
-    </div>
   </div>
 </template>
 
