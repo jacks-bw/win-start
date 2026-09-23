@@ -5,24 +5,14 @@
       <span class="username">用户</span>
     </div>
     <div class="user-actions">
-      <!-- 设置按钮 -->
-      <div class="action-btn" @click.stop="showSettingsMenu = !showSettingsMenu">
-        <Settings :size="16" />
+      <!-- 新增分组按钮 -->
+      <div class="action-btn" @click="addGroup" title="新增分组">
+        <Plus :size="16" />
       </div>
 
       <!-- 电源按钮 -->
       <div class="action-btn" @click.stop="showPowerMenu = !showPowerMenu">
         <Power :size="16" />
-      </div>
-    </div>
-
-    <!-- 设置选项下拉 -->
-    <div v-if="showSettingsMenu" class="settings-dropdown" @click.stop>
-      <div class="settings-item" @click="addGroup">
-        <span class="settings-icon"><Plus :size="14" /></span> 新增分组
-      </div>
-      <div class="settings-item" @click="openWallpaperWindow">
-        <span class="settings-icon"><Palette :size="14" /></span> 自定义壁纸
       </div>
     </div>
 
@@ -46,18 +36,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Plus, Palette, Moon, Power, RotateCcw, User, Settings, Lock } from 'lucide-vue-next'
-import { useTilesStore } from '../../stores/useTiles'
-
-const tilesStore = useTilesStore()
+import { Plus, Moon, Power, RotateCcw, User, Lock } from 'lucide-vue-next'
 
 const showPowerMenu = ref(false)
-const showSettingsMenu = ref(false)
 
-// 点击菜单外部时关闭所有下拉菜单
+// 点击菜单外部时关闭电源菜单
 function handleClickOutside() {
   showPowerMenu.value = false
-  showSettingsMenu.value = false
 }
 
 onMounted(() => {
@@ -74,21 +59,12 @@ function powerAction(action: 'shutdown' | 'restart' | 'sleep' | 'lock') {
 }
 
 function addGroup() {
-  showSettingsMenu.value = false
   if (window.showInputDialog) {
     window.showInputDialog('新建分组', '新分组', (name) => {
       // 通过事件通知 TileGrid
       window.dispatchEvent(new CustomEvent('add-tile-group', { detail: { name } }))
     })
   }
-}
-
-async function openWallpaperWindow() {
-  showSettingsMenu.value = false
-  // 先保存当前布局，确保壁纸设置窗口（独立渲染进程）能读到最新数据
-  await tilesStore.saveLayout()
-  // 通过 IPC 打开独立壁纸设置窗口
-  window.electronAPI.openWallpaperWindow?.()
 }
 </script>
 
@@ -99,101 +75,86 @@ async function openWallpaperWindow() {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.25);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  position: relative;
 }
 
 .user-avatar-section {
   display: flex;
   align-items: center;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 2px;
-  transition: background 0.1s ease;
-}
-
-.user-avatar-section:hover {
-  background: var(--item-hover);
+  gap: 10px;
 }
 
 .avatar-circle {
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  background: var(--accent-color);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0078d4, #005a9e);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  margin-right: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .username {
-  font-size: 12.5px;
+  font-size: 13px;
   color: #e0e0e0;
-  max-width: 120px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 500;
 }
 
 .user-actions {
   display: flex;
-  align-items: center;
   gap: 4px;
 }
 
 .action-btn {
-  padding: 6px 8px;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: background 0.1s ease;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
   color: #ccc;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .action-btn:hover {
-  background: var(--item-hover);
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
 
-.settings-dropdown,
+/* 电源下拉菜单 */
 .power-dropdown {
   position: absolute;
-  bottom: 100%;
-  right: 8px;
-  background: rgba(45, 45, 45, 0.98);
+  bottom: 50px;
+  right: 12px;
+  min-width: 140px;
+  background: #2d2d2d;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  padding: 4px 0;
-  min-width: 140px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  z-index: 100;
-  margin-bottom: 4px;
+  z-index: 1000;
+  padding: 4px 0;
 }
 
-.settings-item,
 .power-item {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  gap: 10px;
+  padding: 8px 14px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 13px;
   color: #e0e0e0;
   transition: background 0.1s ease;
 }
 
-.settings-item:hover,
 .power-item:hover {
-  background: var(--item-hover);
-  color: #fff;
+  background: rgba(0, 120, 212, 0.3);
 }
 
-.settings-icon,
 .power-icon {
-  margin-right: 8px;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  color: #aaa;
 }
 </style>

@@ -47,6 +47,10 @@ export function createTray(
         click: () => windowManager.showShortcutsWindow()
       },
       {
+        label: '自定义壁纸',
+        click: () => windowManager.showWallpaperWindow()
+      },
+      {
         type: 'separator'
       },
       {
