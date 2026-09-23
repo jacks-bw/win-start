@@ -17,6 +17,7 @@ export class LaunchButtonManager {
   private store: Store<any>
   private windowManager: WindowManager
   private editMode = false
+  private autoRestoreTimer: NodeJS.Timeout | null = null
 
   constructor(store: Store<any>, windowManager: WindowManager) {
     this.store = store
@@ -26,10 +27,28 @@ export class LaunchButtonManager {
   /** 初始化：为所有屏幕创建按钮，并监听屏幕变化 */
   init(): void {
     this.createAllButtons()
+    this.startAutoRestore()
 
     screen.on('display-added', () => this.recreateAll())
     screen.on('display-removed', () => this.recreateAll())
     screen.on('display-metrics-changed', () => this.recreateAll())
+  }
+
+  /** 定时器：每秒检查并恢复按钮状态，防止被显示桌面或其他窗口覆盖 */
+  private startAutoRestore(): void {
+    if (this.autoRestoreTimer) return
+    this.autoRestoreTimer = setInterval(() => {
+      for (const [, win] of this.buttons) {
+        if (win.isDestroyed()) continue
+        if (win.isMinimized()) {
+          win.restore()
+        }
+        if (!win.isVisible()) {
+          win.show()
+        }
+        win.setAlwaysOnTop(true, 'screen-saver')
+      }
+    }, 1000)
   }
 
   /** 为每个屏幕创建按钮 */
