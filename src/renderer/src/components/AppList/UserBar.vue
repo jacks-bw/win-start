@@ -48,25 +48,17 @@
       </div>
     </div>
 
-    <!-- 头像裁剪弹窗 -->
-    <AvatarCrop
-      v-if="cropImagePath"
-      :image-path="cropImagePath"
-      @confirm="onCropConfirm"
-      @cancel="cropImagePath = null"
-    />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Plus, Moon, Power, RotateCcw, User, Lock, Settings, SlidersHorizontal, Image as ImageIcon } from 'lucide-vue-next'
-import AvatarCrop from '../AvatarCrop.vue'
 
 const showPowerMenu = ref(false)
 const showUserMenu = ref(false)
 const avatarPath = ref<string | null>(null)
-const cropImagePath = ref<string | null>(null)
 
 // 头像图片 URL（file:// 协议）
 const avatarUrl = computed(() => {
@@ -80,11 +72,20 @@ function handleClickOutside() {
   showUserMenu.value = false
 }
 
+// 重新加载头像
+async function reloadAvatar() {
+  const saved = await window.electronAPI.getUserAvatar?.()
+  if (saved) avatarPath.value = saved
+}
+
 onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   // 加载已保存的用户头像
-  const saved = await window.electronAPI.getUserAvatar?.()
-  if (saved) avatarPath.value = saved
+  await reloadAvatar()
+  // 监听头像更新事件（裁剪窗口保存后通知）
+  window.electronAPI.onAvatarUpdated?.(() => {
+    reloadAvatar()
+  })
 })
 
 onUnmounted(() => {
@@ -104,18 +105,13 @@ function addGroup() {
   }
 }
 
-// 选择用户头像（打开裁剪弹窗）
+// 选择用户头像（打开独立裁剪窗口）
 async function selectAvatar() {
   showUserMenu.value = false
   const path = await window.electronAPI.selectUserAvatar?.()
-  if (path) cropImagePath.value = path
-}
-
-// 裁剪确认：保存裁剪后的头像
-async function onCropConfirm(base64: string) {
-  const savedPath = await window.electronAPI.saveUserAvatar?.(base64)
-  if (savedPath) avatarPath.value = savedPath
-  cropImagePath.value = null
+  if (path) {
+    window.electronAPI.openAvatarCropWindow?.(path)
+  }
 }
 
 // 打开控制面板

@@ -1,13 +1,6 @@
 <template>
-  <div class="avatar-crop-overlay" @click.self="$emit('cancel')">
-    <div class="avatar-crop-dialog">
-      <div class="crop-header">
-        <span class="crop-title">裁剪用户头像</span>
-        <button class="crop-close" @click="$emit('cancel')">
-          <X :size="16" />
-        </button>
-      </div>
-
+  <div class="avatar-crop-window">
+    <div class="crop-body">
       <div
         class="crop-container"
         ref="cropContainerRef"
@@ -16,7 +9,6 @@
       >
         <img
           v-if="imgLoaded"
-          ref="imgRef"
           :src="imageUrl"
           class="crop-image"
           :style="imageStyle"
@@ -27,13 +19,13 @@
           <div class="crop-frame-inner"></div>
         </div>
       </div>
+    </div>
 
-      <div class="crop-footer">
-        <div class="zoom-info">缩放: {{ Math.round(scale * 100) }}%</div>
-        <div class="crop-actions">
-          <button class="btn btn-cancel" @click="$emit('cancel')">取消</button>
-          <button class="btn btn-confirm" @click="confirmCrop">确认</button>
-        </div>
+    <div class="crop-footer">
+      <div class="zoom-info">缩放: {{ Math.round(scale * 100) }}%</div>
+      <div class="crop-actions">
+        <button class="btn btn-cancel" @click="onCancel">取消</button>
+        <button class="btn btn-confirm" @click="confirmCrop">确认</button>
       </div>
     </div>
   </div>
@@ -41,20 +33,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { X } from 'lucide-vue-next'
-
-const props = defineProps<{
-  imagePath: string
-}>()
-
-const emit = defineEmits<{
-  confirm: [base64: string]
-  cancel: []
-}>()
 
 const cropContainerRef = ref<HTMLElement | null>(null)
-const imgRef = ref<HTMLImageElement | null>(null)
 const imgLoaded = ref(false)
+const imagePath = ref('')
 
 // 图片原始尺寸
 const imgWidth = ref(0)
@@ -76,7 +58,8 @@ const dragStartOffsetY = ref(0)
 const CROP_SIZE = 240
 
 const imageUrl = computed(() => {
-  return `file:///${props.imagePath.replace(/\\/g, '/')}`
+  if (!imagePath.value) return ''
+  return `file:///${imagePath.value.replace(/\\/g, '/')}`
 })
 
 const imageStyle = computed(() => {
@@ -88,7 +71,12 @@ const imageStyle = computed(() => {
   }
 })
 
-onMounted(() => {
+onMounted(async () => {
+  // 从主进程获取要裁剪的图片路径
+  const path = await window.electronAPI.getCropImage?.()
+  if (!path) return
+  imagePath.value = path
+
   const img = new Image()
   img.onload = () => {
     imgWidth.value = img.naturalWidth
@@ -107,8 +95,7 @@ onMounted(() => {
 function onWheelZoom(e: WheelEvent) {
   e.preventDefault()
   const delta = e.deltaY > 0 ? -0.1 : 0.1
-  const newScale = Math.max(0.1, Math.min(5, scale.value + delta))
-  scale.value = newScale
+  scale.value = Math.max(0.1, Math.min(5, scale.value + delta))
 }
 
 function onMouseDown(e: MouseEvent) {
@@ -139,14 +126,14 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', onMouseUp)
 })
 
+function onCancel() {
+  window.electronAPI.cancelCrop?.()
+}
+
 function confirmCrop() {
   if (!imgLoaded.value || imgWidth.value === 0) return
 
   // 计算裁剪区域在原始图片中的坐标
-  // 裁剪框在容器中居中，容器大小 = CROP_SIZE
-  // 图片显示位置 = offsetX, offsetY，大小 = imgWidth*scale, imgHeight*scale
-  // 裁剪框左上角相对于图片显示位置的偏移 = -offsetX, -offsetY
-  // 转换为原始图片坐标 = (-offsetX) / scale, (-offsetY) / scale
   const cropX = -offsetX.value / scale.value
   const cropY = -offsetY.value / scale.value
   const cropW = CROP_SIZE / scale.value
@@ -154,7 +141,7 @@ function confirmCrop() {
 
   // 使用 canvas 裁剪
   const canvas = document.createElement('canvas')
-  const size = 256 // 输出 256x256
+  const size = 256
   canvas.width = size
   canvas.height = size
   const ctx = canvas.getContext('2d')
@@ -164,68 +151,31 @@ function confirmCrop() {
   img.onload = () => {
     ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, size, size)
     const base64 = canvas.toDataURL('image/png')
-    emit('confirm', base64)
+    window.electronAPI.confirmCrop?.(base64)
   }
   img.src = imageUrl.value
 }
 </script>
 
 <style scoped>
-.avatar-crop-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+.avatar-crop-window {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+}
+
+.crop-body {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-}
-
-.avatar-crop-dialog {
-  background: #2d2d2d;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
-  width: 320px;
-}
-
-.crop-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.crop-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e0e0e0;
-}
-
-.crop-close {
-  background: none;
-  border: none;
-  color: #aaa;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-}
-
-.crop-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
 }
 
 .crop-container {
   width: 240px;
   height: 240px;
-  margin: 20px auto;
   position: relative;
   overflow: hidden;
   background: #1a1a1a;

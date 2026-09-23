@@ -5,6 +5,9 @@
   <!-- 快捷键设置窗口 -->
   <ShortcutsWindow v-else-if="isShortcutsRoute" />
 
+  <!-- 头像裁剪窗口 -->
+  <AvatarCropWindow v-else-if="isAvatarCropRoute" />
+
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
     <!-- 左侧：Win7 风格程序列表 -->
@@ -88,6 +91,7 @@ import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import WallpaperWindow from './WallpaperWindow.vue'
 import ShortcutsWindow from './ShortcutsWindow.vue'
+import AvatarCropWindow from './AvatarCropWindow.vue'
 import { useAppsStore } from './stores/useApps'
 import { useTilesStore } from './stores/useTiles'
 import { useSettingsStore } from './stores/useSettings'
@@ -105,6 +109,9 @@ const isWallpaperRoute = computed(() => window.location.hash.includes('/wallpape
 
 // 判断是否是快捷键设置窗口（通过 hash 路由）
 const isShortcutsRoute = computed(() => window.location.hash.includes('/shortcuts'))
+
+// 判断是否是头像裁剪窗口（通过 hash 路由）
+const isAvatarCropRoute = computed(() => window.location.hash.includes('/avatar-crop'))
 
 const isVisible = ref(false)
 const contextMenu = ref({

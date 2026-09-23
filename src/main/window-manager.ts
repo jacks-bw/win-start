@@ -20,6 +20,8 @@ export class WindowManager {
   private startMenuWindow: BrowserWindow | null = null
   private wallpaperWindow: BrowserWindow | null = null
   private shortcutsWindow: BrowserWindow | null = null
+  private avatarCropWindow: BrowserWindow | null = null
+  private currentCropImagePath: string | null = null
   private store: Store<StoreType>
   private isVisible = false
 
@@ -253,5 +255,66 @@ export class WindowManager {
     this.shortcutsWindow.on('closed', () => {
       this.shortcutsWindow = null
     })
+  }
+
+  // 创建/显示头像裁剪窗口
+  showAvatarCropWindow(imagePath: string): void {
+    if (this.avatarCropWindow) {
+      this.avatarCropWindow.focus()
+      return
+    }
+
+    this.currentCropImagePath = imagePath
+
+    this.avatarCropWindow = new BrowserWindow({
+      width: 360,
+      height: 420,
+      minWidth: 360,
+      minHeight: 420,
+      resizable: false,
+      frame: true,
+      title: '裁剪用户头像',
+      backgroundColor: '#1e1e1e',
+      icon: getIconPath(),
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: false
+      }
+    })
+
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      this.avatarCropWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/avatar-crop`)
+    } else {
+      this.avatarCropWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/avatar-crop' })
+    }
+
+    this.avatarCropWindow.setMenuBarVisibility(false)
+
+    this.avatarCropWindow.on('closed', () => {
+      this.avatarCropWindow = null
+      this.currentCropImagePath = null
+    })
+  }
+
+  // 获取当前裁剪图片路径
+  getCurrentCropImagePath(): string | null {
+    return this.currentCropImagePath
+  }
+
+  // 关闭头像裁剪窗口
+  closeAvatarCropWindow(): void {
+    if (this.avatarCropWindow) {
+      this.avatarCropWindow.close()
+    }
+  }
+
+  // 通知主窗口头像已更新
+  notifyAvatarUpdated(): void {
+    if (this.startMenuWindow) {
+      this.startMenuWindow.webContents.send('avatar:updated')
+    }
   }
 }

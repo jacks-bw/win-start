@@ -34,7 +34,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 用户头像
   getUserAvatar: () => ipcRenderer.invoke('user:avatar-get'),
   selectUserAvatar: () => ipcRenderer.invoke('user:avatar-select'),
-  saveUserAvatar: (base64Data: string) => ipcRenderer.invoke('user:avatar-save', base64Data),
+  openAvatarCropWindow: (imagePath: string) => ipcRenderer.invoke('avatar-crop:open', imagePath),
+  getCropImage: () => ipcRenderer.invoke('avatar-crop:get-image'),
+  confirmCrop: (base64Data: string) => ipcRenderer.invoke('avatar-crop:confirm', base64Data),
+  cancelCrop: () => ipcRenderer.invoke('avatar-crop:cancel'),
 
   // 系统功能
   openControlPanel: () => ipcRenderer.invoke('system:open-control-panel'),
@@ -69,5 +72,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 悬浮按钮编辑模式切换
   onLauncherEditMode: (callback: (editing: boolean) => void) => {
     ipcRenderer.on('launcher:edit-mode', (_event, editing: boolean) => callback(editing))
+  },
+
+  // 头像更新通知
+  onAvatarUpdated: (callback: () => void) => {
+    ipcRenderer.on('avatar:updated', callback)
   }
 })

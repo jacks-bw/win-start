@@ -276,8 +276,18 @@ export function setupIpc(
     return result.filePaths[0]
   })
 
-  // 保存裁剪后的用户头像（接收 base64）
-  ipcMain.handle('user:avatar-save', (_event, base64Data: string) => {
+  // 打开头像裁剪窗口
+  ipcMain.handle('avatar-crop:open', (_event, imagePath: string) => {
+    windowManager.showAvatarCropWindow(imagePath)
+  })
+
+  // 裁剪窗口获取当前要裁剪的图片路径
+  ipcMain.handle('avatar-crop:get-image', () => {
+    return windowManager.getCurrentCropImagePath()
+  })
+
+  // 裁剪确认：保存头像，关闭窗口，通知主窗口更新
+  ipcMain.handle('avatar-crop:confirm', (_event, base64Data: string) => {
     const userDataPath = app.getPath('userData')
     const avatarDir = join(userDataPath, 'avatars')
     mkdirSync(avatarDir, { recursive: true })
@@ -285,7 +295,14 @@ export function setupIpc(
     const base64 = base64Data.replace(/^data:image\/png;base64,/, '')
     writeFileSync(destPath, Buffer.from(base64, 'base64'))
     store.set('userAvatar', destPath)
+    windowManager.closeAvatarCropWindow()
+    windowManager.notifyAvatarUpdated()
     return destPath
+  })
+
+  // 裁剪取消：关闭窗口
+  ipcMain.handle('avatar-crop:cancel', () => {
+    windowManager.closeAvatarCropWindow()
   })
 
   // 打开控制面板
