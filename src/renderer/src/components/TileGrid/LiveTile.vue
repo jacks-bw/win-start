@@ -546,6 +546,9 @@ onUnmounted(() => {
 
 .tile-text {
   color: white;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tile-title {
@@ -555,6 +558,8 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* 溢出的标题：悬停时从右向左滚动显示完整名称 */
