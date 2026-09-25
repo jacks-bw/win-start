@@ -3,6 +3,23 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { extname, join } from 'path'
 import { exec } from 'child_process'
 import type { WindowManager } from './window-manager'
+
+// 从 Windows 注册表读取系统主题色（AccentColor 存储为 0xAABBGGRR 格式）
+function getWindowsAccentColor(): Promise<string> {
+  return new Promise((resolve) => {
+    const psCmd = `$accent = (Get-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\DWM' -Name 'AccentColor').AccentColor; $r = $accent -band 0xFF; $g = ($accent -shr 8) -band 0xFF; $b = ($accent -shr 16) -band 0xFF; Write-Output ("#{0:X2}{1:X2}{2:X2}" -f $r, $g, $b)`
+    exec(`powershell -NoProfile -Command "${psCmd}"`, (error, stdout) => {
+      if (error) {
+        console.error('[Theme] registry read failed:', error.message)
+        resolve('#0078d7')
+        return
+      }
+      const color = stdout.trim().toLowerCase()
+      console.log('[Theme] registry accent color:', color)
+      resolve(color)
+    })
+  })
+}
 import { scanStartMenu } from './scanner'
 import { launchApp, showInFolder, uninstallProgram } from './launcher'
 import type Store from 'electron-store'
@@ -114,23 +131,9 @@ export function setupIpc(
     return theme
   })
 
-  // 获取系统主题色（Windows 强调色）
-  ipcMain.handle('theme:accent-color', () => {
-    try {
-      // getAccentColor 返回 #AARRGGBB 格式，如 '#ff0078d7'
-      const raw = systemPreferences.getAccentColor()
-      console.log('[Theme] raw accent color:', raw)
-      // 去掉 # 前缀
-      const hex = raw.startsWith('#') ? raw.slice(1) : raw
-      // 如果是 8 位（ARGB），取后 6 位（RGB）；如果是 6 位直接用
-      const rgb = hex.length === 8 ? hex.slice(2) : hex
-      const color = `#${rgb}`
-      console.log('[Theme] converted accent color:', color)
-      return color
-    } catch (e) {
-      console.error('[Theme] getAccentColor failed:', e)
-      return '#0078d7' // 回退到默认蓝色
-    }
+  // 获取系统主题色（Windows 强调色）- 从注册表读取，确保字节顺序正确
+  ipcMain.handle('theme:accent-color', async () => {
+    return await getWindowsAccentColor()
   })
 
   // 获取背景透明度（0-100，默认0）
@@ -335,18 +338,10 @@ export function setupIpc(
   })
 
   // 监听系统主题色变化，通知所有渲染进程
-  systemPreferences.on('accent-color-changed', () => {
-    try {
-      const raw = systemPreferences.getAccentColor()
-      const hex = raw.startsWith('#') ? raw.slice(1) : raw
-      const rgb = hex.length === 8 ? hex.slice(2) : hex
-      const color = `#${rgb}`
-      console.log('[Theme] accent color changed:', color)
-      BrowserWindow.getAllWindows().forEach((win) => {
-        win.webContents.send('theme:accent-color-changed', color)
-      })
-    } catch (e) {
-      console.error('[Theme] accent-color-changed failed:', e)
-    }
+  systemPreferences.on('accent-color-changed', async () => {
+    const color = await getWindowsAccentColor()
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('theme:accent-color-changed', color)
+    })
   })
 }
