@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 defineProps<{
   app: AppItem
@@ -36,6 +36,7 @@ defineEmits<{
 
 const nameRef = ref<HTMLElement | null>(null)
 const isNameOverflowed = ref(false)
+let resizeObserver: ResizeObserver | null = null
 
 function checkOverflow() {
   requestAnimationFrame(() => {
@@ -47,6 +48,19 @@ function checkOverflow() {
 
 onMounted(() => {
   checkOverflow()
+  // 监听列表项尺寸变化，自动重新检测溢出
+  if (nameRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      checkOverflow()
+    })
+    resizeObserver.observe(nameRef.value)
+  }
+})
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
 })
 </script>
 

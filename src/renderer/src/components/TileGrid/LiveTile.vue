@@ -116,6 +116,7 @@ let flipInterval: ReturnType<typeof setInterval> | null = null
 // 标题溢出检测
 const titleRef = ref<HTMLElement | null>(null)
 const isNameOverflowed = ref(false)
+let resizeObserver: ResizeObserver | null = null
 
 function checkNameOverflow() {
   requestAnimationFrame(() => {
@@ -410,6 +411,13 @@ onMounted(() => {
   }
   // 检测标题是否溢出
   checkNameOverflow()
+  // 监听磁贴尺寸变化，自动重新检测溢出
+  if (titleRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      checkNameOverflow()
+    })
+    resizeObserver.observe(titleRef.value)
+  }
 })
 
 // 监听名称变化，重新检测溢出
@@ -420,6 +428,9 @@ watch(tileName, () => {
 onUnmounted(() => {
   if (flipInterval) {
     clearInterval(flipInterval)
+  }
+  if (resizeObserver) {
+    resizeObserver.disconnect()
   }
 })
 </script>
