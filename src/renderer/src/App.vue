@@ -291,6 +291,11 @@ window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
 function applyAccentColor(color: string) {
   const root = document.documentElement
   root.style.setProperty('--accent-color', color)
+  // 设置 RGB 分量，方便用 rgba(var(--accent-color-rgb), alpha) 控制透明度
+  const r = parseInt(color.slice(1, 3), 16)
+  const g = parseInt(color.slice(3, 5), 16)
+  const b = parseInt(color.slice(5, 7), 16)
+  root.style.setProperty('--accent-color-rgb', `${r}, ${g}, ${b}`)
   // 计算 hover 颜色（变暗 15%）
   const hoverColor = darkenColor(color, 0.15)
   root.style.setProperty('--accent-hover', hoverColor)
@@ -309,7 +314,7 @@ function darkenColor(hex: string, amount: number): string {
 
 onMounted(async () => {
   // 加载数据
-  await Promise.all([appsStore.loadApps(), tilesStore.loadLayout()])
+  await Promise.all([appsStore.loadApps(), tilesStore.loadLayout(), settingsStore.loadTileOpacity()])
 
   // 应用系统主题色
   applyAccentColor(await window.electronAPI.getAccentColor())

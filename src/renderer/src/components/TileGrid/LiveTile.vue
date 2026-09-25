@@ -97,6 +97,7 @@
 import { computed, ref, onMounted, onUnmounted, watch, markRaw } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
+import { useSettingsStore } from '../../stores/useSettings'
 import * as LucideIcons from 'lucide-vue-next'
 
 // 图片 base64 缓存
@@ -114,6 +115,7 @@ defineEmits<{
 
 const tilesStore = useTilesStore()
 const { apps } = useAppsStore()
+const settingsStore = useSettingsStore()
 const isFlipped = ref(false)
 const isDragging = ref(false)
 let flipInterval: ReturnType<typeof setInterval> | null = null
@@ -221,13 +223,14 @@ const appIcon = computed(() => {
 })
 
 const tileColor = computed(() => {
+  const opacity = settingsStore.tileOpacity
   const colorMap: Record<string, string> = {
-    calc: 'var(--accent-color)',
-    notepad: '#4b656a',
-    browser: 'var(--accent-color)',
-    files: 'var(--accent-color)'
+    calc: `rgba(var(--accent-color-rgb), ${opacity})`,
+    notepad: `rgba(75, 101, 106, ${opacity})`,
+    browser: `rgba(var(--accent-color-rgb), ${opacity})`,
+    files: `rgba(var(--accent-color-rgb), ${opacity})`
   }
-  return colorMap[props.tile.appId] || 'var(--accent-color)'
+  return colorMap[props.tile.appId] || `rgba(var(--accent-color-rgb), ${opacity})`
 })
 
 const tileSize = computed(() => props.tile.size)

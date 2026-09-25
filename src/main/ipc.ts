@@ -147,6 +147,18 @@ export function setupIpc(
     return await getWindowsAccentColor()
   })
 
+  // 获取磁贴背景透明度（0-1，默认0.7）
+  ipcMain.handle('tile:opacity-get', () => {
+    return store.get('tileOpacity', 0.7)
+  })
+
+  // 设置磁贴背景透明度
+  ipcMain.handle('tile:opacity-set', (_event, opacity: number) => {
+    const clamped = Math.max(0.1, Math.min(1, opacity))
+    store.set('tileOpacity', clamped)
+    return clamped
+  })
+
   // 获取背景透明度（0-100，默认0）
   ipcMain.handle('opacity:get', () => {
     return store.get('opacity', 0)

@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTheme: () => ipcRenderer.invoke('theme:get'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('theme:set', theme),
   getAccentColor: () => ipcRenderer.invoke('theme:accent-color'),
+  getTileOpacity: () => ipcRenderer.invoke('tile:opacity-get'),
+  setTileOpacity: (opacity: number) => ipcRenderer.invoke('tile:opacity-set', opacity),
 
   // 背景透明度
   getOpacity: () => ipcRenderer.invoke('opacity:get'),

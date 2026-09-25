@@ -79,6 +79,26 @@
 
       <!-- 右侧：操作区 -->
       <div class="wallpaper-actions">
+        <!-- 全局磁贴背景透明度 -->
+        <div class="global-settings">
+          <div class="section-label">
+            磁贴背景透明度 <span class="opacity-value">{{ Math.round(settingsStore.tileOpacity * 100) }}%</span>
+          </div>
+          <div class="opacity-row">
+            <input
+              type="range"
+              class="opacity-slider"
+              min="10"
+              max="100"
+              :value="Math.round(settingsStore.tileOpacity * 100)"
+              @input="settingsStore.setTileOpacity(Number(($event.target as HTMLInputElement).value) / 100)"
+            />
+          </div>
+          <div class="setting-hint">仅影响未设置自定义背景的磁贴</div>
+        </div>
+
+        <div class="settings-divider"></div>
+
         <div v-if="selectedTile" class="selected-tile-info">
           <div class="tile-name">{{ selectedTileName }}</div>
           <div class="tile-size">尺寸：{{ sizeName[selectedTile.size] }}</div>
@@ -320,6 +340,7 @@
 import { ref, computed, reactive, watch, markRaw, onMounted } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
+import { useSettingsStore } from './stores/useSettings'
 import * as LucideIcons from 'lucide-vue-next'
 
 // 解构模板中用到的图标组件
@@ -328,10 +349,11 @@ const { Save, Image: ImageIcon, Trash2, ImagePlus, Palette, Upload, Undo2, X, Er
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
+const settingsStore = useSettingsStore()
 
 // 壁纸设置窗口是独立渲染进程，需要主动加载布局数据
 onMounted(async () => {
-  await tilesStore.loadLayout()
+  await Promise.all([tilesStore.loadLayout(), settingsStore.loadTileOpacity()])
   // 应用系统主题色
   const color = await window.electronAPI.getAccentColor()
   applyAccentColor(color)
@@ -344,6 +366,7 @@ function applyAccentColor(color: string) {
   const r = parseInt(color.slice(1, 3), 16)
   const g = parseInt(color.slice(3, 5), 16)
   const b = parseInt(color.slice(5, 7), 16)
+  root.style.setProperty('--accent-color-rgb', `${r}, ${g}, ${b}`)
   const dr = Math.round(r * 0.85)
   const dg = Math.round(g * 0.85)
   const db = Math.round(b * 0.85)
@@ -731,7 +754,7 @@ function getTileStyle(tile: TileItem, group?: TileGroup) {
   const pendingBg = pendingBackgrounds[tile.id]
   // 如果标记为清除，则不显示背景
   if (pendingBg === CLEAR_MARKER) {
-    style.backgroundColor = 'rgba(255,255,255,0.1)'
+    style.backgroundColor = `rgba(var(--accent-color-rgb), ${settingsStore.tileOpacity})`
     return style
   }
   // 优先用磁贴自己的背景，否则用组背景
@@ -759,11 +782,11 @@ function getTileStyle(tile: TileItem, group?: TileGroup) {
     if (cached) {
       style.backgroundImage = `url(${cached})`
     } else {
-      style.backgroundColor = 'rgba(255,255,255,0.1)'
+      style.backgroundColor = `rgba(var(--accent-color-rgb), ${settingsStore.tileOpacity})`
       loadTileBackground(bgPath)
     }
   } else {
-    style.backgroundColor = 'rgba(255,255,255,0.1)'
+    style.backgroundColor = `rgba(var(--accent-color-rgb), ${settingsStore.tileOpacity})`
   }
   return style
 }
@@ -1828,6 +1851,23 @@ function cancelPendingChanges() {
   cursor: pointer;
   border: 2px solid #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 全局设置区域 */
+.global-settings {
+  margin-bottom: 4px;
+}
+
+.settings-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 16px 0;
+}
+
+.setting-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 6px;
 }
 
 /* 9宫格对齐选择器 */
