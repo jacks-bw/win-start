@@ -1,4 +1,4 @@
-import { Tray, Menu, nativeImage, app } from 'electron'
+import { Tray, Menu, nativeImage, app, screen } from 'electron'
 import path from 'path'
 import type { WindowManager } from './window-manager'
 import type { LaunchButtonManager } from './launch-button-manager'
@@ -88,9 +88,27 @@ export function createTray(
     // 临时降低悬浮按钮层级，避免遮挡托盘菜单
     launchButtonManager?.setAllButtonsAlwaysOnTop(false)
 
+    // 找到托盘图标所在的屏幕，确保菜单显示在正确的屏幕上
+    const display = screen.getDisplayMatching({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height })
+    const workArea = display.workArea
+
+    // 计算菜单位置：托盘图标上方，左对齐，确保在屏幕工作区内
+    let popupX = bounds.x
+    let popupY = bounds.y - 2 // 紧贴任务栏上方
+
+    // 确保菜单不会超出屏幕右边界（估算菜单宽度约200px）
+    const menuWidth = 200
+    if (popupX + menuWidth > workArea.x + workArea.width) {
+      popupX = workArea.x + workArea.width - menuWidth
+    }
+    // 确保菜单不会超出屏幕左边界
+    if (popupX < workArea.x) {
+      popupX = workArea.x
+    }
+
     menu.popup({
-      x: bounds.x,
-      y: bounds.y,
+      x: Math.round(popupX),
+      y: Math.round(popupY),
       callback: () => {
         // 菜单关闭后恢复按钮置顶
         launchButtonManager?.setAllButtonsAlwaysOnTop(true)
