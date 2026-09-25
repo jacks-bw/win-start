@@ -324,6 +324,11 @@ onMounted(async () => {
     applyAccentColor(color)
   })
 
+  // 监听磁贴透明度变化
+  window.electronAPI.onTileOpacityChanged((opacity) => {
+    settingsStore.tileOpacity = opacity
+  })
+
   // 监听菜单打开/关闭事件
   window.electronAPI.onMenuOpen(() => {
     isVisible.value = true

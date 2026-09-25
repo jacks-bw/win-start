@@ -156,6 +156,10 @@ export function setupIpc(
   ipcMain.handle('tile:opacity-set', (_event, opacity: number) => {
     const clamped = Math.max(0.1, Math.min(1, opacity))
     store.set('tileOpacity', clamped)
+    // 通知所有窗口透明度已变化
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('tile:opacity-changed', clamped)
+    })
     return clamped
   })
 

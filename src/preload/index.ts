@@ -85,5 +85,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 系统主题色变化通知
   onAccentColorChanged: (callback: (color: string) => void) => {
     ipcRenderer.on('theme:accent-color-changed', (_event, color: string) => callback(color))
+  },
+
+  // 磁贴透明度变化通知
+  onTileOpacityChanged: (callback: (opacity: number) => void) => {
+    ipcRenderer.on('tile:opacity-changed', (_event, opacity: number) => callback(opacity))
   }
 })
