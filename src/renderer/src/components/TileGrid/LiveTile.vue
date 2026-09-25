@@ -9,10 +9,10 @@
         'drag-target': isDragTarget
       }
     ]"
-    :style="[
-      $attrs.style as any,
-      { transform: `perspective(600px) rotateX(${tiltY.value}deg) rotateY(${tiltX.value}deg)` }
-    ]"
+    :style="{
+      ...($attrs.style || {}),
+      transform: `perspective(600px) rotateX(${tiltY}deg) rotateY(${tiltX}deg)`
+    }"
     draggable="true"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
