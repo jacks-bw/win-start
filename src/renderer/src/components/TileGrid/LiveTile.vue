@@ -562,8 +562,8 @@ onUnmounted(() => {
   max-width: 100%;
 }
 
-/* 溢出的标题：悬停时从右向左滚动显示完整名称 */
-.tile-title-marquee:hover {
+/* 溢出的标题：悬停整个磁贴时，名称从右向左滚动显示完整名称 */
+.tile-container:hover .tile-title-marquee {
   text-overflow: clip;
   animation: tile-marquee 2.5s linear infinite alternate;
 }
