@@ -60,8 +60,13 @@
               ref="titleRef"
               class="tile-title"
               :class="{ 'tile-title-marquee': isNameOverflowed }"
-              :style="{ color: tile.nameColor || undefined, '--marquee-distance': marqueeDistance + 'px' } as any"
-            >{{ tileName }}</div>
+              :style="{ color: tile.nameColor || undefined }"
+            >
+              <span class="tile-title-inner">
+                <span class="tile-title-text">{{ tileName }}</span>
+                <span class="tile-title-text" aria-hidden="true">{{ tileName }}</span>
+              </span>
+            </div>
             <div v-if="currentNotification?.body" class="tile-body">
               {{ currentNotification.body }}
             </div>
@@ -111,14 +116,11 @@ let flipInterval: ReturnType<typeof setInterval> | null = null
 // 标题溢出检测
 const titleRef = ref<HTMLElement | null>(null)
 const isNameOverflowed = ref(false)
-const marqueeDistance = ref(0)
 
 function checkNameOverflow() {
   requestAnimationFrame(() => {
     if (titleRef.value) {
-      const overflow = titleRef.value.scrollWidth - titleRef.value.clientWidth
-      isNameOverflowed.value = overflow > 1
-      marqueeDistance.value = Math.max(0, overflow)
+      isNameOverflowed.value = titleRef.value.scrollWidth > titleRef.value.clientWidth + 1
     }
   })
 }
@@ -565,24 +567,31 @@ onUnmounted(() => {
   max-width: 100%;
 }
 
-/* 溢出的标题：悬停整个磁贴时，名称从右向左循环滚动显示完整名称 */
-.tile-container:hover .tile-title-marquee {
+/* 溢出的标题：悬停整个磁贴时，名称无缝循环滚动 */
+.tile-title-marquee {
   text-overflow: clip;
-  animation: tile-marquee 4s linear infinite;
+}
+
+.tile-title-inner {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
+.tile-title-text {
+  padding-right: 30px;
+  flex-shrink: 0;
+}
+
+.tile-container:hover .tile-title-marquee .tile-title-inner {
+  animation: tile-marquee 6s linear infinite;
 }
 
 @keyframes tile-marquee {
   0% {
     transform: translateX(0);
   }
-  60% {
-    transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
-  }
-  90% {
-    transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
-  }
   100% {
-    transform: translateX(0);
+    transform: translateX(-50%);
   }
 }
 
