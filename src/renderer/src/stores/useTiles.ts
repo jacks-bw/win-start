@@ -43,13 +43,16 @@ export const useTilesStore = defineStore('tiles', () => {
       const layout = await window.electronAPI.loadTileLayout()
       if (layout && layout.groups) {
         groups.value = layout.groups
-        // 为旧数据补充 row/col
+        // 为旧数据补充 row/col，并修正越界磁贴
         groups.value.forEach((group) => {
           group.tiles.forEach((tile, idx) => {
-            if (tile.row === undefined) {
+            const span = sizeSpan[tile.size] || { rows: 1, cols: 1 }
+            if (tile.row === undefined || tile.col === undefined || tile.col + span.cols > 6) {
+              // 临时移除当前磁贴，避免检测到自身
+              const savedTile = { ...tile }
+              group.tiles[idx] = { ...tile, row: -100, col: -100 } as TileItem
               const pos = findFreePosition(group, tile.size, idx)
-              tile.row = pos.row
-              tile.col = pos.col
+              group.tiles[idx] = { ...savedTile, row: pos.row, col: pos.col }
             }
           })
         })
@@ -69,7 +72,7 @@ export const useTilesStore = defineStore('tiles', () => {
     large: { rows: 4, cols: 4 }
   }
 
-  // 检查位置是否空闲（不与其他磁贴重叠）
+  // 检查位置是否空闲（不与其他磁贴重叠，不超出6列网格）
   function isPositionFree(
     group: TileGroup,
     row: number,
@@ -78,6 +81,8 @@ export const useTilesStore = defineStore('tiles', () => {
     excludeTileId?: string
   ): boolean {
     const span = sizeSpan[size] || { rows: 1, cols: 1 }
+    // 边界检查：不允许超出 6 列网格
+    if (col + span.cols > 6) return false
     for (const tile of group.tiles) {
       if (tile.id === excludeTileId) continue
       const tileSpan = sizeSpan[tile.size] || { rows: 1, cols: 1 }
@@ -94,7 +99,7 @@ export const useTilesStore = defineStore('tiles', () => {
 
   // 自动找空位（行优先扫描）
   function findFreePosition(group: TileGroup, size: string, afterIndex: number = -1): { row: number; col: number } {
-    const maxCols = 10
+    const maxCols = 6
     // 先尝试在现有磁贴之间找空位
     for (let row = 0; row < 20; row++) {
       for (let col = 0; col < maxCols; col++) {
