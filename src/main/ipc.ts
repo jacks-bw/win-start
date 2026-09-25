@@ -117,12 +117,18 @@ export function setupIpc(
   // 获取系统主题色（Windows 强调色）
   ipcMain.handle('theme:accent-color', () => {
     try {
-      // getAccentColor 返回 ARGB 格式，如 'aabbccdd'
-      const argb = systemPreferences.getAccentColor()
-      // 转换为 #RRGGBB 格式（去掉 alpha 通道）
-      const rgb = argb.slice(2) // 去掉前两位 alpha
-      return `#${rgb}`
-    } catch {
+      // getAccentColor 返回 #AARRGGBB 格式，如 '#ff0078d7'
+      const raw = systemPreferences.getAccentColor()
+      console.log('[Theme] raw accent color:', raw)
+      // 去掉 # 前缀
+      const hex = raw.startsWith('#') ? raw.slice(1) : raw
+      // 如果是 8 位（ARGB），取后 6 位（RGB）；如果是 6 位直接用
+      const rgb = hex.length === 8 ? hex.slice(2) : hex
+      const color = `#${rgb}`
+      console.log('[Theme] converted accent color:', color)
+      return color
+    } catch (e) {
+      console.error('[Theme] getAccentColor failed:', e)
       return '#0078d7' // 回退到默认蓝色
     }
   })
@@ -331,14 +337,16 @@ export function setupIpc(
   // 监听系统主题色变化，通知所有渲染进程
   systemPreferences.on('accent-color-changed', () => {
     try {
-      const argb = systemPreferences.getAccentColor()
-      const rgb = argb.slice(2)
+      const raw = systemPreferences.getAccentColor()
+      const hex = raw.startsWith('#') ? raw.slice(1) : raw
+      const rgb = hex.length === 8 ? hex.slice(2) : hex
       const color = `#${rgb}`
+      console.log('[Theme] accent color changed:', color)
       BrowserWindow.getAllWindows().forEach((win) => {
         win.webContents.send('theme:accent-color-changed', color)
       })
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('[Theme] accent-color-changed failed:', e)
     }
   })
 }
