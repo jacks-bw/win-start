@@ -79,41 +79,23 @@ export function createTray(
 
   tray.setToolTip('Win10 开始菜单')
 
-  // 右键手动弹出菜单：固定在托盘图标位置，临时降低按钮层级避免遮挡
+  // 右键手动弹出菜单：使用tray.popUpContextMenu自动处理多屏幕位置
   tray.on('right-click', () => {
     if (!tray) return
-    const bounds = tray.getBounds()
     const menu = buildMenu()
 
     // 临时降低悬浮按钮层级，避免遮挡托盘菜单
     launchButtonManager?.setAllButtonsAlwaysOnTop(false)
 
-    // 找到托盘图标所在的屏幕，确保菜单显示在正确的屏幕上
-    const display = screen.getDisplayMatching({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height })
-    const workArea = display.workArea
-
-    // 计算菜单位置：托盘图标上方，左对齐，确保在屏幕工作区内
-    let popupX = bounds.x
-    let popupY = bounds.y - 2 // 紧贴任务栏上方
-
-    // 确保菜单不会超出屏幕右边界（估算菜单宽度约200px）
-    const menuWidth = 200
-    if (popupX + menuWidth > workArea.x + workArea.width) {
-      popupX = workArea.x + workArea.width - menuWidth
-    }
-    // 确保菜单不会超出屏幕左边界
-    if (popupX < workArea.x) {
-      popupX = workArea.x
-    }
-
-    menu.popup({
-      x: Math.round(popupX),
-      y: Math.round(popupY),
-      callback: () => {
-        // 菜单关闭后恢复按钮置顶
+    // 菜单关闭后恢复按钮置顶
+    menu.once('menu-will-close', () => {
+      setTimeout(() => {
         launchButtonManager?.setAllButtonsAlwaysOnTop(true)
-      }
+      }, 100)
     })
+
+    // 使用托盘自带的弹出方法，自动处理多屏幕位置
+    tray.popUpContextMenu(menu)
   })
 
   // 左键点击托盘图标切换开始菜单
