@@ -1,6 +1,6 @@
 {
   "name": "win10-start-menu",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Win10 开始菜单增强版 - 左侧 Win7 程序列表 + 右侧 Win10 磁贴",
   "main": "./out/main/index.js",
   "author": "jacks13",
