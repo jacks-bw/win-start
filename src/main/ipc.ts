@@ -7,15 +7,26 @@ import type { WindowManager } from './window-manager'
 // 从 Windows 注册表读取系统主题色（AccentColor 存储为 0xAABBGGRR 格式）
 function getWindowsAccentColor(): Promise<string> {
   return new Promise((resolve) => {
-    const psCmd = `$accent = (Get-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\DWM' -Name 'AccentColor').AccentColor; $r = $accent -band 0xFF; $g = ($accent -shr 8) -band 0xFF; $b = ($accent -shr 16) -band 0xFF; Write-Output ("#{0:X2}{1:X2}{2:X2}" -f $r, $g, $b)`
-    exec(`powershell -NoProfile -Command "${psCmd}"`, (error, stdout) => {
+    exec('reg query "HKCU\\Software\\Microsoft\\Windows\\DWM" /v AccentColor', (error, stdout) => {
       if (error) {
-        console.error('[Theme] registry read failed:', error.message)
+        console.error('[Theme] reg query failed:', error.message)
         resolve('#0078d7')
         return
       }
-      const color = stdout.trim().toLowerCase()
-      console.log('[Theme] registry accent color:', color)
+      // 解析输出，提取 0xAABBGGRR
+      const match = stdout.match(/0x([0-9a-fA-F]{8})/)
+      if (!match) {
+        console.error('[Theme] failed to parse reg output:', stdout)
+        resolve('#0078d7')
+        return
+      }
+      const hex = match[1] // AABBGGRR
+      // 注册表中是 BGR 顺序，需要转换为 RGB
+      const b = hex.slice(2, 4)
+      const g = hex.slice(4, 6)
+      const r = hex.slice(6, 8)
+      const color = `#${r}${g}${b}`.toLowerCase()
+      console.log('[Theme] registry accent color:', color, '(raw: 0x' + hex + ')')
       resolve(color)
     })
   })
