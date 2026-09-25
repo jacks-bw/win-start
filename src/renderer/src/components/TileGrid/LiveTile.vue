@@ -60,7 +60,7 @@
               ref="titleRef"
               class="tile-title"
               :class="{ 'tile-title-marquee': isNameOverflowed }"
-              :style="{ color: tile.nameColor || undefined }"
+              :style="{ color: tile.nameColor || undefined, '--marquee-distance': marqueeDistance + 'px' } as any"
             >{{ tileName }}</div>
             <div v-if="currentNotification?.body" class="tile-body">
               {{ currentNotification.body }}
@@ -111,11 +111,14 @@ let flipInterval: ReturnType<typeof setInterval> | null = null
 // 标题溢出检测
 const titleRef = ref<HTMLElement | null>(null)
 const isNameOverflowed = ref(false)
+const marqueeDistance = ref(0)
 
 function checkNameOverflow() {
   requestAnimationFrame(() => {
     if (titleRef.value) {
-      isNameOverflowed.value = titleRef.value.scrollWidth > titleRef.value.clientWidth + 1
+      const overflow = titleRef.value.scrollWidth - titleRef.value.clientWidth
+      isNameOverflowed.value = overflow > 1
+      marqueeDistance.value = Math.max(0, overflow)
     }
   })
 }
@@ -565,19 +568,15 @@ onUnmounted(() => {
 /* 溢出的标题：悬停整个磁贴时，名称从右向左滚动显示完整名称 */
 .tile-container:hover .tile-title-marquee {
   text-overflow: clip;
-  animation: tile-marquee 2.5s linear infinite alternate;
+  animation: tile-marquee 2s linear infinite alternate;
 }
-
-.size-medium { --marquee-offset: 120px; }
-.size-wide { --marquee-offset: 280px; }
-.size-large { --marquee-offset: 280px; }
 
 @keyframes tile-marquee {
   0% {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(calc(-100% + var(--marquee-offset, 120px)));
+    transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
   }
 }
 
