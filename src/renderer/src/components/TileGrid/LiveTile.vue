@@ -84,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, markRaw, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, markRaw } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
 import * as LucideIcons from 'lucide-vue-next'
@@ -113,9 +113,11 @@ const titleRef = ref<HTMLElement | null>(null)
 const isNameOverflowed = ref(false)
 
 function checkNameOverflow() {
-  if (titleRef.value) {
-    isNameOverflowed.value = titleRef.value.scrollWidth > titleRef.value.clientWidth
-  }
+  requestAnimationFrame(() => {
+    if (titleRef.value) {
+      isNameOverflowed.value = titleRef.value.scrollWidth > titleRef.value.clientWidth + 1
+    }
+  })
 }
 
 // 当前是否是拖拽的目标位置
@@ -402,12 +404,12 @@ onMounted(() => {
     }, 5000) // 5秒翻转一次
   }
   // 检测标题是否溢出
-  nextTick(checkNameOverflow)
+  checkNameOverflow()
 })
 
 // 监听名称变化，重新检测溢出
-watch(() => tileName.value, () => {
-  nextTick(checkNameOverflow)
+watch(tileName, () => {
+  checkNameOverflow()
 })
 
 onUnmounted(() => {
@@ -561,12 +563,16 @@ onUnmounted(() => {
   animation: tile-marquee 2.5s linear infinite alternate;
 }
 
+.size-medium { --marquee-offset: 120px; }
+.size-wide { --marquee-offset: 280px; }
+.size-large { --marquee-offset: 280px; }
+
 @keyframes tile-marquee {
   0% {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(calc(-100% + 110px));
+    transform: translateX(calc(-100% + var(--marquee-offset, 120px)));
   }
 }
 
