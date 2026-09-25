@@ -56,7 +56,12 @@
             <span v-else class="icon-placeholder">{{ tileName.charAt(0) }}</span>
           </div>
           <div v-if="showName && tileSize !== 'small'" class="tile-text">
-            <div class="tile-title" :style="{ color: tile.nameColor || undefined }">{{ tileName }}</div>
+            <div
+              ref="titleRef"
+              class="tile-title"
+              :class="{ 'tile-title-marquee': isNameOverflowed }"
+              :style="{ color: tile.nameColor || undefined }"
+            >{{ tileName }}</div>
             <div v-if="currentNotification?.body" class="tile-body">
               {{ currentNotification.body }}
             </div>
@@ -79,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, markRaw } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, markRaw, nextTick } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
 import * as LucideIcons from 'lucide-vue-next'
@@ -102,6 +107,16 @@ const { apps } = useAppsStore()
 const isFlipped = ref(false)
 const isDragging = ref(false)
 let flipInterval: ReturnType<typeof setInterval> | null = null
+
+// 标题溢出检测
+const titleRef = ref<HTMLElement | null>(null)
+const isNameOverflowed = ref(false)
+
+function checkNameOverflow() {
+  if (titleRef.value) {
+    isNameOverflowed.value = titleRef.value.scrollWidth > titleRef.value.clientWidth
+  }
+}
 
 // 当前是否是拖拽的目标位置
 const isDragTarget = computed(
@@ -386,6 +401,13 @@ onMounted(() => {
       isFlipped.value = !isFlipped.value
     }, 5000) // 5秒翻转一次
   }
+  // 检测标题是否溢出
+  nextTick(checkNameOverflow)
+})
+
+// 监听名称变化，重新检测溢出
+watch(() => tileName.value, () => {
+  nextTick(checkNameOverflow)
 })
 
 onUnmounted(() => {
@@ -531,6 +553,21 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 溢出的标题：悬停时从右向左滚动显示完整名称 */
+.tile-title-marquee:hover {
+  text-overflow: clip;
+  animation: tile-marquee 2.5s linear infinite alternate;
+}
+
+@keyframes tile-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-100% + 110px));
+  }
 }
 
 .tile-body {
