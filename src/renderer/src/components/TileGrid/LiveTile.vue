@@ -582,6 +582,15 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/* 非悬停时隐藏第二份文本，保持 ellipsis 效果 */
+.tile-title-text:nth-child(2) {
+  display: none;
+}
+
+.tile-container:hover .tile-title-marquee .tile-title-text:nth-child(2) {
+  display: inline;
+}
+
 .tile-container:hover .tile-title-marquee .tile-title-inner {
   animation: tile-marquee 6s linear infinite;
 }

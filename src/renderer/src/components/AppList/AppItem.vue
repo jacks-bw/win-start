@@ -128,8 +128,17 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+/* 非悬停时隐藏第二份文本，保持 ellipsis 效果 */
+.app-name-text:nth-child(2) {
+  display: none;
+}
+
 .app-item:hover .app-name {
   color: #ffffff;
+}
+
+.app-item:hover .app-name-marquee .app-name-text:nth-child(2) {
+  display: inline;
 }
 
 .app-item:hover .app-name-marquee .app-name-inner {
