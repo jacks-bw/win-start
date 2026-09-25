@@ -51,8 +51,7 @@ const appsStore = useAppsStore()
 const sizeSpan: Record<string, { rows: number; cols: number }> = {
   small: { rows: 1, cols: 1 },
   medium: { rows: 2, cols: 2 },
-  wide: { rows: 2, cols: 4 },
-  large: { rows: 4, cols: 4 }
+  wide: { rows: 2, cols: 4 }
 }
 
 // 拖拽预览占位块
@@ -371,10 +370,5 @@ onMounted(() => {
 .tile-grid-inner > .size-wide {
   grid-column: span 4;
   grid-row: span 2;
-}
-
-.tile-grid-inner > .size-large {
-  grid-column: span 4;
-  grid-row: span 4;
 }
 </style>

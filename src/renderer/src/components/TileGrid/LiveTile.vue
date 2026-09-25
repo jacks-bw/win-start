@@ -213,8 +213,7 @@ const showName = computed(() => props.tile.showName !== false)
 const sizeSpanMap: Record<string, { rows: number; cols: number }> = {
   small: { rows: 1, cols: 1 },
   medium: { rows: 2, cols: 2 },
-  wide: { rows: 2, cols: 4 },
-  large: { rows: 4, cols: 4 }
+  wide: { rows: 2, cols: 4 }
 }
 
 // 当前使用的背景路径（磁贴自己的优先，否则用组的）
@@ -335,7 +334,6 @@ const iconSize = computed(() => {
     case 'small': return 28
     case 'medium': return 36
     case 'wide': return 36
-    case 'large': return 48
     default: return 36
   }
 })
@@ -383,8 +381,7 @@ const alignMap: Record<string, { justify: string; align: string }> = {
 const defaultAlignMap: Record<string, string> = {
   small: 'center',
   medium: 'bottom-left',
-  wide: 'bottom-left',
-  large: 'top-left'
+  wide: 'bottom-left'
 }
 
 const contentStyle = computed(() => {
@@ -486,11 +483,10 @@ onUnmounted(() => {
   border-radius: 2px;
 }
 
-/* 四种尺寸 - 大小由 Grid 布局控制，磁贴填充单元格 */
+/* 三种尺寸 - 大小由 Grid 布局控制，磁贴填充单元格 */
 .size-small,
 .size-medium,
-.size-wide,
-.size-large {
+.size-wide {
   width: 100%;
   height: 100%;
 }

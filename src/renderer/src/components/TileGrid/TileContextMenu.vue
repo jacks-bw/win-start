@@ -15,7 +15,6 @@
         <div class="submenu-item" @click="handleResize('small')">小</div>
         <div class="submenu-item" @click="handleResize('medium')">中</div>
         <div class="submenu-item" @click="handleResize('wide')">宽</div>
-        <div class="submenu-item" @click="handleResize('large')">大</div>
       </div>
     </div>
 
@@ -63,7 +62,7 @@ const tile = computed(() => {
   return null
 })
 
-function handleResize(size: 'small' | 'medium' | 'wide' | 'large') {
+function handleResize(size: 'small' | 'medium' | 'wide') {
   tilesStore.resizeTile(props.tileId, size)
   emit('close')
 }

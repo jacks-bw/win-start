@@ -8,7 +8,7 @@ interface StoreSchema {
       tiles: Array<{
         id: string
         appId: string
-        size: 'small' | 'medium' | 'wide' | 'large'
+        size: 'small' | 'medium' | 'wide'
         liveEnabled: boolean
         position: number
       }>

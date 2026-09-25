@@ -486,8 +486,7 @@ function defaultAlignForSize(size: string): string {
   const map: Record<string, string> = {
     small: 'center',
     medium: 'bottom-left',
-    wide: 'bottom-left',
-    large: 'top-left'
+    wide: 'bottom-left'
   }
   return map[size] || 'bottom-left'
 }
@@ -508,15 +507,13 @@ function setContentAlign(align: string) {
 const sizeSpan: Record<string, { rows: number; cols: number }> = {
   small: { rows: 1, cols: 1 },
   medium: { rows: 2, cols: 2 },
-  wide: { rows: 2, cols: 4 },
-  large: { rows: 4, cols: 4 }
+  wide: { rows: 2, cols: 4 }
 }
 
 const sizeName: Record<string, string> = {
   small: '小',
   medium: '中',
-  wide: '宽',
-  large: '大'
+  wide: '宽'
 }
 
 // 裁剪弹窗状态
@@ -607,7 +604,6 @@ function previewIconSize(size: string): number {
     case 'small': return 24
     case 'medium': return 32
     case 'wide': return 32
-    case 'large': return 40
     default: return 32
   }
 }
@@ -629,8 +625,7 @@ function previewContentStyle(tile: TileItem): Record<string, string> {
   const defaultAlignMap: Record<string, string> = {
     small: 'center',
     medium: 'bottom-left',
-    wide: 'bottom-left',
-    large: 'top-left'
+    wide: 'bottom-left'
   }
   const align = tile.contentAlign || defaultAlignMap[tile.size] || 'bottom-left'
   const mapped = alignMap[align] || alignMap['bottom-left']

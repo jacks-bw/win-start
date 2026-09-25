@@ -63,7 +63,7 @@ interface TileGroup {
 interface TileItem {
   id: string
   appId: string
-  size: 'small' | 'medium' | 'wide' | 'large'
+  size: 'small' | 'medium' | 'wide'
   liveEnabled: boolean
   position: number
   row: number

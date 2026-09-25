@@ -43,6 +43,14 @@ export const useTilesStore = defineStore('tiles', () => {
       const layout = await window.electronAPI.loadTileLayout()
       if (layout && layout.groups) {
         groups.value = layout.groups
+        // 旧数据兼容：把已移除的 large 尺寸转换为 wide
+        groups.value.forEach((group) => {
+          group.tiles.forEach((tile) => {
+            if (tile.size === 'large' as any) {
+              tile.size = 'wide'
+            }
+          })
+        })
         // 为旧数据补充 row/col，并修正越界磁贴
         groups.value.forEach((group) => {
           group.tiles.forEach((tile, idx) => {
@@ -68,8 +76,7 @@ export const useTilesStore = defineStore('tiles', () => {
   const sizeSpan: Record<string, { rows: number; cols: number }> = {
     small: { rows: 1, cols: 1 },
     medium: { rows: 2, cols: 2 },
-    wide: { rows: 2, cols: 4 },
-    large: { rows: 4, cols: 4 }
+    wide: { rows: 2, cols: 4 }
   }
 
   // 检查位置是否空闲（不与其他磁贴重叠，不超出6列网格）
