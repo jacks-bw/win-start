@@ -565,18 +565,24 @@ onUnmounted(() => {
   max-width: 100%;
 }
 
-/* 溢出的标题：悬停整个磁贴时，名称从右向左滚动显示完整名称 */
+/* 溢出的标题：悬停整个磁贴时，名称从右向左循环滚动显示完整名称 */
 .tile-container:hover .tile-title-marquee {
   text-overflow: clip;
-  animation: tile-marquee 2s linear infinite alternate;
+  animation: tile-marquee 4s linear infinite;
 }
 
 @keyframes tile-marquee {
   0% {
     transform: translateX(0);
   }
-  100% {
+  60% {
     transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
+  }
+  90% {
+    transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
+  }
+  100% {
+    transform: translateX(0);
   }
 }
 
