@@ -9,12 +9,17 @@
         'drag-target': isDragTarget
       }
     ]"
-    :style="$attrs.style"
+    :style="[
+      $attrs.style as any,
+      { transform: `perspective(600px) rotateX(${tiltY.value}deg) rotateY(${tiltX.value}deg)` }
+    ]"
     draggable="true"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
     @click="$emit('click')"
     @contextmenu="$emit('contextmenu', $event)"
+    @mousemove="handleTiltMove"
+    @mouseleave="handleTiltLeave"
   >
     <div class="tile-inner">
       <!-- 正面 -->
@@ -112,6 +117,27 @@ const { apps } = useAppsStore()
 const isFlipped = ref(false)
 const isDragging = ref(false)
 let flipInterval: ReturnType<typeof setInterval> | null = null
+
+// 3D 倾斜效果
+const tiltX = ref(0)
+const tiltY = ref(0)
+const MAX_TILT = 6 // 最大倾斜角度
+
+function handleTiltMove(e: MouseEvent) {
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  // 鼠标相对于磁贴中心的位置（-1 到 1）
+  const x = (e.clientX - rect.left) / rect.width - 0.5
+  const y = (e.clientY - rect.top) / rect.height - 0.5
+  // 鼠标在右侧时，rotateY 为正（向右倾斜）；鼠标在下侧时，rotateX 为负（向下倾斜）
+  tiltX.value = x * MAX_TILT * 2
+  tiltY.value = -y * MAX_TILT * 2
+}
+
+function handleTiltLeave() {
+  tiltX.value = 0
+  tiltY.value = 0
+}
 
 // 标题溢出检测
 const titleRef = ref<HTMLElement | null>(null)
@@ -436,6 +462,8 @@ onUnmounted(() => {
 .tile-container {
   position: relative;
   cursor: pointer;
+  transition: transform 0.15s ease-out;
+  transform-style: preserve-3d;
 }
 
 /* 背景层：悬停时缩放+变暗，不影响图标和文字 */
