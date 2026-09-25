@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 主题
   getTheme: () => ipcRenderer.invoke('theme:get'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('theme:set', theme),
+  getAccentColor: () => ipcRenderer.invoke('theme:accent-color'),
 
   // 背景透明度
   getOpacity: () => ipcRenderer.invoke('opacity:get'),
@@ -77,5 +78,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 头像更新通知
   onAvatarUpdated: (callback: () => void) => {
     ipcRenderer.on('avatar:updated', callback)
+  },
+
+  // 系统主题色变化通知
+  onAccentColorChanged: (callback: (color: string) => void) => {
+    ipcRenderer.on('theme:accent-color-changed', (_event, color: string) => callback(color))
   }
 })

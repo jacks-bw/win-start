@@ -332,7 +332,23 @@ const appsStore = useAppsStore()
 // 壁纸设置窗口是独立渲染进程，需要主动加载布局数据
 onMounted(async () => {
   await tilesStore.loadLayout()
+  // 应用系统主题色
+  const color = await window.electronAPI.getAccentColor()
+  applyAccentColor(color)
+  window.electronAPI.onAccentColorChanged((c) => applyAccentColor(c))
 })
+
+function applyAccentColor(color: string) {
+  const root = document.documentElement
+  root.style.setProperty('--accent-color', color)
+  const r = parseInt(color.slice(1, 3), 16)
+  const g = parseInt(color.slice(3, 5), 16)
+  const b = parseInt(color.slice(5, 7), 16)
+  const dr = Math.round(r * 0.85)
+  const dg = Math.round(g * 0.85)
+  const db = Math.round(b * 0.85)
+  root.style.setProperty('--accent-hover', `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`)
+}
 
 const selectedTileId = ref<string | null>(null)
 const cropContainerRef = ref<HTMLElement | null>(null)

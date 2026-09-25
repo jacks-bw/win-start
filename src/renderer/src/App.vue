@@ -287,9 +287,37 @@ window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
   appContextMenu.value = { visible: true, x: adjustedX, y: adjustedY, app }
 }
 
+// 应用系统主题色到 CSS 变量
+function applyAccentColor(color: string) {
+  const root = document.documentElement
+  root.style.setProperty('--accent-color', color)
+  // 计算 hover 颜色（变暗 15%）
+  const hoverColor = darkenColor(color, 0.15)
+  root.style.setProperty('--accent-hover', hoverColor)
+}
+
+// 颜色变暗工具函数
+function darkenColor(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const dr = Math.round(r * (1 - amount))
+  const dg = Math.round(g * (1 - amount))
+  const db = Math.round(b * (1 - amount))
+  return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
+}
+
 onMounted(async () => {
   // 加载数据
   await Promise.all([appsStore.loadApps(), tilesStore.loadLayout()])
+
+  // 应用系统主题色
+  applyAccentColor(await window.electronAPI.getAccentColor())
+
+  // 监听系统主题色变化
+  window.electronAPI.onAccentColorChanged((color) => {
+    applyAccentColor(color)
+  })
 
   // 监听菜单打开/关闭事件
   window.electronAPI.onMenuOpen(() => {

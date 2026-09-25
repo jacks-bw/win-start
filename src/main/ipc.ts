@@ -1,4 +1,4 @@
-import { ipcMain, dialog, app, globalShortcut, shell } from 'electron'
+import { ipcMain, dialog, app, globalShortcut, shell, systemPreferences, BrowserWindow } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { extname, join } from 'path'
 import { exec } from 'child_process'
@@ -112,6 +112,19 @@ export function setupIpc(
   ipcMain.handle('theme:set', (_event, theme: 'light' | 'dark') => {
     store.set('theme', theme)
     return theme
+  })
+
+  // 获取系统主题色（Windows 强调色）
+  ipcMain.handle('theme:accent-color', () => {
+    try {
+      // getAccentColor 返回 ARGB 格式，如 'aabbccdd'
+      const argb = systemPreferences.getAccentColor()
+      // 转换为 #RRGGBB 格式（去掉 alpha 通道）
+      const rgb = argb.slice(2) // 去掉前两位 alpha
+      return `#${rgb}`
+    } catch {
+      return '#0078d7' // 回退到默认蓝色
+    }
   })
 
   // 获取背景透明度（0-100，默认0）
@@ -313,5 +326,19 @@ export function setupIpc(
   // 打开系统设置
   ipcMain.handle('system:open-settings', () => {
     shell.openExternal('ms-settings:')
+  })
+
+  // 监听系统主题色变化，通知所有渲染进程
+  systemPreferences.on('accent-color-changed', () => {
+    try {
+      const argb = systemPreferences.getAccentColor()
+      const rgb = argb.slice(2)
+      const color = `#${rgb}`
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('theme:accent-color-changed', color)
+      })
+    } catch {
+      // ignore
+    }
   })
 }

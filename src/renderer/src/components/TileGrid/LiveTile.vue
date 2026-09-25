@@ -222,12 +222,12 @@ const appIcon = computed(() => {
 
 const tileColor = computed(() => {
   const colorMap: Record<string, string> = {
-    calc: '#0078d7',
+    calc: 'var(--accent-color)',
     notepad: '#4b656a',
-    browser: '#0078d7',
-    files: '#0078d7'
+    browser: 'var(--accent-color)',
+    files: 'var(--accent-color)'
   }
-  return colorMap[props.tile.appId] || '#2d7d9a'
+  return colorMap[props.tile.appId] || 'var(--accent-color)'
 })
 
 const tileSize = computed(() => props.tile.size)
