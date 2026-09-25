@@ -329,6 +329,18 @@ onMounted(async () => {
     settingsStore.tileOpacity = opacity
   })
 
+  // 监听磁贴桥接服务事件（第三方软件推送内容）
+  window.electronAPI.onTileBridgeUpdate((data) => {
+    if (data?.appId) {
+      tilesStore.setExternalTileData(data.appId, data)
+    }
+  })
+  window.electronAPI.onTileBridgeClear((data) => {
+    if (data?.appId) {
+      tilesStore.clearExternalTileData(data.appId)
+    }
+  })
+
   // 监听菜单打开/关闭事件
   window.electronAPI.onMenuOpen(() => {
     isVisible.value = true

@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openWallpaperWindow: () => ipcRenderer.invoke('wallpaper:open'),
   notifyLayoutUpdated: () => ipcRenderer.invoke('layout:notify-updated'),
 
+  // 磁贴桥接服务（Tile Bridge）- 第三方软件接入接口，默认不启用
+  tileBridgeStatus: () => ipcRenderer.invoke('tile-bridge:status'),
+  tileBridgeStart: () => ipcRenderer.invoke('tile-bridge:start'),
+  tileBridgeStop: () => ipcRenderer.invoke('tile-bridge:stop'),
+  tileBridgeGet: (appId: string) => ipcRenderer.invoke('tile-bridge:get', appId),
+
   // 事件监听
   onMenuOpen: (callback: () => void) => {
     ipcRenderer.on('menu:open', callback)
@@ -90,5 +96,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 磁贴透明度变化通知
   onTileOpacityChanged: (callback: (opacity: number) => void) => {
     ipcRenderer.on('tile:opacity-changed', (_event, opacity: number) => callback(opacity))
+  },
+
+  // 磁贴桥接服务事件（第三方软件推送内容）
+  onTileBridgeUpdate: (callback: (data: any) => void) => {
+    ipcRenderer.on('tile-bridge:update', (_event, data) => callback(data))
+  },
+  onTileBridgeClear: (callback: (data: { appId: string }) => void) => {
+    ipcRenderer.on('tile-bridge:clear', (_event, data) => callback(data))
   }
 })

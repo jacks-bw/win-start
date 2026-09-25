@@ -13,6 +13,8 @@ export const useTilesStore = defineStore('tiles', () => {
   const groups = ref<TileGroup[]>([])
   const flippedTiles = ref<Set<string>>(new Set())
   const tileNotifications = ref<Record<string, TileNotification[]>>({})
+  // 外部推送的磁贴内容（Tile Bridge 第三方接入）
+  const externalTileData = ref<Record<string, any>>({})
   // 拖拽视觉反馈状态
   const draggingTileId = ref<string | null>(null)
   const draggingTileSize = ref<TileItem['size'] | null>(null)
@@ -495,7 +497,28 @@ export const useTilesStore = defineStore('tiles', () => {
   }
 
   function getNotifications(tileId: string): TileNotification[] {
+    // 优先返回外部推送的内容（Tile Bridge）
+    const external = externalTileData.value[tileId]
+    if (external) {
+      return [{
+        template: 'text',
+        title: external.title || '新消息',
+        body: external.body || '',
+        image: external.icon,
+        timestamp: external.timestamp || Date.now()
+      }]
+    }
     return tileNotifications.value[tileId] || []
+  }
+
+  // 设置外部推送的磁贴内容
+  function setExternalTileData(appId: string, data: any) {
+    externalTileData.value[appId] = data
+  }
+
+  // 清除外部推送的磁贴内容
+  function clearExternalTileData(appId: string) {
+    delete externalTileData.value[appId]
   }
 
   return {
@@ -531,6 +554,9 @@ export const useTilesStore = defineStore('tiles', () => {
     setTileNameColor,
     setTileContentAlign,
     setGroupBackground,
-    getNotifications
+    getNotifications,
+    externalTileData,
+    setExternalTileData,
+    clearExternalTileData
   }
 })

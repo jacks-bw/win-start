@@ -429,8 +429,8 @@ const currentNotification = computed(() => notifications.value[0])
 const nextNotification = computed(() => notifications.value[1])
 
 onMounted(() => {
-  // 如果开启动态磁贴，设置定时翻转
-  if (props.tile.liveEnabled && notifications.value.length > 1) {
+  // 如果开启动态磁贴且有通知内容，设置定时翻转
+  if (props.tile.liveEnabled && notifications.value.length >= 1) {
     flipInterval = setInterval(() => {
       isFlipped.value = !isFlipped.value
     }, 5000) // 5秒翻转一次
@@ -449,6 +449,21 @@ onMounted(() => {
 // 监听名称变化，重新检测溢出
 watch(tileName, () => {
   checkNameOverflow()
+})
+
+// 监听通知内容变化，动态启动/停止翻转
+watch(notifications, (newVal) => {
+  if (flipInterval) {
+    clearInterval(flipInterval)
+    flipInterval = null
+  }
+  if (props.tile.liveEnabled && newVal.length >= 1) {
+    flipInterval = setInterval(() => {
+      isFlipped.value = !isFlipped.value
+    }, 5000)
+  } else {
+    isFlipped.value = false
+  }
 })
 
 onUnmounted(() => {

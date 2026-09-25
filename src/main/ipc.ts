@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { extname, join } from 'path'
 import { exec } from 'child_process'
 import type { WindowManager } from './window-manager'
+import { tileBridge } from './tile-bridge'
 
 // 从 Windows 注册表读取系统主题色（AccentColor 存储为 0xAABBGGRR 格式）
 function getWindowsAccentColor(): Promise<string> {
@@ -362,6 +363,35 @@ export function setupIpc(
   // 打开系统设置
   ipcMain.handle('system:open-settings', () => {
     shell.openExternal('ms-settings:')
+  })
+
+  // === 磁贴桥接服务（Tile Bridge）===
+  // 目前默认不启用，保留作为第三方软件接入的扩展接口
+
+  // 查询桥接服务状态
+  ipcMain.handle('tile-bridge:status', () => {
+    return {
+      running: tileBridge.isRunning(),
+      port: 18923,
+      data: tileBridge.getAllTileData()
+    }
+  })
+
+  // 启动桥接服务
+  ipcMain.handle('tile-bridge:start', () => {
+    tileBridge.start()
+    return tileBridge.isRunning()
+  })
+
+  // 停止桥接服务
+  ipcMain.handle('tile-bridge:stop', () => {
+    tileBridge.stop()
+    return !tileBridge.isRunning()
+  })
+
+  // 获取指定磁贴的推送内容
+  ipcMain.handle('tile-bridge:get', (_event, appId: string) => {
+    return tileBridge.getTileData(appId) || null
   })
 
   // 监听系统主题色变化，通知所有渲染进程
