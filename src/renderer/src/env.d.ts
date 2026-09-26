@@ -27,6 +27,7 @@ interface ElectronAPI {
   onMenuOpen: (callback: () => void) => void
   onMenuClose: (callback: () => void) => void
   onLayoutUpdated: (callback: () => void) => void
+  onAppsChanged: (callback: () => void) => void
 }
 
 interface AppItem {

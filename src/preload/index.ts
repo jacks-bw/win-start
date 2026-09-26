@@ -88,6 +88,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('avatar:updated', callback)
   },
 
+  // 开始菜单应用列表变化通知（安装/卸载软件后自动触发）
+  onAppsChanged: (callback: () => void) => {
+    ipcRenderer.on('apps:changed', callback)
+  },
+
   // 系统主题色变化通知
   onAccentColorChanged: (callback: (color: string) => void) => {
     ipcRenderer.on('theme:accent-color-changed', (_event, color: string) => callback(color))

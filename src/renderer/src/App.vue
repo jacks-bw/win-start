@@ -355,6 +355,11 @@ onMounted(async () => {
     tilesStore.loadLayout()
   })
 
+  // 监听开始菜单应用列表变化（安装/卸载软件后自动刷新）
+  window.electronAPI.onAppsChanged(() => {
+    appsStore.loadApps()
+  })
+
   window.addEventListener('keydown', handleKeydown)
 
   // 点击任意位置关闭右键菜单（但点击菜单内部时不关闭）

@@ -4,6 +4,7 @@ import { createTray } from './tray'
 import { setupIpc } from './ipc'
 import { createStore } from './store'
 import { LaunchButtonManager } from './launch-button-manager'
+import { startMenuWatcher } from './start-menu-watcher'
 
 let windowManager: WindowManager | null = null
 let store: ReturnType<typeof createStore> | null = null
@@ -20,6 +21,9 @@ app.whenReady().then(() => {
 
   createTray(windowManager, launchButtonManager)
   setupIpc(windowManager, store, launchButtonManager)
+
+  // 启动开始菜单目录监视（安装/卸载软件后自动刷新列表）
+  startMenuWatcher.start()
 
   // 注册全局快捷键（默认 Alt+Space）
   const defaultShortcut = store.get('globalShortcut', 'Alt+Space') as string
@@ -40,9 +44,10 @@ app.whenReady().then(() => {
   })
 })
 
-// 退出时取消所有快捷键
+// 退出时取消所有快捷键并停止文件监视
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  startMenuWatcher.stop()
 })
 
 app.on('window-all-closed', () => {
