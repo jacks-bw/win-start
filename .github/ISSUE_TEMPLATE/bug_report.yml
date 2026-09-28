@@ -1,0 +1,70 @@
+name: Bug 报告
+description: 报告软件运行中的问题或错误
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间报告 Bug！请尽量详细描述问题，方便我们复现和修复。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 清晰简洁地描述遇到的问题
+      placeholder: 例如：点击磁贴后程序没有响应
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 详细描述如何复现这个问题
+      placeholder: |
+        1. 打开软件
+        2. 点击...
+        3. 出现错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+      description: 你期望发生什么
+      placeholder: 例如：点击后应该打开对应程序
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 软件版本
+      description: 你使用的软件版本号
+      placeholder: 例如：1.2.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统
+      description: Windows 版本
+      placeholder: 例如：Windows 11 23H2
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图/日志
+      description: 如果有截图或错误日志，请粘贴在这里
+      placeholder: 拖拽图片到这里，或粘贴错误日志
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他信息
+      description: 任何其他有助于排查问题的信息
