@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="header-text">
         <span class="page-title">磁贴样式</span>
-        <span v-if="tile" class="page-subtitle">{{ tile.name || tile.appId }}</span>
+        <span v-if="tile" class="page-subtitle">{{ displayName }}</span>
       </div>
       <button class="win-close" @click="closeWindow"><X :size="14" /></button>
     </div>
@@ -149,6 +149,7 @@
 <script setup lang="ts">
 import { computed, markRaw, onMounted, ref } from 'vue'
 import { useTilesStore } from './stores/useTiles'
+import { useAppsStore } from './stores/useApps'
 import * as LucideIcons from 'lucide-vue-next'
 import { X, ImagePlus, Trash2, Palette, Upload, Undo2 } from 'lucide-vue-next'
 import LiveTile from './components/TileGrid/LiveTile.vue'
@@ -157,6 +158,7 @@ import { useSettingsStore } from './stores/useSettings'
 
 const tilesStore = useTilesStore()
 const settingsStore = useSettingsStore()
+const appsStore = useAppsStore()
 
 // 页面背景透明度与开始菜单列表面板保持一致
 const pageBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
@@ -195,12 +197,21 @@ function pushUpdate() {
 
 onMounted(async () => {
   await settingsStore.loadTileOpacity()
+  // 独立窗口有独立的 apps store，需自行加载程序列表，否则预览显示 appId 而非软件名
+  appsStore.loadApps()
   const target = await window.electronAPI.getTileStyleTarget()
   if (target) tileId.value = target
   window.electronAPI.onTileStyleSelect((id) => {
     tileId.value = id
     showIconPicker.value = false
   })
+})
+
+// 预览/标题栏显示的软件名（从 apps store 解析）
+const displayName = computed(() => {
+  if (!tile.value) return ''
+  const app = appsStore.apps.find((a) => a.id === tile.value?.appId)
+  return app?.name || tile.value.appId
 })
 
 // ---- 预览尺寸 ----
