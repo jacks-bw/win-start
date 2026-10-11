@@ -80,40 +80,10 @@ function handleLiveToggle() {
   emit('close')
 }
 
-async function handleSetBackground() {
-  // 忙碌锁：选图对话框和后续裁剪期间，开始菜单不因点外部而关闭
-  window.electronAPI.setMenuBusy(true)
-  const filePath = await window.electronAPI.selectImage()
-  if (!filePath) {
-    window.electronAPI.setMenuBusy(false)
-    emit('close')
-    return
-  }
-  const base64 = await window.electronAPI.readImageBase64(filePath)
-  if (!base64) {
-    window.electronAPI.setMenuBusy(false)
-    emit('close')
-    return
-  }
-  // 按磁贴尺寸计算裁剪框比例：small 1:1 / medium 1:1 / wide 2:1
-  const spanMap: Record<string, { rows: number; cols: number }> = {
-    small: { rows: 1, cols: 1 },
-    medium: { rows: 2, cols: 2 },
-    wide: { rows: 2, cols: 4 }
-  }
-  const span = spanMap[tile.value?.size || 'medium'] || { rows: 2, cols: 2 }
-  const targetRatio = span.cols / span.rows
-  // 关闭菜单后弹出裁剪预览
+function handleSetBackground() {
+  // 打开磁贴样式预览窗（背景图片 + 图标/名称样式同步设置），由该窗口管理忙碌锁
   emit('close')
-  window.openImageCrop(base64, targetRatio, async (croppedDataUrl) => {
-    const savedPath = await window.electronAPI.saveImage(
-      croppedDataUrl,
-      `tile-${props.tileId}-${Date.now()}`
-    )
-    if (savedPath) {
-      tilesStore.setTileBackground(props.tileId, savedPath)
-    }
-  })
+  window.openTileStyleDialog(props.tileId)
 }
 
 function handleRemoveBackground() {

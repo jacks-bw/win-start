@@ -100,6 +100,7 @@ interface Window {
     targetRatio: number,
     callback: (dataUrl: string) => void
   ) => void
+  openTileStyleDialog: (tileId: string) => void
   showInputDialog: (
     title: string,
     defaultValue: string,

@@ -24,8 +24,9 @@ export class WindowManager {
   private currentCropImagePath: string | null = null
   private store: Store<StoreType>
   private isVisible = false
-  // 忙碌锁：设置磁贴/分组背景等流程期间，忽略窗口 blur 自动关闭
-  private busy = false
+  // 忙碌锁（引用计数）：设置磁贴/分组背景等流程期间，忽略窗口 blur 自动关闭；
+  // 支持嵌套（磁贴样式窗 → 裁剪窗），配对 +1/-1，归零才允许 blur 关闭
+  private busyDepth = 0
 
   constructor(store: Store<StoreType>) {
     this.store = store
@@ -78,7 +79,7 @@ export class WindowManager {
 
     // 点击窗口外部时自动关闭（忙碌期间除外，如正在设置磁贴背景）
     this.startMenuWindow.on('blur', () => {
-      if (this.isVisible && !this.busy) {
+      if (this.isVisible && this.busyDepth === 0) {
         this.hideStartMenu()
       }
     })
@@ -92,7 +93,7 @@ export class WindowManager {
   showStartMenu(displayId?: number, buttonBounds?: { x: number; y: number; width: number }): void {
     if (!this.startMenuWindow) return
     // 每次打开时清理上一轮可能残留的忙碌锁
-    this.busy = false
+    this.busyDepth = 0
 
     const [, height] = this.startMenuWindow.getSize()
 
@@ -174,9 +175,9 @@ export class WindowManager {
     return this.isVisible
   }
 
-  // 设置忙碌锁：busy 期间 blur 不会自动隐藏开始菜单
+  // 设置忙碌锁：busy=true 计数 +1，false 计数 -1（最低 0）；计数 >0 时 blur 不自动隐藏开始菜单
   setBusy(busy: boolean): void {
-    this.busy = busy
+    this.busyDepth = Math.max(0, this.busyDepth + (busy ? 1 : -1))
   }
 
   // 通知开始菜单窗口重新加载磁贴布局

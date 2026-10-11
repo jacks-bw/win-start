@@ -73,6 +73,8 @@ async function handleSetBackground() {
   }
   const targetRatio = maxCol > 0 && maxRow > 0 ? maxCol / maxRow : 1
 
+  // 交接：释放选图阶段的锁，由 openImageCrop 内部同步重新加锁（无间隙）
+  window.electronAPI.setMenuBusy(false)
   window.openImageCrop(base64, targetRatio, async (croppedDataUrl) => {
     const savedPath = await window.electronAPI.saveImage(
       croppedDataUrl,
