@@ -609,7 +609,7 @@ onUnmounted(() => {
 
 .tile-text {
   color: white;
-  width: auto;
+  width: fit-content;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
