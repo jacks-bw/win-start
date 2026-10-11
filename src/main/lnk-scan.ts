@@ -16,6 +16,8 @@ export interface LnkEntry {
 export function scanLnkShortcuts(): Promise<LnkEntry[]> {
   return new Promise((resolve) => {
     const script = [
+      // 强制以 UTF-8 输出，否则中文系统下 PowerShell 默认 GBK 编码会导致 Node 解码出乱码
+      '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
       '$dirs = @("$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs", "$env:PROGRAMDATA\\Microsoft\\Windows\\Start Menu\\Programs")',
       '$sh = New-Object -ComObject WScript.Shell',
       '$results = foreach ($d in $dirs) {',

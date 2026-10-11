@@ -16,7 +16,7 @@ const NAME_BLOCKLIST = new Set(['入门', 'Windows通用商店'])
  */
 export function enumUwpApps(): Promise<UwpApp[]> {
   return new Promise((resolve) => {
-    const script = `Get-StartApps | Where-Object { $_.AppID -match '!' } | Select-Object Name, AppID | ConvertTo-Json -Compress`
+    const script = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-StartApps | Where-Object { $_.AppID -match '!' } | Select-Object Name, AppID | ConvertTo-Json -Compress`
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', script],
