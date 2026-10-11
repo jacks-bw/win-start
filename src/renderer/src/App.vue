@@ -92,6 +92,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 图片裁剪预览对话框（设置磁贴/分组背景时使用） -->
+    <CropImageDialog
+      :visible="cropDialog.visible"
+      :image-url="cropDialog.imageUrl"
+      :target-ratio="cropDialog.targetRatio"
+      @cancel="closeCropDialog"
+      @confirm="confirmCropDialog"
+    />
   </div>
 </template>
 
@@ -100,6 +109,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import AvatarCropWindow from './AvatarCropWindow.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import AppList from './components/AppList/AppList.vue'
+import CropImageDialog from './components/CropImageDialog.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
 import GroupContextMenu from './components/TileGrid/GroupContextMenu.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
@@ -177,9 +187,21 @@ const confirmDialog = ref({
   callback: null as (() => void) | null
 })
 
+// 图片裁剪对话框（设置磁贴/分组背景时使用）
+const cropDialog = ref({
+  visible: false,
+  imageUrl: '',
+  targetRatio: 1,
+  callback: null as ((dataUrl: string) => void) | null
+})
+
 // ESC 关闭：优先关闭弹窗/菜单，其次隐藏开始菜单
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
+    if (cropDialog.value.visible) {
+      closeCropDialog()
+      return
+    }
     if (confirmDialog.value.visible) {
       closeConfirmDialog()
       return
@@ -291,6 +313,33 @@ function cancelAllTransientDialogs() {
   inputDialog.value.callback = null
   confirmDialog.value.visible = false
   confirmDialog.value.callback = null
+  cropDialog.value.visible = false
+  cropDialog.value.callback = null
+}
+
+// 图片裁剪对话框：打开后用户裁剪/预览，确定后回调裁剪出的 dataURL
+function openImageCropDialog(
+  imageUrl: string,
+  targetRatio: number,
+  callback: (dataUrl: string) => void
+) {
+  cropDialog.value = {
+    visible: true,
+    imageUrl,
+    targetRatio: targetRatio || 1,
+    callback
+  }
+}
+
+function closeCropDialog() {
+  cropDialog.value.visible = false
+  cropDialog.value.callback = null
+}
+
+function confirmCropDialog(dataUrl: string) {
+  const cb = cropDialog.value.callback
+  closeCropDialog()
+  if (cb) cb(dataUrl)
 }
 
 // 暴露方法给子组件
@@ -321,6 +370,7 @@ window.openGroupContextMenu = (x: number, y: number, groupId: string) => {
 
 window.showInputDialog = showInputDialog
 window.showConfirmDialog = showConfirmDialog
+window.openImageCrop = openImageCropDialog
 
 // 左侧程序列表右键菜单
 window.openAppContextMenu = (x: number, y: number, app: AppItem) => {

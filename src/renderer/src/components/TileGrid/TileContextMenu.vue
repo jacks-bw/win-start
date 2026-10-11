@@ -82,10 +82,34 @@ function handleLiveToggle() {
 
 async function handleSetBackground() {
   const filePath = await window.electronAPI.selectImage()
-  if (filePath) {
-    tilesStore.setTileBackground(props.tileId, filePath)
+  if (!filePath) {
+    emit('close')
+    return
   }
+  const base64 = await window.electronAPI.readImageBase64(filePath)
+  if (!base64) {
+    emit('close')
+    return
+  }
+  // 按磁贴尺寸计算裁剪框比例：small 1:1 / medium 1:1 / wide 2:1
+  const spanMap: Record<string, { rows: number; cols: number }> = {
+    small: { rows: 1, cols: 1 },
+    medium: { rows: 2, cols: 2 },
+    wide: { rows: 2, cols: 4 }
+  }
+  const span = spanMap[tile.value?.size || 'medium'] || { rows: 2, cols: 2 }
+  const targetRatio = span.cols / span.rows
+  // 关闭菜单后弹出裁剪预览
   emit('close')
+  window.openImageCrop(base64, targetRatio, async (croppedDataUrl) => {
+    const savedPath = await window.electronAPI.saveImage(
+      croppedDataUrl,
+      `tile-${props.tileId}-${Date.now()}`
+    )
+    if (savedPath) {
+      tilesStore.setTileBackground(props.tileId, savedPath)
+    }
+  })
 }
 
 function handleRemoveBackground() {

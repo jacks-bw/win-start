@@ -42,10 +42,38 @@ function findGroup(): TileGroup | undefined {
 
 async function handleSetBackground() {
   const filePath = await window.electronAPI.selectImage()
-  if (filePath) {
-    tilesStore.setGroupBackground(props.groupId, filePath)
-  }
   emit('close')
+  if (!filePath) return
+  const base64 = await window.electronAPI.readImageBase64(filePath)
+  if (!base64) return
+
+  // 按整组磁贴网格计算裁剪框比例
+  const spanMap: Record<string, { rows: number; cols: number }> = {
+    small: { rows: 1, cols: 1 },
+    medium: { rows: 2, cols: 2 },
+    wide: { rows: 2, cols: 4 }
+  }
+  const group = findGroup()
+  let maxRow = 0
+  let maxCol = 0
+  if (group) {
+    for (const t of group.tiles) {
+      const span = spanMap[t.size] || { rows: 2, cols: 2 }
+      maxRow = Math.max(maxRow, t.row + span.rows)
+      maxCol = Math.max(maxCol, t.col + span.cols)
+    }
+  }
+  const targetRatio = maxCol > 0 && maxRow > 0 ? maxCol / maxRow : 1
+
+  window.openImageCrop(base64, targetRatio, async (croppedDataUrl) => {
+    const savedPath = await window.electronAPI.saveImage(
+      croppedDataUrl,
+      `group-${props.groupId}-${Date.now()}`
+    )
+    if (savedPath) {
+      tilesStore.setGroupBackground(props.groupId, savedPath)
+    }
+  })
 }
 
 function handleRename() {
