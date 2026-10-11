@@ -344,13 +344,13 @@ export class WindowManager {
 
     this.tileStyleWindow = new BrowserWindow({
       width: 560,
-      height: 620,
-      minWidth: 480,
-      minHeight: 540,
-      resizable: true,
-      frame: true,
-      title: '磁贴样式',
-      backgroundColor: '#1e1e1e',
+      height: 640,
+      resizable: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      show: false,
+      center: true,
       icon: getIconPath(),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -368,6 +368,14 @@ export class WindowManager {
     }
 
     this.tileStyleWindow.setMenuBarVisibility(false)
+
+    this.tileStyleWindow.once('ready-to-show', () => {
+      this.tileStyleWindow?.show()
+      // 与开始菜单一致的 Acrylic 毛玻璃效果
+      if (this.tileStyleWindow) {
+        setAcrylicEffect(this.tileStyleWindow, 40)
+      }
+    })
 
     this.tileStyleWindow.on('closed', () => {
       this.tileStyleWindow = null

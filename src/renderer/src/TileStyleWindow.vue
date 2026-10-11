@@ -1,111 +1,113 @@
 <template>
   <div class="tile-style-window">
+    <!-- 标题栏（无边框窗口自绘，可拖动） -->
     <div class="page-header">
-      <span class="page-title">磁贴样式</span>
-      <span v-if="tile" class="page-subtitle">{{ tile.name || tile.appId }}</span>
+      <div class="header-text">
+        <span class="page-title">磁贴样式</span>
+        <span v-if="tile" class="page-subtitle">{{ tile.name || tile.appId }}</span>
+      </div>
+      <button class="win-close" @click="window.close()"><X :size="14" /></button>
     </div>
 
-    <div class="page-body">
-      <!-- 左侧：实时预览 -->
-      <div class="preview-area">
-        <div class="preview-stage" :style="previewStageStyle">
-          <LiveTile v-if="tile" :tile="tile" :group="group" />
-        </div>
-        <div class="preview-hint">实时预览</div>
+    <!-- 上栏：实时预览 -->
+    <div class="preview-area">
+      <div class="preview-stage" :style="previewStageStyle">
+        <LiveTile v-if="tile" :tile="tile" :group="group" />
+      </div>
+      <div class="preview-hint">实时预览</div>
+    </div>
+
+    <!-- 下栏：设置控件（可滚动） -->
+    <div class="controls">
+      <div class="section-label">背景图片</div>
+      <div class="btn-row">
+        <button class="action-btn" @click="chooseBackground">
+          <ImagePlus :size="13" class="btn-icon" />选择图片
+        </button>
+        <button
+          v-if="tile?.background"
+          class="action-btn danger"
+          @click="tilesStore.setTileBackground(tileId, undefined); pushUpdate()"
+        >
+          <Trash2 :size="13" class="btn-icon" />清除背景
+        </button>
       </div>
 
-      <!-- 右侧：控件 -->
-      <div class="controls">
-        <div class="section-label">背景图片</div>
-        <div class="btn-row">
-          <button class="action-btn" @click="chooseBackground">
-            <ImagePlus :size="13" class="btn-icon" />选择图片
-          </button>
-          <button
-            v-if="tile?.background"
-            class="action-btn danger"
-            @click="tilesStore.setTileBackground(tileId, undefined); pushUpdate()"
-          >
-            <Trash2 :size="13" class="btn-icon" />清除背景
-          </button>
-        </div>
+      <div class="divider"></div>
 
-        <div class="divider"></div>
+      <label class="toggle-item">
+        <input type="checkbox" :checked="tile?.showIcon !== false" @change="onToggle('icon', ($event.target as HTMLInputElement).checked)" />
+        <span>显示图标</span>
+      </label>
+      <label class="toggle-item">
+        <input type="checkbox" :checked="tile?.showName !== false" @change="onToggle('name', ($event.target as HTMLInputElement).checked)" />
+        <span>显示名称</span>
+      </label>
 
-        <label class="toggle-item">
-          <input type="checkbox" :checked="tile?.showIcon !== false" @change="onToggle('icon', ($event.target as HTMLInputElement).checked)" />
-          <span>显示图标</span>
-        </label>
-        <label class="toggle-item">
-          <input type="checkbox" :checked="tile?.showName !== false" @change="onToggle('name', ($event.target as HTMLInputElement).checked)" />
-          <span>显示名称</span>
-        </label>
+      <div class="divider"></div>
 
-        <div class="divider"></div>
+      <div class="section-label">自定义图标</div>
+      <div class="btn-row">
+        <button class="action-btn" @click="showIconPicker = true">
+          <Palette :size="13" class="btn-icon" />内置图标
+        </button>
+        <button class="action-btn" @click="importIcon">
+          <Upload :size="13" class="btn-icon" />导入图标
+        </button>
+        <button
+          v-if="tile?.customIcon || tile?.customIconImage"
+          class="action-btn danger"
+          @click="resetIcon"
+        >
+          <Undo2 :size="13" class="btn-icon" />恢复默认
+        </button>
+      </div>
+      <div v-if="tile?.customIcon" class="current-hint">当前：{{ tile.customIcon }}</div>
+      <div v-else-if="tile?.customIconImage" class="current-hint">当前：自定义图片</div>
 
-        <div class="section-label">自定义图标</div>
-        <div class="btn-row">
-          <button class="action-btn" @click="showIconPicker = true">
-            <Palette :size="13" class="btn-icon" />内置图标
-          </button>
-          <button class="action-btn" @click="importIcon">
-            <Upload :size="13" class="btn-icon" />导入图标
-          </button>
-          <button
-            v-if="tile?.customIcon || tile?.customIconImage"
-            class="action-btn danger"
-            @click="resetIcon"
-          >
-            <Undo2 :size="13" class="btn-icon" />恢复默认
-          </button>
-        </div>
-        <div v-if="tile?.customIcon" class="current-hint">当前：{{ tile.customIcon }}</div>
-        <div v-else-if="tile?.customIconImage" class="current-hint">当前：自定义图片</div>
+      <div class="divider"></div>
 
-        <div class="divider"></div>
+      <div class="color-line">
+        <span class="color-label">图标颜色</span>
+        <input type="color" class="color-input" :value="tile?.iconColor || '#ffffff'" @input="tilesStore.setTileIconColor(tileId, ($event.target as HTMLInputElement).value); pushUpdate()" />
+        <button v-if="tile?.iconColor" class="mini-btn" @click="tilesStore.setTileIconColor(tileId, undefined); pushUpdate()">清除</button>
+      </div>
+      <div class="color-line">
+        <span class="color-label">名称颜色</span>
+        <input type="color" class="color-input" :value="tile?.nameColor || '#ffffff'" @input="tilesStore.setTileNameColor(tileId, ($event.target as HTMLInputElement).value); pushUpdate()" />
+        <button v-if="tile?.nameColor" class="mini-btn" @click="tilesStore.setTileNameColor(tileId, undefined); pushUpdate()">清除</button>
+      </div>
+      <div class="color-line">
+        <span class="color-label">图标底色</span>
+        <input type="color" class="color-input" :value="tile?.iconBgColor || '#ffffff'" @input="tilesStore.setTileIconBgColor(tileId, ($event.target as HTMLInputElement).value); pushUpdate()" />
+      </div>
 
-        <div class="color-line">
-          <span class="color-label">图标颜色</span>
-          <input type="color" class="color-input" :value="tile?.iconColor || '#ffffff'" @input="tilesStore.setTileIconColor(tileId, ($event.target as HTMLInputElement).value); pushUpdate()" />
-          <button v-if="tile?.iconColor" class="mini-btn" @click="tilesStore.setTileIconColor(tileId, undefined); pushUpdate()">清除</button>
-        </div>
-        <div class="color-line">
-          <span class="color-label">名称颜色</span>
-          <input type="color" class="color-input" :value="tile?.nameColor || '#ffffff'" @input="tilesStore.setTileNameColor(tileId, ($event.target as HTMLInputElement).value); pushUpdate()" />
-          <button v-if="tile?.nameColor" class="mini-btn" @click="tilesStore.setTileNameColor(tileId, undefined); pushUpdate()">清除</button>
-        </div>
-        <div class="color-line">
-          <span class="color-label">图标底色</span>
-          <input type="color" class="color-input" :value="tile?.iconBgColor || '#ffffff'" @input="tilesStore.setTileIconBgColor(tileId, ($event.target as HTMLInputElement).value); pushUpdate()" />
-        </div>
+      <div class="color-line" style="margin-top: 10px;">
+        <span class="color-label">图标透明度 {{ Math.round((tile?.iconOpacity ?? 0) * 100) }}%</span>
+        <input
+          type="range"
+          class="opacity-slider"
+          min="0"
+          max="1"
+          step="0.05"
+          :value="tile?.iconOpacity ?? 0"
+          @input="tilesStore.setTileIconOpacity(tileId, parseFloat(($event.target as HTMLInputElement).value)); pushUpdate()"
+        />
+      </div>
 
-        <div class="color-line" style="margin-top: 10px;">
-          <span class="color-label">图标透明度 {{ Math.round((tile?.iconOpacity ?? 0) * 100) }}%</span>
-          <input
-            type="range"
-            class="opacity-slider"
-            min="0"
-            max="1"
-            step="0.05"
-            :value="tile?.iconOpacity ?? 0"
-            @input="tilesStore.setTileIconOpacity(tileId, parseFloat(($event.target as HTMLInputElement).value)); pushUpdate()"
-          />
-        </div>
+      <div class="divider"></div>
 
-        <div class="divider"></div>
-
-        <div class="section-label">内容位置</div>
-        <div class="align-grid">
-          <button
-            v-for="pos in alignPositions"
-            :key="pos"
-            class="align-btn"
-            :class="{ active: (tile?.contentAlign || defaultAlign) === pos }"
-            @click="setAlign(pos)"
-          >
-            <span class="align-dot"></span>
-          </button>
-        </div>
+      <div class="section-label">内容位置</div>
+      <div class="align-grid">
+        <button
+          v-for="pos in alignPositions"
+          :key="pos"
+          class="align-btn"
+          :class="{ active: (tile?.contentAlign || defaultAlign) === pos }"
+          @click="setAlign(pos)"
+        >
+          <span class="align-dot"></span>
+        </button>
       </div>
     </div>
 
@@ -317,50 +319,70 @@ function setAlign(pos: string) {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #1e1e1e;
+  /* 半透明底，透出底层 Acrylic 毛玻璃 */
+  background: rgba(32, 32, 32, 0.62);
   color: #e0e0e0;
+  overflow: hidden;
 }
 
+/* 自绘标题栏：可拖动窗口 */
 .page-header {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 10px 18px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
 }
-.page-title { font-size: 15px; font-weight: 600; color: #fff; }
-.page-subtitle { font-size: 12px; color: #888; }
-
-.page-body {
-  flex: 1;
-  display: flex;
-  gap: 20px;
-  padding: 20px;
-  overflow: auto;
+.header-text { display: flex; align-items: baseline; gap: 10px; }
+.page-title { font-size: 14px; font-weight: 600; color: #fff; }
+.page-subtitle { font-size: 12px; color: #999; }
+.win-close {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
+.win-close:hover { background: rgba(255, 80, 80, 0.7); color: #fff; }
 
+/* 上栏：预览 */
 .preview-area {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #141414;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 24px;
-  min-width: 200px;
+  padding: 10px 0 16px;
 }
-.preview-hint { margin-top: 14px; font-size: 11px; color: #666; }
+.preview-hint { margin-top: 10px; font-size: 11px; color: #888; }
 
+/* 下栏：控件，与开始菜单一致的滚动条 */
 .controls {
   flex: 1;
-  min-width: 230px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 4px 20px 20px;
+}
+.controls::-webkit-scrollbar {
+  width: 8px;
+}
+.controls::-webkit-scrollbar-track {
+  background: transparent;
+}
+.controls::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+.controls::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-.section-label { font-size: 12px; color: #999; }
+.section-label { font-size: 12px; color: #aaa; }
 
 .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -391,7 +413,7 @@ function setAlign(pos: string) {
 
 .current-hint {
   font-size: 11px;
-  color: #888;
+  color: #999;
   padding: 4px 6px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
@@ -472,7 +494,7 @@ function setAlign(pos: string) {
 
 /* 图标选择器 */
 .icon-picker-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
@@ -481,7 +503,7 @@ function setAlign(pos: string) {
   z-index: 10;
 }
 .icon-picker-dialog {
-  background: #2a2a2a;
+  background: rgba(42, 42, 42, 0.97);
   border-radius: 8px;
   width: 380px;
   max-height: 320px;
@@ -494,16 +516,16 @@ function setAlign(pos: string) {
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
   font-size: 13px;
   color: #eee;
 }
 .icon-picker-close { background: none; border: none; color: #999; cursor: pointer; }
-.icon-picker-search { padding: 10px 14px; border-bottom: 1px solid #3a3a3a; }
+.icon-picker-search { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .icon-search-input {
   width: 100%;
   padding: 6px 10px;
-  background: #1e1e1e;
+  background: rgba(0,0,0,0.3);
   border: 1px solid #444;
   border-radius: 4px;
   color: #fff;
@@ -518,6 +540,10 @@ function setAlign(pos: string) {
   padding: 12px 14px;
   overflow-y: auto;
 }
+.icon-picker-grid::-webkit-scrollbar { width: 8px; }
+.icon-picker-grid::-webkit-scrollbar-track { background: transparent; }
+.icon-picker-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+.icon-picker-grid::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
 .icon-picker-item {
   aspect-ratio: 1;
   display: flex;
