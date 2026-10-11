@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     class="tile-container"
     :class="[
@@ -114,7 +114,7 @@ defineEmits<{
 }>()
 
 const tilesStore = useTilesStore()
-const { apps } = useAppsStore()
+const appsStore = useAppsStore()
 const settingsStore = useSettingsStore()
 const isFlipped = ref(false)
 const isDragging = ref(false)
@@ -180,7 +180,7 @@ function handleDragEnd() {
 // 根据 appId 获取显示名称和图标
 const tileName = computed(() => {
   // 先在已加载的程序列表中查找
-  const app = apps.find((a) => a.id === props.tile.appId)
+  const app = appsStore.apps.find((a) => a.id === props.tile.appId)
   if (app) {
     return app.name
   }
@@ -196,7 +196,7 @@ const tileName = computed(() => {
 
 const tileIcon = computed(() => {
   // 先在已加载的程序列表中查找
-  const app = apps.find((a) => a.id === props.tile.appId)
+  const app = appsStore.apps.find((a) => a.id === props.tile.appId)
   if (app && app.icon) {
     return '' // 使用 app.icon
   }
@@ -218,7 +218,7 @@ const defaultIconComponent = computed(() => {
 
 // 真实程序图标（base64）
 const appIcon = computed(() => {
-  const app = apps.find((a) => a.id === props.tile.appId)
+  const app = appsStore.apps.find((a) => a.id === props.tile.appId)
   return app?.icon || ''
 })
 
