@@ -6,7 +6,7 @@
         <span class="page-title">磁贴样式</span>
         <span v-if="tile" class="page-subtitle">{{ tile.name || tile.appId }}</span>
       </div>
-      <button class="win-close" @click="window.electronAPI.closeTileStyleWindow()"><X :size="14" /></button>
+      <button class="win-close" @click="closeWindow"><X :size="14" /></button>
     </div>
 
     <!-- 上栏：实时预览 -->
@@ -181,6 +181,11 @@ const group = computed(() => {
 
 // ---- 布局/刷新同步 ----
 let updateTimer: ReturnType<typeof setTimeout> | null = null
+
+function closeWindow() {
+  window.electronAPI.closeTileStyleWindow()
+}
+
 function pushUpdate() {
   if (updateTimer) clearTimeout(updateTimer)
   updateTimer = setTimeout(() => {
