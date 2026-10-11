@@ -1,9 +1,6 @@
 <template>
-  <!-- 壁纸设置窗口 -->
-  <WallpaperWindow v-if="isWallpaperRoute" />
-
   <!-- 快捷键设置窗口 -->
-  <ShortcutsWindow v-else-if="isShortcutsRoute" />
+  <ShortcutsWindow v-if="isShortcutsRoute" />
 
   <!-- 头像裁剪窗口 -->
   <AvatarCropWindow v-else-if="isAvatarCropRoute" />
@@ -129,7 +126,6 @@ import SideToolbar from './components/SideToolbar/SideToolbar.vue'
 import { useAppsStore } from './stores/useApps'
 import { useSettingsStore } from './stores/useSettings'
 import { useTilesStore } from './stores/useTiles'
-import WallpaperWindow from './WallpaperWindow.vue'
 
 const appsStore = useAppsStore()
 const tilesStore = useTilesStore()
@@ -142,7 +138,6 @@ const toolbarBg = computed(() => `rgba(22, 22, 22, ${settingsStore.getListAlpha(
 const tilePanelBg = computed(() => 'transparent')
 
 // 判断是否是壁纸设置窗口（通过 hash 路由）
-const isWallpaperRoute = computed(() => window.location.hash.includes('/wallpaper'))
 
 // 判断是否是快捷键设置窗口（通过 hash 路由）
 const isShortcutsRoute = computed(() => window.location.hash.includes('/shortcuts'))

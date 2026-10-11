@@ -18,7 +18,6 @@ interface StoreType {
 
 export class WindowManager {
   private startMenuWindow: BrowserWindow | null = null
-  private wallpaperWindow: BrowserWindow | null = null
   private shortcutsWindow: BrowserWindow | null = null
   private avatarCropWindow: BrowserWindow | null = null
   private currentCropImagePath: string | null = null
@@ -199,45 +198,6 @@ export class WindowManager {
   }
 
   // 创建/显示壁纸设置窗口
-  showWallpaperWindow(): void {
-    if (this.wallpaperWindow) {
-      this.wallpaperWindow.focus()
-      return
-    }
-
-    this.wallpaperWindow = new BrowserWindow({
-      width: 700,
-      height: 600,
-      minWidth: 600,
-      minHeight: 500,
-      frame: true,
-      resizable: true,
-      title: '磁贴壁纸设置',
-      backgroundColor: '#1e1e1e',
-      icon: getIconPath(),
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
-        contextIsolation: true,
-        nodeIntegration: false,
-        webSecurity: false
-      }
-    })
-
-    // 加载壁纸设置页面（用 hash 路由区分）
-    if (process.env['ELECTRON_RENDERER_URL']) {
-      this.wallpaperWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/wallpaper`)
-    } else {
-      this.wallpaperWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/wallpaper' })
-    }
-
-    // 隐藏原生菜单栏
-    this.wallpaperWindow.setMenuBarVisibility(false)
-
-    this.wallpaperWindow.on('closed', () => {
-      this.wallpaperWindow = null
-    })
-  }
 
   // 创建/显示快捷键设置窗口
   showShortcutsWindow(): void {

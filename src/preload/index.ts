@@ -65,7 +65,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectSvg: () => ipcRenderer.invoke('dialog:select-svg'),
   readImageBase64: (filePath: string) => ipcRenderer.invoke('image:read-base64', filePath),
   saveImage: (base64Data: string, fileName: string) => ipcRenderer.invoke('image:save', base64Data, fileName),
-  openWallpaperWindow: () => ipcRenderer.invoke('wallpaper:open'),
   openTileStyleWindow: (tileId: string) => ipcRenderer.invoke('tile-style:show', tileId),
   getTileStyleTarget: () => ipcRenderer.invoke('tile-style:get-target'),
   closeTileStyleWindow: () => ipcRenderer.invoke('tile-style:close'),

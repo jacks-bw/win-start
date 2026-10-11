@@ -47,10 +47,6 @@ export function createTray(
         click: () => windowManager.showShortcutsWindow()
       },
       {
-        label: '自定义壁纸',
-        click: () => windowManager.showWallpaperWindow()
-      },
-      {
         label: app.isPackaged ? '开机自启' : '开机自启（打包后可用）',
         type: 'checkbox' as const,
         checked: app.isPackaged && app.getLoginItemSettings().openAtLogin,

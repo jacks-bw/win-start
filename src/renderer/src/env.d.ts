@@ -24,7 +24,6 @@ interface ElectronAPI {
   selectSvg: () => Promise<string | null>
   readImageBase64: (filePath: string) => Promise<string | null>
   saveImage: (base64Data: string, fileName: string) => Promise<string | null>
-  openWallpaperWindow: () => Promise<void>
   openTileStyleWindow: (tileId: string) => Promise<void>
   getTileStyleTarget: () => Promise<string | null>
   onTileStyleSelect: (callback: (tileId: string) => void) => void

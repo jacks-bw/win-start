@@ -299,10 +299,6 @@ export function setupIpc(
     }
   })
 
-  // 打开壁纸设置窗口
-  ipcMain.handle('wallpaper:open', () => {
-    windowManager.showWallpaperWindow()
-  })
 
   // 通知开始菜单窗口布局已更新
   ipcMain.handle('layout:notify-updated', () => {
