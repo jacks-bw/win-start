@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readImageBase64: (filePath: string) => ipcRenderer.invoke('image:read-base64', filePath),
   saveImage: (base64Data: string, fileName: string) => ipcRenderer.invoke('image:save', base64Data, fileName),
   openWallpaperWindow: () => ipcRenderer.invoke('wallpaper:open'),
+  openTileStyleWindow: (tileId: string) => ipcRenderer.invoke('tile-style:show', tileId),
+  getTileStyleTarget: () => ipcRenderer.invoke('tile-style:get-target'),
   notifyLayoutUpdated: () => ipcRenderer.invoke('layout:notify-updated'),
 
   // 磁贴桥接服务（Tile Bridge）- 第三方软件接入接口，默认不启用
@@ -93,6 +95,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 头像更新通知
   onAvatarUpdated: (callback: () => void) => {
     ipcRenderer.on('avatar:updated', callback)
+  },
+
+  // 磁贴样式窗切换目标磁贴
+  onTileStyleSelect: (callback: (tileId: string) => void) => {
+    ipcRenderer.on('tile-style:select', (_event, tileId: string) => callback(tileId))
   },
 
   // 开始菜单应用列表变化通知（安装/卸载软件后自动触发）

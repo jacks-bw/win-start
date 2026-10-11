@@ -25,6 +25,9 @@ interface ElectronAPI {
   readImageBase64: (filePath: string) => Promise<string | null>
   saveImage: (base64Data: string, fileName: string) => Promise<string | null>
   openWallpaperWindow: () => Promise<void>
+  openTileStyleWindow: (tileId: string) => Promise<void>
+  getTileStyleTarget: () => Promise<string | null>
+  onTileStyleSelect: (callback: (tileId: string) => void) => void
   notifyLayoutUpdated: () => Promise<void>
   onMenuOpen: (callback: () => void) => void
   onMenuClose: (callback: () => void) => void
@@ -100,7 +103,6 @@ interface Window {
     targetRatio: number,
     callback: (dataUrl: string) => void
   ) => void
-  openTileStyleDialog: (tileId: string) => void
   showInputDialog: (
     title: string,
     defaultValue: string,

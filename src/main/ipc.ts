@@ -148,6 +148,16 @@ export function setupIpc(
     windowManager.setBusy(busy)
   })
 
+  // 打开磁贴样式独立窗口
+  ipcMain.handle('tile-style:show', (_event, tileId: string) => {
+    windowManager.showTileStyleWindow(tileId)
+  })
+
+  // 样式窗查询当前目标磁贴 id
+  ipcMain.handle('tile-style:get-target', () => {
+    return windowManager.getTileStyleTarget()
+  })
+
   // 获取主题
   ipcMain.handle('theme:get', () => {
     return store.get('theme', 'dark')

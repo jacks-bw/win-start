@@ -22,6 +22,8 @@ export class WindowManager {
   private shortcutsWindow: BrowserWindow | null = null
   private avatarCropWindow: BrowserWindow | null = null
   private currentCropImagePath: string | null = null
+  private tileStyleWindow: BrowserWindow | null = null
+  private tileStyleTileId: string | null = null
   private store: Store<StoreType>
   private isVisible = false
   // 忙碌锁（引用计数）：设置磁贴/分组背景等流程期间，忽略窗口 blur 自动关闭；
@@ -326,5 +328,59 @@ export class WindowManager {
     if (this.startMenuWindow) {
       this.startMenuWindow.webContents.send('avatar:updated')
     }
+  }
+
+  // 创建/显示磁贴样式设置窗口（独立窗口）
+  showTileStyleWindow(tileId: string): void {
+    this.tileStyleTileId = tileId
+    // 样式窗打开期间锁定开始菜单，不因焦点切换而关闭
+    this.setBusy(true)
+
+    if (this.tileStyleWindow) {
+      this.tileStyleWindow.focus()
+      this.tileStyleWindow.webContents.send('tile-style:select', tileId)
+      return
+    }
+
+    this.tileStyleWindow = new BrowserWindow({
+      width: 560,
+      height: 620,
+      minWidth: 480,
+      minHeight: 540,
+      resizable: true,
+      frame: true,
+      title: '磁贴样式',
+      backgroundColor: '#1e1e1e',
+      icon: getIconPath(),
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: false
+      }
+    })
+
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      this.tileStyleWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/tile-style`)
+    } else {
+      this.tileStyleWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/tile-style' })
+    }
+
+    this.tileStyleWindow.setMenuBarVisibility(false)
+
+    this.tileStyleWindow.on('closed', () => {
+      this.tileStyleWindow = null
+      this.tileStyleTileId = null
+      // 释放开始菜单忙碌锁
+      this.setBusy(false)
+      // 样式窗里的改动同步到开始菜单
+      this.notifyLayoutUpdated()
+    })
+  }
+
+  // 供样式窗查询当前要编辑的磁贴 id
+  getTileStyleTarget(): string | null {
+    return this.tileStyleTileId
   }
 }

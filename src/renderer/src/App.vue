@@ -8,6 +8,9 @@
   <!-- 头像裁剪窗口 -->
   <AvatarCropWindow v-else-if="isAvatarCropRoute" />
 
+  <!-- 磁贴样式设置窗口（独立窗口） -->
+  <TileStyleWindow v-else-if="isTileStyleRoute" />
+
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
     <!-- 最左侧：纵向工具栏（可自定义功能按钮：文件夹、设置、控制面板等） -->
@@ -101,13 +104,6 @@
       @cancel="closeCropDialog"
       @confirm="confirmCropDialog"
     />
-
-    <!-- 磁贴样式预览对话框（右键设置磁贴背景时使用） -->
-    <TileStyleDialog
-      :visible="tileStyleDialog.visible"
-      :tile-id="tileStyleDialog.tileId"
-      @close="closeTileStyleDialog"
-    />
   </div>
 </template>
 
@@ -117,7 +113,7 @@ import AvatarCropWindow from './AvatarCropWindow.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import AppList from './components/AppList/AppList.vue'
 import CropImageDialog from './components/CropImageDialog.vue'
-import TileStyleDialog from './components/TileStyleDialog.vue'
+import TileStyleWindow from './TileStyleWindow.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
 import GroupContextMenu from './components/TileGrid/GroupContextMenu.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
@@ -146,6 +142,9 @@ const isShortcutsRoute = computed(() => window.location.hash.includes('/shortcut
 
 // 判断是否是头像裁剪窗口（通过 hash 路由）
 const isAvatarCropRoute = computed(() => window.location.hash.includes('/avatar-crop'))
+
+// 判断是否是磁贴样式设置窗口（通过 hash 路由）
+const isTileStyleRoute = computed(() => window.location.hash.includes('/tile-style'))
 
 const isVisible = ref(false)
 const contextMenu = ref({
@@ -203,19 +202,9 @@ const cropDialog = ref({
   callback: null as ((dataUrl: string) => void) | null
 })
 
-// 磁贴样式对话框（设置单个磁贴背景/图标/名称样式时使用）
-const tileStyleDialog = ref({
-  visible: false,
-  tileId: ''
-})
-
 // ESC 关闭：优先关闭弹窗/菜单，其次隐藏开始菜单
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
-    if (tileStyleDialog.value.visible) {
-      closeTileStyleDialog()
-      return
-    }
     if (cropDialog.value.visible) {
       closeCropDialog()
       return
@@ -333,8 +322,6 @@ function cancelAllTransientDialogs() {
   confirmDialog.value.callback = null
   cropDialog.value.visible = false
   cropDialog.value.callback = null
-  tileStyleDialog.value.visible = false
-  tileStyleDialog.value.tileId = ''
 }
 
 // 图片裁剪对话框：打开后用户裁剪/预览，确定后回调裁剪出的 dataURL
@@ -366,18 +353,6 @@ function confirmCropDialog(dataUrl: string) {
   if (cb) cb(dataUrl)
 }
 
-// 磁贴样式对话框：打开期间锁定开始菜单不自动关闭
-function openTileStyleDialog(tileId: string) {
-  window.electronAPI.setMenuBusy(true)
-  tileStyleDialog.value = { visible: true, tileId }
-}
-
-function closeTileStyleDialog() {
-  tileStyleDialog.value.visible = false
-  tileStyleDialog.value.tileId = ''
-  window.electronAPI.setMenuBusy(false)
-}
-
 // 暴露方法给子组件
 window.openTileContextMenu = (x: number, y: number, tileId: string) => {
   // 右键菜单大约 220px 宽，280px 高，防止超出窗口边界
@@ -407,7 +382,6 @@ window.openGroupContextMenu = (x: number, y: number, groupId: string) => {
 window.showInputDialog = showInputDialog
 window.showConfirmDialog = showConfirmDialog
 window.openImageCrop = openImageCropDialog
-window.openTileStyleDialog = openTileStyleDialog
 
 // 左侧程序列表右键菜单
 window.openAppContextMenu = (x: number, y: number, app: AppItem) => {

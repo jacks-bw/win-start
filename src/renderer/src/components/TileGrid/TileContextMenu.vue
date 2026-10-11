@@ -81,9 +81,9 @@ function handleLiveToggle() {
 }
 
 function handleSetBackground() {
-  // 打开磁贴样式预览窗（背景图片 + 图标/名称样式同步设置），由该窗口管理忙碌锁
+  // 打开独立的磁贴样式窗口（背景图片 + 图标/名称样式同步设置）
   emit('close')
-  window.openTileStyleDialog(props.tileId)
+  window.electronAPI.openTileStyleWindow(props.tileId)
 }
 
 function handleRemoveBackground() {
