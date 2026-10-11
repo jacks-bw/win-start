@@ -326,9 +326,29 @@ function darkenColor(hex: string, amount: number): string {
   return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
 }
 
+// 清理列表中已不存在的应用对应的死磁贴和死固定（卸载软件后调用）
+function pruneDeadReferences() {
+  if (appsStore.apps.length === 0) return
+  const validIds = new Set(appsStore.apps.map((a) => a.id))
+  // 移除指向已卸载应用的磁贴
+  for (const group of tilesStore.groups) {
+    const dead = group.tiles.filter((t) => !validIds.has(t.appId))
+    for (const t of dead) {
+      tilesStore.removeTile(t.id)
+    }
+  }
+  // 清理固定状态里的死引用
+  appsStore.pinnedApps = appsStore.pinnedApps.filter((id) => validIds.has(id))
+}
+
+// 菜单打开后的惰性重扫定时器：菜单快速闪关时取消，不发起后台扫描
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+
 onMounted(async () => {
   // 加载数据
   await Promise.all([appsStore.loadApps(), tilesStore.loadLayout(), settingsStore.loadTileOpacity()])
+  // 清理死磁贴和死固定
+  pruneDeadReferences()
 
   // 应用系统主题色
   applyAccentColor(await window.electronAPI.getAccentColor())
@@ -360,10 +380,18 @@ onMounted(async () => {
     isVisible.value = true
     // 默认聚焦搜索框
     window.dispatchEvent(new CustomEvent('start-menu:opened'))
+    // 菜单保持打开 400ms 后才后台惰性重扫（60s 内只扫一次）；
+    // 快速闪一下菜单就关闭的话会在 onMenuClose 里取消
+    clearTimeout(refreshTimer)
+    refreshTimer = setTimeout(() => {
+      appsStore.maybeRefreshApps().then(() => pruneDeadReferences())
+    }, 400)
   })
 
   window.electronAPI.onMenuClose(() => {
     isVisible.value = false
+    // 取消尚未发起的后台重扫
+    clearTimeout(refreshTimer)
     // 菜单被隐藏（点外部区域/ESC/启动程序）时，一并取消所有未完成的
     // 对话框和右键菜单，避免下次打开时残留
     cancelAllTransientDialogs()
@@ -379,8 +407,10 @@ onMounted(async () => {
   })
 
   // 监听开始菜单应用列表变化（安装/卸载软件后自动刷新）
-  window.electronAPI.onAppsChanged(() => {
-    appsStore.loadApps()
+  window.electronAPI.onAppsChanged(async () => {
+    await appsStore.loadApps()
+    // 刷新后清理死磁贴和死固定
+    pruneDeadReferences()
   })
 
   window.addEventListener('keydown', handleKeydown)

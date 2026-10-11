@@ -8,6 +8,11 @@ export const useAppsStore = defineStore('apps', () => {
   const folders = ref<AppFolder[]>([])
   const expandedFolders = ref<Set<string>>(new Set())
 
+  /** 上次应用列表扫描完成时间戳；距打开菜单不足该间隔则跳过后台重扫 */
+  let lastScanAt = 0
+  let scanning = false
+  const REFRESH_INTERVAL_MS = 60_000
+
   // 从 localStorage 加载文件夹
   function loadFolders() {
     try {
@@ -168,14 +173,29 @@ export const useAppsStore = defineStore('apps', () => {
   })
 
   async function loadApps() {
+    if (scanning) return
+    scanning = true
     try {
       const list = await window.electronAPI.getAppList()
       apps.value = list
       pinnedApps.value = list.filter((a) => a.pinned).map((a) => a.id)
       loadFolders()
+      lastScanAt = Date.now()
     } catch (err) {
       console.error('加载应用列表失败:', err)
+    } finally {
+      scanning = false
     }
+  }
+
+  /**
+   * 菜单打开时的惰性重扫：距上次扫描超过 60 秒才后台刷新一次，
+   * 在途扫描未结束时跳过，避免快速开关菜单发起多次 PowerShell。
+   */
+  function maybeRefreshApps() {
+    if (scanning) return Promise.resolve()
+    if (Date.now() - lastScanAt < REFRESH_INTERVAL_MS) return Promise.resolve()
+    return loadApps()
   }
 
   async function launchApp(app: AppItem) {
@@ -215,6 +235,7 @@ export const useAppsStore = defineStore('apps', () => {
     pinnedAppList,
     loadApps,
     launchApp,
+    maybeRefreshApps,
     togglePin,
     setSearchQuery,
     createFolder,
