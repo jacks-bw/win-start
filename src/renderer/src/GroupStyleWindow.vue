@@ -176,6 +176,15 @@ async function chooseBackground() {
   if (!filePath) return
   const base64 = await window.electronAPI.readImageBase64(filePath)
   if (!base64) return
+  // GIF 动图：跳过 canvas 裁剪，直接保存原图，靠 background-size 拉伸适配整组
+  if (filePath.toLowerCase().endsWith('.gif')) {
+    const saved = await window.electronAPI.saveImage(base64, `group-${groupId.value}-${Date.now()}`)
+    if (saved) {
+      tilesStore.setGroupBackground(groupId.value, saved)
+      pushUpdate()
+    }
+    return
+  }
   let maxRow = 0
   let maxCol = 0
   if (group.value) {

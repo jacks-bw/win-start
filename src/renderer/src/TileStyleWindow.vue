@@ -238,6 +238,15 @@ async function chooseBackground() {
   if (!filePath) return
   const base64 = await window.electronAPI.readImageBase64(filePath)
   if (!base64) return
+  // GIF 动图：跳过 canvas 裁剪（会丢失动画），直接保存原图，靠 CSS background-size 自适应
+  if (filePath.toLowerCase().endsWith('.gif')) {
+    const saved = await window.electronAPI.saveImage(base64, `tile-${tileId.value}-${Date.now()}`)
+    if (saved) {
+      tilesStore.setTileBackground(tileId.value, saved)
+      pushUpdate()
+    }
+    return
+  }
   const ratioMap: Record<string, number> = { small: 1, medium: 1, wide: 2 }
   cropRatio.value = ratioMap[tile.value?.size || 'medium'] || 1
   cropImageUrl.value = base64
