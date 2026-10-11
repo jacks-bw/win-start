@@ -44,8 +44,20 @@ export function scanLnkShortcuts(): Promise<LnkEntry[]> {
           return
         }
         try {
-          const parsed = JSON.parse(stdout) as LnkEntry[]
-          resolve(Array.isArray(parsed) ? parsed : [parsed])
+          // PowerShell ConvertTo-Json 的键是 PascalCase（Name/Path/Target/Args），
+          // 这里统一映射成小驼峰，避免后续按 e.path 取值得到 undefined
+          const parsed = JSON.parse(stdout) as Array<Record<string, unknown>> | Record<string, unknown>
+          const list = Array.isArray(parsed) ? parsed : [parsed]
+          resolve(
+            list
+              .map((r) => ({
+                name: String(r.Name ?? ''),
+                path: String(r.Path ?? ''),
+                target: String(r.Target ?? ''),
+                args: String(r.Args ?? '')
+              }))
+              .filter((e) => e.path)
+          )
         } catch (e) {
           console.error('[LnkScan] 解析结果失败:', e)
           resolve([])

@@ -21,7 +21,7 @@ export interface AppItem {
 }
 
 function buildId(lnkPath: string): string {
-  return crypto.createHash('md5').update(lnkPath).digest('hex').slice(0, 12)
+  return crypto.createHash('md5').update(String(lnkPath || '')).digest('hex').slice(0, 12)
 }
 
 /**
