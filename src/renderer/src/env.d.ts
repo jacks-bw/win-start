@@ -92,6 +92,7 @@ interface Window {
   electronAPI: ElectronAPI
   openTileContextMenu: (x: number, y: number, tileId: string) => void
   openAppContextMenu: (x: number, y: number, app: AppItem) => void
+  openGroupContextMenu: (x: number, y: number, groupId: string) => void
   showInputDialog: (
     title: string,
     defaultValue: string,

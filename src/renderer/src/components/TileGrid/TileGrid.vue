@@ -1,13 +1,9 @@
 <template>
   <div class="tile-grid">
     <div v-for="group in tilesStore.groups" :key="group.id" class="tile-group-section">
-      <!-- 分组标题 -->
+      <!-- 分组标题（右键打开分组菜单） -->
       <div class="group-header" @contextmenu="handleGroupContextMenu($event, group)">
         <span class="group-name">{{ group.name }}</span>
-        <div class="group-actions">
-          <button class="edit-group-btn" @click.stop="renameGroup(group)">重命名</button>
-          <button class="delete-group-btn" @click.stop="deleteGroup(group)">删除</button>
-        </div>
       </div>
 
       <!-- 磁贴网格 - 使用 CSS Grid -->
@@ -169,47 +165,12 @@ function handleTileContextMenu(e: MouseEvent, tileId: string) {
   }
 }
 
-function renameGroup(group: TileGroup) {
-  if (window.showInputDialog) {
-    window.showInputDialog('重命名分组', group.name, (newName) => {
-      tilesStore.renameGroup(group.id, newName)
-    })
-  }
-}
-
-function deleteGroup(group: TileGroup) {
-  if (tilesStore.groups.length <= 1) {
-    window.showConfirmDialog({
-      title: '无法删除',
-      message: '至少需要保留一个分组。',
-      confirmText: '知道了'
-    })
-    return
-  }
-  window.showConfirmDialog({
-    title: `删除分组"${group.name}"？`,
-    message: '组内的磁贴也会一并移除，此操作无法撤销。',
-    confirmText: '删除',
-    danger: true,
-    onConfirm: () => {
-      tilesStore.removeGroup(group.id)
-    }
-  })
-}
-
 function handleGroupContextMenu(e: MouseEvent, group: TileGroup) {
   e.preventDefault()
   e.stopPropagation()
-  if (tilesStore.groups.length <= 1) return
-  window.showConfirmDialog({
-    title: `删除分组"${group.name}"？`,
-    message: '组内的磁贴也会一并移除，此操作无法撤销。',
-    confirmText: '删除',
-    danger: true,
-    onConfirm: () => {
-      tilesStore.removeGroup(group.id)
-    }
-  })
+  if (window.openGroupContextMenu) {
+    window.openGroupContextMenu(e.clientX, e.clientY, group.id)
+  }
 }
 
 function addGroup() {
@@ -290,49 +251,10 @@ onMounted(() => {
   padding: 0 4px;
 }
 
-.group-header:hover .group-actions {
-  opacity: 1;
-}
-
 .group-name {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
-}
-
-.group-actions {
-  display: flex;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.edit-group-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 11px;
-  padding: 2px 4px;
-  cursor: pointer;
-  transition: color 0.1s ease;
-}
-
-.edit-group-btn:hover {
-  color: var(--text-primary);
-}
-
-.delete-group-btn {
-  background: transparent;
-  border: none;
-  color: rgba(255, 150, 150, 0.8);
-  font-size: 11px;
-  padding: 2px 4px;
-  cursor: pointer;
-  transition: color 0.1s ease;
-}
-
-.delete-group-btn:hover {
-  color: #ff8080;
 }
 
 /* CSS Grid 磁贴布局 - 基于 Win10 真实网格 */

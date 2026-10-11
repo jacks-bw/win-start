@@ -26,10 +26,6 @@
           <div class="preview-group-header">
             <span class="preview-group-name">{{ group.name }}</span>
             <div class="group-actions">
-              <button class="group-bg-btn" @click="selectGroupBackground(group)">
-                <ImageIcon :size="13" class="btn-icon" />
-                组背景
-              </button>
               <button class="group-bg-btn danger" @click="clearGroupBackground(group.id)">
                 <Trash2 :size="13" class="btn-icon" />
                 清除组

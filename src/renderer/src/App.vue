@@ -35,6 +35,15 @@
       @close="contextMenu.visible = false"
     />
 
+    <!-- 右键菜单（分组） -->
+    <GroupContextMenu
+      v-if="groupMenu.visible"
+      :x="groupMenu.x"
+      :y="groupMenu.y"
+      :group-id="groupMenu.groupId"
+      @close="groupMenu.visible = false"
+    />
+
     <!-- 右键菜单（程序列表） -->
     <AppContextMenu
       v-if="appContextMenu.visible && appContextMenu.app"
@@ -92,6 +101,7 @@ import AvatarCropWindow from './AvatarCropWindow.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import AppList from './components/AppList/AppList.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
+import GroupContextMenu from './components/TileGrid/GroupContextMenu.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
 import ShortcutsWindow from './ShortcutsWindow.vue'
 import SideToolbar from './components/SideToolbar/SideToolbar.vue'
@@ -125,6 +135,14 @@ const contextMenu = ref({
   x: 0,
   y: 0,
   tileId: ''
+})
+
+// 分组右键菜单
+const groupMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  groupId: ''
 })
 
 // 左侧程序列表右键菜单
@@ -287,6 +305,20 @@ window.openTileContextMenu = (x: number, y: number, tileId: string) => {
   contextMenu.value = { visible: true, x: adjustedX, y: adjustedY, tileId }
 }
 
+// 分组右键菜单
+window.openGroupContextMenu = (x: number, y: number, groupId: string) => {
+  const menuWidth = 220
+  const menuHeight = 180
+  const maxX = window.innerWidth - menuWidth - 4
+  const maxY = window.innerHeight - menuHeight - 4
+  groupMenu.value = {
+    visible: true,
+    x: Math.min(x, maxX),
+    y: Math.min(y, maxY),
+    groupId
+  }
+}
+
 window.showInputDialog = showInputDialog
 window.showConfirmDialog = showConfirmDialog
 
@@ -396,6 +428,7 @@ onMounted(async () => {
     // 对话框和右键菜单，避免下次打开时残留
     cancelAllTransientDialogs()
     contextMenu.value.visible = false
+    groupMenu.value.visible = false
     appContextMenu.value.visible = false
     // 通知子组件清理各自的弹出层（工具栏菜单、文件夹菜单、字母面板等）
     window.dispatchEvent(new CustomEvent('start-menu:closing'))
@@ -424,6 +457,9 @@ onMounted(async () => {
 
     if (contextMenu.value.visible) {
       contextMenu.value.visible = false
+    }
+    if (groupMenu.value.visible) {
+      groupMenu.value.visible = false
     }
     if (appContextMenu.value.visible) {
       appContextMenu.value.visible = false
