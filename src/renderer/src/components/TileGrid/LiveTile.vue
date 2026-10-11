@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div
     class="tile-container"
     :class="[
@@ -305,7 +305,6 @@ async function loadBackground() {
     backgroundImage.value = base64
   }
 }
-
 watch(currentBgPath, loadBackground, { immediate: true })
 
 // 外部自定义图标 base64
