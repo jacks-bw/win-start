@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openWallpaperWindow: () => ipcRenderer.invoke('wallpaper:open'),
   openTileStyleWindow: (tileId: string) => ipcRenderer.invoke('tile-style:show', tileId),
   getTileStyleTarget: () => ipcRenderer.invoke('tile-style:get-target'),
+  closeTileStyleWindow: () => ipcRenderer.invoke('tile-style:close'),
   notifyLayoutUpdated: () => ipcRenderer.invoke('layout:notify-updated'),
 
   // 磁贴桥接服务（Tile Bridge）- 第三方软件接入接口，默认不启用

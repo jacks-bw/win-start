@@ -1,12 +1,12 @@
 <template>
-  <div class="tile-style-window">
+  <div class="tile-style-window" :style="{ background: pageBg }">
     <!-- 标题栏（无边框窗口自绘，可拖动） -->
     <div class="page-header">
       <div class="header-text">
         <span class="page-title">磁贴样式</span>
         <span v-if="tile" class="page-subtitle">{{ tile.name || tile.appId }}</span>
       </div>
-      <button class="win-close" @click="window.close()"><X :size="14" /></button>
+      <button class="win-close" @click="window.electronAPI.closeTileStyleWindow()"><X :size="14" /></button>
     </div>
 
     <!-- 上栏：实时预览 -->
@@ -153,8 +153,13 @@ import * as LucideIcons from 'lucide-vue-next'
 import { X, ImagePlus, Trash2, Palette, Upload, Undo2 } from 'lucide-vue-next'
 import LiveTile from './components/TileGrid/LiveTile.vue'
 import CropImageDialog from './components/CropImageDialog.vue'
+import { useSettingsStore } from './stores/useSettings'
 
 const tilesStore = useTilesStore()
+const settingsStore = useSettingsStore()
+
+// 页面背景透明度与开始菜单列表面板保持一致
+const pageBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
 
 const tileId = ref('')
 const tile = computed(() => {
@@ -184,6 +189,7 @@ function pushUpdate() {
 }
 
 onMounted(async () => {
+  await settingsStore.loadTileOpacity()
   const target = await window.electronAPI.getTileStyleTarget()
   if (target) tileId.value = target
   window.electronAPI.onTileStyleSelect((id) => {
@@ -471,11 +477,12 @@ function setAlign(pos: string) {
 
 .align-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 28px);
   gap: 4px;
 }
 .align-btn {
-  aspect-ratio: 1;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -489,7 +496,7 @@ function setAlign(pos: string) {
   background: rgba(0, 120, 215, 0.2);
   border-color: #0078d7;
 }
-.align-dot { width: 6px; height: 6px; border-radius: 50%; background: #888; }
+.align-dot { width: 5px; height: 5px; border-radius: 50%; background: #888; }
 .align-btn.active .align-dot { background: #0078d7; }
 
 /* 图标选择器 */

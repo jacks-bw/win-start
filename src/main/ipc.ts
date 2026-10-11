@@ -158,6 +158,11 @@ export function setupIpc(
     return windowManager.getTileStyleTarget()
   })
 
+  // 关闭磁贴样式窗
+  ipcMain.handle('tile-style:close', () => {
+    windowManager.closeTileStyleWindow()
+  })
+
   // 获取主题
   ipcMain.handle('theme:get', () => {
     return store.get('theme', 'dark')

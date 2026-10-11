@@ -391,4 +391,11 @@ export class WindowManager {
   getTileStyleTarget(): string | null {
     return this.tileStyleTileId
   }
+
+  // 关闭磁贴样式窗（渲染进程里的关闭按钮调用）
+  closeTileStyleWindow(): void {
+    if (this.tileStyleWindow) {
+      this.tileStyleWindow.close()
+    }
+  }
 }
