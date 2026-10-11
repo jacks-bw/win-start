@@ -65,7 +65,7 @@
               ref="titleRef"
               class="tile-title"
               :class="{ 'tile-title-marquee': isNameOverflowed }"
-              :style="{ color: tile.nameColor || undefined }"
+              :style="{ color: tile.nameColor || undefined, textAlign: textAlign }"
             >
               <span class="tile-title-inner">
                 <span class="tile-title-text">{{ tileName }}</span>
@@ -427,6 +427,12 @@ const contentStyle = computed(() => {
     alignItems: mapped.align,
     textAlign: mapped.textAlign
   }
+})
+
+// 名称文字对齐（直接绑到标题元素，避免继承链断裂）
+const textAlign = computed(() => {
+  const align = props.tile.contentAlign || defaultAlignMap[props.tile.size] || 'bottom-left'
+  return alignMap[align]?.textAlign || 'left'
 })
 
 // 通知队列
