@@ -66,6 +66,12 @@ export const useTilesStore = defineStore('tiles', () => {
             }
           })
         })
+        // 旧数据兼容：有组背景但没有磁贴快照时，把当前组内磁贴全部纳入
+        groups.value.forEach((group) => {
+          if (group.background && !group.backgroundTiles) {
+            group.backgroundTiles = group.tiles.map((t) => t.id)
+          }
+        })
         // 初始化模拟通知
         initMockNotifications()
       }
@@ -482,12 +488,14 @@ export const useTilesStore = defineStore('tiles', () => {
     }
   }
 
-  // 设置组背景（会清除该组所有磁贴自己的背景）
+  // 设置组背景（只对当前已存在的磁贴生效，之后新增的磁贴不自动继承）
   function setGroupBackground(groupId: string, background: string | undefined, crop?: { x: number; y: number; width: number; height: number }) {
     const group = groups.value.find((g) => g.id === groupId)
     if (group) {
       group.background = background
       group.backgroundCrop = crop
+      // 记录此刻组内磁贴快照：只有这些磁贴会应用组背景
+      group.backgroundTiles = background ? group.tiles.map((t) => t.id) : undefined
       // 清除该组所有磁贴自己的背景，让组背景生效
       for (const tile of group.tiles) {
         tile.background = undefined

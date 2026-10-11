@@ -245,11 +245,16 @@ const sizeSpanMap: Record<string, { rows: number; cols: number }> = {
   wide: { rows: 2, cols: 4 }
 }
 
-// 当前使用的背景路径（磁贴自己的优先，否则用组的）
-const currentBgPath = computed(() => props.tile.background || props.group?.background)
+// 是否使用组背景（只对设置组背景时已存在的磁贴生效）
+const useGroupBg = computed(() => {
+  const group = props.group
+  if (!group?.background || props.tile.background) return false
+  // 没有快照时（旧数据）视为全部生效；有快照则只对快照内的磁贴生效
+  return !group.backgroundTiles || group.backgroundTiles.includes(props.tile.id)
+})
 
-// 是否使用组背景
-const useGroupBg = computed(() => !props.tile.background && !!props.group?.background)
+// 当前使用的背景路径（磁贴自己的优先，否则用组的）
+const currentBgPath = computed(() => props.tile.background || (useGroupBg.value ? props.group?.background : undefined))
 
 // 背景样式（组背景时每个磁贴显示图片不同部分）
 const backgroundStyle = computed(() => {

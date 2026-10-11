@@ -753,12 +753,14 @@ function getTileStyle(tile: TileItem, group?: TileGroup) {
     style.backgroundColor = `rgba(var(--accent-color-rgb), ${settingsStore.tileOpacity})`
     return style
   }
+  // 组背景只对设置时已存在的磁贴生效（与开始菜单口径一致）
+  const groupBgApplies = !!group?.background && (!group.backgroundTiles || group.backgroundTiles.includes(tile.id))
   // 优先用磁贴自己的背景，否则用组背景
-  const bgPath = pendingBg || tile.background || group?.background
+  const bgPath = pendingBg || tile.background || (groupBgApplies ? group?.background : undefined)
 
   if (bgPath) {
     // 如果是组背景（且没有磁贴自己的背景和临时背景），计算每个磁贴显示图片的不同部分
-    if (!pendingBg && !tile.background && group?.background) {
+    if (!pendingBg && !tile.background && groupBgApplies) {
       // 计算组的网格范围
       let maxRow = 0
       let maxCol = 0

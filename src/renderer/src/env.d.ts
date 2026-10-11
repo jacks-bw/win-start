@@ -66,6 +66,7 @@ interface TileGroup {
   tiles: TileItem[]
   background?: string
   backgroundCrop?: { x: number; y: number; width: number; height: number }
+  backgroundTiles?: string[] // 设置组背景时已存在的磁贴 id 快照；之后新增的磁贴不自动继承组背景
 }
 
 interface TileItem {
