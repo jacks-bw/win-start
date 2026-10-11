@@ -274,6 +274,23 @@ const backgroundStyle = computed(() => {
     const offsetX = -(props.tile.col * cellSize)
     const offsetY = -(props.tile.row * cellSize)
 
+    // GIF 整组 cover：先按组尺寸等比缩放整图，再按磁贴位置切片
+    const isGif = (currentBgPath.value || '').toLowerCase().endsWith('.gif')
+    if (isGif && bgNaturalSize.value) {
+      const iw = bgNaturalSize.value.w
+      const ih = bgNaturalSize.value.h
+      const s = Math.max(groupWidth / iw, groupHeight / ih)
+      const dw = iw * s
+      const dh = ih * s
+      const centerX = (groupWidth - dw) / 2
+      const centerY = (groupHeight - dh) / 2
+      return {
+        backgroundSize: `${dw}px ${dh}px`,
+        backgroundPosition: `${centerX + offsetX}px ${centerY + offsetY}px`,
+        backgroundRepeat: 'no-repeat'
+      }
+    }
+
     return {
       backgroundSize: `${groupWidth}px ${groupHeight}px`,
       backgroundPosition: `${offsetX}px ${offsetY}px`,
@@ -288,21 +305,32 @@ const backgroundStyle = computed(() => {
 
 // 背景图片 base64
 const backgroundImage = ref<string | undefined>(undefined)
+// GIF 原始尺寸（整组 cover 切片用）
+const bgNaturalSize = ref<{ w: number; h: number } | null>(null)
 
 async function loadBackground() {
   if (!currentBgPath.value) {
     backgroundImage.value = undefined
+    bgNaturalSize.value = null
     return
   }
   const cached = imageCache.get(currentBgPath.value)
   if (cached) {
     backgroundImage.value = cached
-    return
+  } else {
+    const base64 = await window.electronAPI.readImageBase64(currentBgPath.value)
+    if (base64) {
+      imageCache.set(currentBgPath.value, base64)
+      backgroundImage.value = base64
+    }
   }
-  const base64 = await window.electronAPI.readImageBase64(currentBgPath.value)
-  if (base64) {
-    imageCache.set(currentBgPath.value, base64)
-    backgroundImage.value = base64
+  // 读取 GIF 原始尺寸用于整组 cover
+  if (backgroundImage.value) {
+    const img = new Image()
+    img.onload = () => {
+      bgNaturalSize.value = { w: img.naturalWidth, h: img.naturalHeight }
+    }
+    img.src = backgroundImage.value
   }
 }
 watch(currentBgPath, loadBackground, { immediate: true })
