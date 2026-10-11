@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 菜单控制
   hideMenu: () => ipcRenderer.invoke('menu:hide'),
+  setMenuBusy: (busy: boolean) => ipcRenderer.invoke('menu:set-busy', busy),
 
   // 主题
   getTheme: () => ipcRenderer.invoke('theme:get'),

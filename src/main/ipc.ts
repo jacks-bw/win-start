@@ -143,6 +143,11 @@ export function setupIpc(
     windowManager.hideStartMenu()
   })
 
+  // 忙碌锁：设置磁贴/分组背景期间忽略 blur 自动关闭
+  ipcMain.handle('menu:set-busy', (_event, busy: boolean) => {
+    windowManager.setBusy(busy)
+  })
+
   // 获取主题
   ipcMain.handle('theme:get', () => {
     return store.get('theme', 'dark')

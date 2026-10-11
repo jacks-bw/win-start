@@ -323,6 +323,8 @@ function openImageCropDialog(
   targetRatio: number,
   callback: (dataUrl: string) => void
 ) {
+  // 忙碌锁：裁剪期间开始菜单不因点外部而关闭
+  window.electronAPI.setMenuBusy(true)
   cropDialog.value = {
     visible: true,
     imageUrl,
@@ -334,6 +336,8 @@ function openImageCropDialog(
 function closeCropDialog() {
   cropDialog.value.visible = false
   cropDialog.value.callback = null
+  // 裁剪流程结束，解除忙碌锁，菜单可正常关闭
+  window.electronAPI.setMenuBusy(false)
 }
 
 function confirmCropDialog(dataUrl: string) {

@@ -81,13 +81,17 @@ function handleLiveToggle() {
 }
 
 async function handleSetBackground() {
+  // 忙碌锁：选图对话框和后续裁剪期间，开始菜单不因点外部而关闭
+  window.electronAPI.setMenuBusy(true)
   const filePath = await window.electronAPI.selectImage()
   if (!filePath) {
+    window.electronAPI.setMenuBusy(false)
     emit('close')
     return
   }
   const base64 = await window.electronAPI.readImageBase64(filePath)
   if (!base64) {
+    window.electronAPI.setMenuBusy(false)
     emit('close')
     return
   }

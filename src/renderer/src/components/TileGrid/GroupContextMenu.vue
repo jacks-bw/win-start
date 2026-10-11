@@ -41,11 +41,19 @@ function findGroup(): TileGroup | undefined {
 }
 
 async function handleSetBackground() {
+  // 忙碌锁：选图对话框和后续裁剪期间，开始菜单不因点外部而关闭
+  window.electronAPI.setMenuBusy(true)
   const filePath = await window.electronAPI.selectImage()
   emit('close')
-  if (!filePath) return
+  if (!filePath) {
+    window.electronAPI.setMenuBusy(false)
+    return
+  }
   const base64 = await window.electronAPI.readImageBase64(filePath)
-  if (!base64) return
+  if (!base64) {
+    window.electronAPI.setMenuBusy(false)
+    return
+  }
 
   // 按整组磁贴网格计算裁剪框比例
   const spanMap: Record<string, { rows: number; cols: number }> = {

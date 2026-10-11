@@ -17,6 +17,7 @@ interface ElectronAPI {
   saveTileLayout: (layout: unknown) => Promise<void>
   loadTileLayout: () => Promise<TileLayout>
   hideMenu: () => void
+  setMenuBusy: (busy: boolean) => void
   getTheme: () => Promise<'light' | 'dark'>
   setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>
   selectImage: () => Promise<string | null>
