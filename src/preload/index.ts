@@ -103,6 +103,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('tile-style:select', (_event, tileId: string) => callback(tileId))
   },
 
+  // 开始菜单交互锁定（样式窗打开期间禁止点击）
+  onMenuBlocked: (callback: (blocked: boolean) => void) => {
+    ipcRenderer.on('menu:blocked', (_event, blocked: boolean) => callback(blocked))
+  },
+
   // 开始菜单应用列表变化通知（安装/卸载软件后自动触发）
   onAppsChanged: (callback: () => void) => {
     ipcRenderer.on('apps:changed', callback)

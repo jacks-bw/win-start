@@ -59,6 +59,9 @@
     <!-- 右下角 resize 手柄 -->
     <div class="window-resize-handle"></div>
 
+    <!-- 样式窗打开期间的交互锁定遮罩（透明，吞掉所有点击） -->
+    <div v-if="menuBlocked" class="menu-block-overlay"></div>
+
     <!-- 自定义输入对话框（替代 prompt） -->
     <div v-if="inputDialog.visible" class="dialog-overlay" @click.self="closeInputDialog">
       <div class="dialog-box">
@@ -147,6 +150,8 @@ const isAvatarCropRoute = computed(() => window.location.hash.includes('/avatar-
 const isTileStyleRoute = computed(() => window.location.hash.includes('/tile-style'))
 
 const isVisible = ref(false)
+// 样式窗打开期间锁定开始菜单交互
+const menuBlocked = ref(false)
 const contextMenu = ref({
   visible: false,
   x: 0,
@@ -500,6 +505,11 @@ onMounted(async () => {
     tilesStore.loadLayout()
   })
 
+  // 样式窗打开/关闭时锁定/解锁开始菜单交互
+  window.electronAPI.onMenuBlocked((blocked) => {
+    menuBlocked.value = blocked
+  })
+
   // 监听开始菜单应用列表变化（安装/卸载软件后自动刷新）
   window.electronAPI.onAppsChanged(async () => {
     await appsStore.loadApps()
@@ -606,6 +616,18 @@ onUnmounted(() => {
   border-right: 2px solid rgba(255, 255, 255, 0.3);
   border-bottom: 2px solid rgba(255, 255, 255, 0.3);
   border-bottom-right-radius: 2px;
+}
+
+/* 样式窗打开期间的交互锁定遮罩：透明，吞掉所有鼠标事件 */
+.menu-block-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  z-index: 9998;
+  cursor: default;
 }
 
 /* 对话框样式 */

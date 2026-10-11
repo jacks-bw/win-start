@@ -28,6 +28,7 @@ interface ElectronAPI {
   openTileStyleWindow: (tileId: string) => Promise<void>
   getTileStyleTarget: () => Promise<string | null>
   onTileStyleSelect: (callback: (tileId: string) => void) => void
+  onMenuBlocked: (callback: (blocked: boolean) => void) => void
   closeTileStyleWindow: () => Promise<void>
   notifyLayoutUpdated: () => Promise<void>
   onMenuOpen: (callback: () => void) => void

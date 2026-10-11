@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, app } from 'electron'
+﻿import { BrowserWindow, screen, app } from 'electron'
 import { join } from 'path'
 import type Store from 'electron-store'
 import { setAcrylicEffect } from './acrylic'
@@ -189,6 +189,13 @@ export class WindowManager {
     }
   }
 
+  // 通知开始菜单窗口进入/退出交互锁定（样式窗打开期间禁止点击操作）
+  setMenuBlocked(blocked: boolean): void {
+    if (this.startMenuWindow && !this.startMenuWindow.isDestroyed()) {
+      this.startMenuWindow.webContents.send('menu:blocked', blocked)
+    }
+  }
+
   // 创建/显示壁纸设置窗口
   showWallpaperWindow(): void {
     if (this.wallpaperWindow) {
@@ -335,6 +342,8 @@ export class WindowManager {
     this.tileStyleTileId = tileId
     // 样式窗打开期间锁定开始菜单，不因焦点切换而关闭
     this.setBusy(true)
+    // 样式窗打开期间禁止操作开始菜单
+    this.setMenuBlocked(true)
 
     if (this.tileStyleWindow) {
       this.tileStyleWindow.focus()
@@ -382,6 +391,8 @@ export class WindowManager {
       this.tileStyleTileId = null
       // 释放开始菜单忙碌锁
       this.setBusy(false)
+      // 解锁开始菜单交互
+      this.setMenuBlocked(false)
       // 样式窗里的改动同步到开始菜单
       this.notifyLayoutUpdated()
     })
