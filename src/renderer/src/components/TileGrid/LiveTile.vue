@@ -643,13 +643,18 @@ onUnmounted(() => {
 }
 
 .tile-title-text {
-  padding-right: 30px;
+  padding-right: 0;
   flex-shrink: 0;
 }
 
 /* 非悬停时隐藏第二份文本，保持 ellipsis 效果 */
 .tile-title-text:nth-child(2) {
   display: none;
+}
+
+/* 跑马灯模式下，两份文本之间留 30px 间隔 */
+.tile-title-marquee .tile-title-text {
+  padding-right: 30px;
 }
 
 .tile-container:hover .tile-title-marquee .tile-title-text:nth-child(2) {
