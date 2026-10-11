@@ -11,17 +11,24 @@
 
     <!-- 上栏：实时预览 -->
     <div class="preview-area">
-      <div class="preview-stage" :style="previewStageStyle">
-        <div class="preview-grid">
+      <div class="preview-viewport" :style="previewViewportStyle">
+        <div class="preview-stage" :style="previewStageStyle">
           <div
-            v-for="tile in sortedTiles"
-            :key="tile.id"
-            class="preview-cell"
-            :style="{
-              gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`,
-              gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}`
-            }"
+            v-if="bgImage"
+            class="preview-bg"
+            :style="{ backgroundImage: `url(${bgImage})` }"
           ></div>
+          <div class="preview-grid">
+            <div
+              v-for="tile in sortedTiles"
+              :key="tile.id"
+              class="preview-cell"
+              :style="{
+                gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`,
+                gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}`
+              }"
+            ></div>
+          </div>
         </div>
       </div>
       <div class="preview-hint">实时预览</div>
@@ -57,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { X, ImagePlus, Trash2 } from 'lucide-vue-next'
 import CropImageDialog from './components/CropImageDialog.vue'
 import { useTilesStore } from './stores/useTiles'
@@ -106,6 +113,15 @@ onMounted(async () => {
 })
 
 // ---- 预览尺寸 ----
+// 预览视口可用空间（窗口 560x640，扣掉标题栏和下方控件）
+const PREVIEW_W = 500
+const PREVIEW_H = 220
+
+const previewViewportStyle = computed(() => ({
+  width: `${PREVIEW_W}px`,
+  height: `${PREVIEW_H}px`
+}))
+
 const previewStageStyle = computed(() => {
   let maxRow = 0
   let maxCol = 0
@@ -119,9 +135,19 @@ const previewStageStyle = computed(() => {
   if (maxRow === 0) maxRow = 2
   if (maxCol === 0) maxCol = 2
   const cell = 76
+  const natW = maxCol * cell
+  const natH = maxRow * cell
+  // 等比缩放，整组完整放进视口，不出现滚动条
+  const scale = Math.min(PREVIEW_W / natW, PREVIEW_H / natH)
+  const scaledW = natW * scale
+  const scaledH = natH * scale
   return {
-    width: `${maxCol * cell}px`,
-    height: `${maxRow * cell}px`
+    width: `${natW}px`,
+    height: `${natH}px`,
+    transform: `scale(${scale})`,
+    transformOrigin: 'top left',
+    left: `${(PREVIEW_W - scaledW) / 2}px`,
+    top: `${(PREVIEW_H - scaledH) / 2}px`
   }
 })
 
@@ -129,6 +155,21 @@ const previewStageStyle = computed(() => {
 const cropVisible = ref(false)
 const cropImageUrl = ref('')
 const cropRatio = ref(1)
+
+// 预览用的组背景图 base64
+const bgImage = ref('')
+watch(
+  () => group.value?.background,
+  async (path) => {
+    if (!path) {
+      bgImage.value = ''
+      return
+    }
+    const b64 = await window.electronAPI.readImageBase64(path)
+    bgImage.value = b64 || ''
+  },
+  { immediate: true }
+)
 
 async function chooseBackground() {
   const filePath = await window.electronAPI.selectImage()
@@ -199,9 +240,25 @@ async function onCropConfirmed(dataUrl: string) {
   justify-content: center;
   padding: 10px 0 16px;
 }
+.preview-viewport {
+  position: relative;
+  overflow: hidden;
+}
 .preview-stage {
-  max-width: 100%;
-  overflow: auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.preview-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 2px;
 }
 .preview-grid {
   display: grid;
