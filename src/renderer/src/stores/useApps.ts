@@ -180,7 +180,11 @@ export const useAppsStore = defineStore('apps', () => {
 
   async function launchApp(app: AppItem) {
     try {
-      await window.electronAPI.launchApp(app.lnkPath)
+      if (app.uwp && app.uwpAppId) {
+        await window.electronAPI.launchUwpApp(app.uwpAppId)
+      } else {
+        await window.electronAPI.launchApp(app.lnkPath)
+      }
     } catch (err) {
       console.error('启动应用失败:', err)
     }

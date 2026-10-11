@@ -9,6 +9,7 @@ declare module '*.vue' {
 interface ElectronAPI {
   getAppList: () => Promise<AppItem[]>
   launchApp: (lnkPath: string, args?: string) => Promise<{ success: boolean; error?: string }>
+  launchUwpApp: (appId: string) => Promise<{ success: boolean; error?: string }>
   showInFolder: (fullPath: string) => void
   uninstallProgram: () => void
   togglePin: (appId: string) => Promise<string[]>
@@ -44,6 +45,8 @@ interface AppItem {
   pinned: boolean
   recentlyAdded: boolean
   folderId?: string // 所属文件夹ID
+  uwp?: boolean
+  uwpAppId?: string
 }
 
 interface AppFolder {

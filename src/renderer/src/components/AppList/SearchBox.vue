@@ -4,6 +4,7 @@
     <Search :size="14" class="search-icon" />
     <input
       v-model="query"
+      ref="inputRef"
       type="text"
       placeholder="搜索程序和文件..."
       @input="emit('search', query)"
@@ -14,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { Search } from 'lucide-vue-next'
 
 const emit = defineEmits<{
@@ -23,6 +24,22 @@ const emit = defineEmits<{
 
 const query = ref('')
 const isFocused = ref(false)
+const inputRef = ref<HTMLInputElement | null>(null)
+
+// 开始菜单打开时默认聚焦搜索框
+function focusSearch() {
+  nextTick(() => {
+    inputRef.value?.focus()
+  })
+}
+
+onMounted(() => {
+  window.addEventListener('start-menu:opened', focusSearch)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('start-menu:opened', focusSearch)
+})
 </script>
 
 <style scoped>

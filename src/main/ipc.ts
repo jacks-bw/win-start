@@ -33,7 +33,7 @@ function getWindowsAccentColor(): Promise<string> {
   })
 }
 import { scanStartMenu } from './scanner'
-import { launchApp, showInFolder, uninstallProgram } from './launcher'
+import { launchApp, showInFolder, uninstallProgram, launchUwpApp } from './launcher'
 import type Store from 'electron-store'
 
 import type { LaunchButtonManager } from './launch-button-manager'
@@ -65,6 +65,17 @@ export function setupIpc(
     try {
       await launchApp(lnkPath, args)
       // 启动后自动隐藏开始菜单
+      windowManager.hideStartMenu()
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
+
+  // 启动 UWP / Store 应用
+  ipcMain.handle('app:launch-uwp', async (_event, appId: string) => {
+    try {
+      await launchUwpApp(appId)
       windowManager.hideStartMenu()
       return { success: true }
     } catch (err) {

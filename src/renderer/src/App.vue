@@ -358,6 +358,8 @@ onMounted(async () => {
   // 监听菜单打开/关闭事件
   window.electronAPI.onMenuOpen(() => {
     isVisible.value = true
+    // 默认聚焦搜索框
+    window.dispatchEvent(new CustomEvent('start-menu:opened'))
   })
 
   window.electronAPI.onMenuClose(() => {

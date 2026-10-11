@@ -9,7 +9,7 @@
       <span class="menu-label">{{ isPinnedToStart ? '从磁贴取消固定' : '固定到磁贴' }}</span>
     </div>
 
-    <div class="menu-item" @click="handlePinTaskbar">
+    <div v-if="!app.uwp" class="menu-item" @click="handlePinTaskbar">
       <span class="menu-label">固定到任务栏</span>
     </div>
 
@@ -17,15 +17,17 @@
       <span class="menu-label">移出文件夹</span>
     </div>
 
-    <div class="menu-divider"></div>
+    <div v-if="!app.uwp" class="menu-divider"></div>
 
-    <div class="menu-item" @click="handleOpenLocation">
-      <span class="menu-label">打开文件位置</span>
-    </div>
+    <template v-if="!app.uwp">
+      <div class="menu-item" @click="handleOpenLocation">
+        <span class="menu-label">打开文件位置</span>
+      </div>
 
-    <div class="menu-item" @click="handleUninstall">
-      <span class="menu-label">卸载</span>
-    </div>
+      <div class="menu-item" @click="handleUninstall">
+        <span class="menu-label">卸载</span>
+      </div>
+    </template>
   </div>
 </template>
 

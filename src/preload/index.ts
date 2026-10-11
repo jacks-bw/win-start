@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 程序列表
   getAppList: () => ipcRenderer.invoke('app:list'),
   launchApp: (lnkPath: string, args?: string) => ipcRenderer.invoke('app:launch', lnkPath, args),
+  launchUwpApp: (appId: string) => ipcRenderer.invoke('app:launch-uwp', appId),
   showInFolder: (fullPath: string) => ipcRenderer.invoke('app:show-in-folder', fullPath),
   uninstallProgram: () => ipcRenderer.invoke('app:uninstall'),
   togglePin: (appId: string) => ipcRenderer.invoke('app:toggle-pin', appId),

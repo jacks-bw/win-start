@@ -3,6 +3,8 @@ import * as path from 'path'
 import * as os from 'os'
 import crypto from 'crypto'
 import { pinyin } from 'pinyin'
+import { enumUwpApps, uwpAppId } from './uwp-apps'
+import { scanLnkShortcuts } from './lnk-scan'
 
 export interface AppItem {
   id: string
@@ -14,19 +16,73 @@ export interface AppItem {
   group: string
   pinned: boolean
   recentlyAdded: boolean
+  uwp?: boolean
+  uwpAppId?: string
+}
+
+function buildId(lnkPath: string): string {
+  return crypto.createHash('md5').update(lnkPath).digest('hex').slice(0, 12)
 }
 
 /**
- * 扫描系统开始菜单目录下的所有 .lnk 快捷方式
+ * 扫描 Win32 开始菜单应用：优先走 WScript.Shell COM 批量解析（准确），
+ * 失败时回退到老的 fs 递归 + 正则解析（兜底）。
+ */
+async function scanWin32Apps(): Promise<AppItem[]> {
+  try {
+    const entries = await scanLnkShortcuts()
+    if (entries.length > 0) {
+      return entries.map((e) => ({
+        id: buildId(e.path),
+        name: e.name,
+        lnkPath: e.path,
+        targetPath: e.target,
+        icon: '', // 图标稍后由主进程提取
+        args: e.args || undefined,
+        group: '#',
+        pinned: false,
+        recentlyAdded: false
+      }))
+    }
+  } catch (err) {
+    console.error('[Scanner] COM 扫描失败，回退到 fs 扫描:', err)
+  }
+
+  // 兜底：老的 fs 递归 + 二进制正则解析
+  const all: AppItem[] = []
+  for (const dir of getStartMenuDirs()) {
+    if (!fs.existsSync(dir)) continue
+    all.push(...(await scanDirectory(dir, dir)))
+  }
+  return all
+}
+
+/**
+ * 扫描系统开始菜单目录下的所有 .lnk 快捷方式，
+ * 并合并 UWP / Microsoft Store 应用（通过 Get-StartApps 枚举）
  */
 export async function scanStartMenu(): Promise<AppItem[]> {
-  const startMenuDirs = getStartMenuDirs()
-  const allApps: AppItem[] = []
+  const allApps: AppItem[] = await scanWin32Apps()
 
-  for (const dir of startMenuDirs) {
-    if (!fs.existsSync(dir)) continue
-    const apps = await scanDirectory(dir, dir)
-    allApps.push(...apps)
+  // 合并 UWP 应用（失败时静默降级为纯 .lnk 列表）
+  try {
+    const uwpApps = await enumUwpApps()
+    for (const uwp of uwpApps) {
+      allApps.push({
+        id: uwpAppId(uwp),
+        name: uwp.name,
+        lnkPath: '',
+        targetPath: '',
+        icon: '',
+        uwp: true,
+        uwpAppId: uwp.appId,
+        group: '#',
+        pinned: false,
+        recentlyAdded: false
+      })
+    }
+  } catch (err) {
+    console.error('[Scanner] UWP 枚举失败，跳过:', err)
   }
 
   // 去重（按名称）

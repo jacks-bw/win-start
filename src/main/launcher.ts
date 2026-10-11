@@ -1,8 +1,8 @@
 import { shell } from 'electron'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 
 /**
- * 启动指定程序
+ * 启动指定程序（Win32，通过 .lnk 快捷方式）
  */
 export async function launchApp(lnkPath: string, args?: string): Promise<void> {
   try {
@@ -13,6 +13,27 @@ export async function launchApp(lnkPath: string, args?: string): Promise<void> {
     console.error('启动程序失败:', lnkPath, err)
     throw err
   }
+}
+
+/**
+ * 启动 UWP / Microsoft Store 应用（通过 shell:AppsFolder 协议）
+ */
+export function launchUwpApp(appId: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'explorer.exe',
+      [`shell:AppsFolder\\${appId}`],
+      { windowsHide: true },
+      (err) => {
+        if (err) {
+          console.error('启动 UWP 应用失败:', appId, err.message)
+          reject(err)
+        } else {
+          resolve()
+        }
+      }
+    )
+  })
 }
 
 /**
