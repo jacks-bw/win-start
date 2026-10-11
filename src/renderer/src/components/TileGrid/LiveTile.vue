@@ -398,17 +398,17 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-// 对齐方式映射
-const alignMap: Record<string, { justify: string; align: string }> = {
-  'top-left': { justify: 'flex-start', align: 'flex-start' },
-  'top-center': { justify: 'flex-start', align: 'center' },
-  'top-right': { justify: 'flex-start', align: 'flex-end' },
-  'center-left': { justify: 'center', align: 'flex-start' },
-  'center': { justify: 'center', align: 'center' },
-  'center-right': { justify: 'center', align: 'flex-end' },
-  'bottom-left': { justify: 'flex-end', align: 'flex-start' },
-  'bottom-center': { justify: 'flex-end', align: 'center' },
-  'bottom-right': { justify: 'flex-end', align: 'flex-end' }
+// 对齐方式映射（justify=垂直方向，align=水平方向，textAlign=名称文字对齐）
+const alignMap: Record<string, { justify: string; align: string; textAlign: string }> = {
+  'top-left': { justify: 'flex-start', align: 'flex-start', textAlign: 'left' },
+  'top-center': { justify: 'flex-start', align: 'center', textAlign: 'center' },
+  'top-right': { justify: 'flex-start', align: 'flex-end', textAlign: 'right' },
+  'center-left': { justify: 'center', align: 'flex-start', textAlign: 'left' },
+  'center': { justify: 'center', align: 'center', textAlign: 'center' },
+  'center-right': { justify: 'center', align: 'flex-end', textAlign: 'right' },
+  'bottom-left': { justify: 'flex-end', align: 'flex-start', textAlign: 'left' },
+  'bottom-center': { justify: 'flex-end', align: 'center', textAlign: 'center' },
+  'bottom-right': { justify: 'flex-end', align: 'flex-end', textAlign: 'right' }
 }
 
 // 默认对齐方式（按尺寸）
@@ -424,7 +424,8 @@ const contentStyle = computed(() => {
   return {
     flexDirection: 'column' as const,
     justifyContent: mapped.justify,
-    alignItems: mapped.align
+    alignItems: mapped.align,
+    textAlign: mapped.textAlign
   }
 })
 
@@ -609,8 +610,7 @@ onUnmounted(() => {
 
 .tile-text {
   color: white;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
   min-width: 0;
   overflow: hidden;
 }
