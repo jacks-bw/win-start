@@ -26,6 +26,14 @@
       </span>
     </div>
 
+    <div class="menu-item" @click="handleSetBackground">
+      <span class="menu-label">设置磁贴背景</span>
+    </div>
+
+    <div v-if="tile?.background" class="menu-item" @click="handleRemoveBackground">
+      <span class="menu-label">移除磁贴背景</span>
+    </div>
+
     <div class="menu-item" @click="handleUnpin">
       <span class="menu-label">从"开始"屏幕取消固定</span>
     </div>
@@ -69,6 +77,19 @@ function handleResize(size: 'small' | 'medium' | 'wide') {
 
 function handleLiveToggle() {
   tilesStore.toggleLiveTile(props.tileId)
+  emit('close')
+}
+
+async function handleSetBackground() {
+  const filePath = await window.electronAPI.selectImage()
+  if (filePath) {
+    tilesStore.setTileBackground(props.tileId, filePath)
+  }
+  emit('close')
+}
+
+function handleRemoveBackground() {
+  tilesStore.setTileBackground(props.tileId, undefined)
   emit('close')
 }
 
