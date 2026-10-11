@@ -33,12 +33,20 @@ function focusSearch() {
   })
 }
 
+// 菜单关闭时清空搜索内容，下次打开还原为初始状态
+function clearSearch() {
+  query.value = ''
+  emit('search', '')
+}
+
 onMounted(() => {
   window.addEventListener('start-menu:opened', focusSearch)
+  window.addEventListener('start-menu:closing', clearSearch)
 })
 
 onUnmounted(() => {
   window.removeEventListener('start-menu:opened', focusSearch)
+  window.removeEventListener('start-menu:closing', clearSearch)
 })
 </script>
 
