@@ -19,6 +19,7 @@ interface StoreSchema {
   recentApps: string[]
   userAvatar: string | null
   tileOpacity: number
+  sideToolbar: string[]
 }
 
 const defaults: StoreSchema = {
@@ -40,7 +41,8 @@ const defaults: StoreSchema = {
   theme: 'dark',
   recentApps: [],
   userAvatar: null,
-  tileOpacity: 0.7
+  tileOpacity: 0.7,
+  sideToolbar: ['explorer', 'settings', 'controlPanel']
 }
 
 export function createStore(): Store<StoreSchema> {

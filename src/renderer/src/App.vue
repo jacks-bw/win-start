@@ -10,6 +10,9 @@
 
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
+    <!-- 最左侧：纵向工具栏（可自定义功能按钮：文件夹、设置、控制面板等） -->
+    <SideToolbar :background="toolbarBg" />
+
     <!-- 左侧：Win7 风格程序列表 -->
     <div class="app-list-panel" :style="{ width: appListWidth + 'px', background: listPanelBg }">
       <AppList />
@@ -84,17 +87,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
-import AppList from './components/AppList/AppList.vue'
-import TileGrid from './components/TileGrid/TileGrid.vue'
-import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
-import AppContextMenu from './components/AppList/AppContextMenu.vue'
-import WallpaperWindow from './WallpaperWindow.vue'
-import ShortcutsWindow from './ShortcutsWindow.vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import AvatarCropWindow from './AvatarCropWindow.vue'
+import AppContextMenu from './components/AppList/AppContextMenu.vue'
+import AppList from './components/AppList/AppList.vue'
+import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
+import TileGrid from './components/TileGrid/TileGrid.vue'
+import ShortcutsWindow from './ShortcutsWindow.vue'
+import SideToolbar from './components/SideToolbar/SideToolbar.vue'
 import { useAppsStore } from './stores/useApps'
-import { useTilesStore } from './stores/useTiles'
 import { useSettingsStore } from './stores/useSettings'
+import { useTilesStore } from './stores/useTiles'
+import WallpaperWindow from './WallpaperWindow.vue'
 
 const appsStore = useAppsStore()
 const tilesStore = useTilesStore()
@@ -102,6 +106,8 @@ const settingsStore = useSettingsStore()
 
 // 根据透明度设置动态计算两个面板的背景色
 const listPanelBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
+// 侧边工具栏背景：比列表区略深一档，形成独立的竖条视觉
+const toolbarBg = computed(() => `rgba(22, 22, 22, ${settingsStore.getListAlpha()})`)
 const tilePanelBg = computed(() => 'transparent')
 
 // 判断是否是壁纸设置窗口（通过 hash 路由）
@@ -261,6 +267,14 @@ function confirmDialogOk() {
   closeConfirmDialog()
 }
 
+// 菜单隐藏时无条件取消所有未完成的对话框（不触发回调，等同用户点取消）
+function cancelAllTransientDialogs() {
+  inputDialog.value.visible = false
+  inputDialog.value.callback = null
+  confirmDialog.value.visible = false
+  confirmDialog.value.callback = null
+}
+
 // 暴露方法给子组件
 window.openTileContextMenu = (x: number, y: number, tileId: string) => {
   // 右键菜单大约 220px 宽，280px 高，防止超出窗口边界
@@ -348,6 +362,13 @@ onMounted(async () => {
 
   window.electronAPI.onMenuClose(() => {
     isVisible.value = false
+    // 菜单被隐藏（点外部区域/ESC/启动程序）时，一并取消所有未完成的
+    // 对话框和右键菜单，避免下次打开时残留
+    cancelAllTransientDialogs()
+    contextMenu.value.visible = false
+    appContextMenu.value.visible = false
+    // 通知子组件清理各自的弹出层（工具栏菜单、文件夹菜单、字母面板等）
+    window.dispatchEvent(new CustomEvent('start-menu:closing'))
   })
 
   // 监听布局更新事件（壁纸窗口保存后通知）

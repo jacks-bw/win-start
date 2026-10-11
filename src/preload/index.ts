@@ -46,6 +46,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openControlPanel: () => ipcRenderer.invoke('system:open-control-panel'),
   openSystemSettings: () => ipcRenderer.invoke('system:open-settings'),
 
+  // 侧边工具栏
+  getToolbarItems: () => ipcRenderer.invoke('toolbar:get'),
+  setToolbarItems: (items: string[]) => ipcRenderer.invoke('toolbar:set', items),
+  openToolbarItem: (key: string) => ipcRenderer.invoke('system:open-toolbar-item', key),
+
   // 悬浮启动按钮点击
   launcherClick: (displayId: number) => ipcRenderer.invoke('launcher:click', displayId),
 

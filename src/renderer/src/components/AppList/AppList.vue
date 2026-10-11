@@ -43,7 +43,6 @@
       >
         <div v-if="!appsStore.searchQuery" class="section-title all-apps-title">
           所有应用
-          <button class="new-folder-btn" @click="createNewFolder" title="新建文件夹">+ 新建文件夹</button>
         </div>
 
         <!-- 文件夹列表 -->
@@ -82,9 +81,6 @@
         未找到匹配的程序
       </div>
     </div>
-
-    <!-- 底部用户栏 -->
-    <UserBar />
 
     <!-- 文件夹右键菜单 -->
     <div
@@ -134,9 +130,8 @@
 import SearchBox from './SearchBox.vue'
 import AppItem from './AppItem.vue'
 import FolderItem from './FolderItem.vue'
-import UserBar from './UserBar.vue'
 import { useAppsStore } from '../../stores/useApps'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Pencil, Trash2 } from 'lucide-vue-next'
 
 const appsStore = useAppsStore()
@@ -286,11 +281,19 @@ function handleFolderDelete() {
   closeFolderMenu()
 }
 
-function createNewFolder() {
-  window.showInputDialog('新建文件夹', '新建文件夹', (name: string) => {
-    appsStore.createFolder(name)
-  })
+// 开始菜单被隐藏（点外部区域）时，收起文件夹菜单和字母跳转面板
+function handleMenuClosing() {
+  folderMenu.value.visible = false
+  letterPicker.value.visible = false
 }
+
+onMounted(() => {
+  window.addEventListener('start-menu:closing', handleMenuClosing)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('start-menu:closing', handleMenuClosing)
+})
 </script>
 
 <style scoped>
@@ -378,23 +381,6 @@ function createNewFolder() {
   background: rgba(0, 120, 215, 0.08);
   outline: 1px dashed rgba(0, 120, 215, 0.4);
   outline-offset: -2px;
-}
-
-.new-folder-btn {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-  color: #999;
-  font-size: 10px;
-  padding: 2px 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.new-folder-btn:hover {
-  background: rgba(0, 120, 215, 0.2);
-  border-color: var(--accent-color);
-  color: #fff;
 }
 
 /* 文件夹右键菜单 */

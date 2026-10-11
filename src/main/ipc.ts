@@ -394,6 +394,51 @@ export function setupIpc(
     return tileBridge.getTileData(appId) || null
   })
 
+  // 侧边工具栏：读取已配置的按钮列表
+  ipcMain.handle('toolbar:get', () => {
+    return store.get('sideToolbar', ['explorer', 'settings', 'controlPanel'])
+  })
+
+  // 侧边工具栏：保存按钮列表
+  ipcMain.handle('toolbar:set', (_event, items: string[]) => {
+    store.set('sideToolbar', items)
+    return items
+  })
+
+  // 侧边工具栏：按 key 打开对应系统项，然后收起开始菜单
+  ipcMain.handle('system:open-toolbar-item', (_event, key: string) => {
+    switch (key) {
+      case 'explorer':
+        exec('explorer.exe')
+        break
+      case 'settings':
+        shell.openExternal('ms-settings:')
+        break
+      case 'controlPanel':
+        exec('control')
+        break
+      case 'recycleBin':
+        exec('explorer.exe shell:RecycleBinFolder')
+        break
+      case 'documents':
+        shell.openPath(app.getPath('documents'))
+        break
+      case 'downloads':
+        shell.openPath(app.getPath('downloads'))
+        break
+      case 'run':
+        // 运行对话框
+        exec('explorer.exe shell:::{2559a1f3-21d7-11d4-bdaf-00c04f60b9f0}')
+        break
+      case 'taskManager':
+        exec('taskmgr')
+        break
+      default:
+        console.warn('[Toolbar] unknown item:', key)
+    }
+    windowManager.hideStartMenu()
+  })
+
   // 监听系统主题色变化，通知所有渲染进程
   systemPreferences.on('accent-color-changed', async () => {
     const color = await getWindowsAccentColor()

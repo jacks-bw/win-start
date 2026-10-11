@@ -28,6 +28,9 @@ interface ElectronAPI {
   onMenuClose: (callback: () => void) => void
   onLayoutUpdated: (callback: () => void) => void
   onAppsChanged: (callback: () => void) => void
+  getToolbarItems: () => Promise<string[]>
+  setToolbarItems: (items: string[]) => Promise<string[]>
+  openToolbarItem: (key: string) => Promise<void>
 }
 
 interface AppItem {
