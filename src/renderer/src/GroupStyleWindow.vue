@@ -13,16 +13,15 @@
     <div class="preview-area">
       <div class="preview-stage" :style="previewStageStyle">
         <div class="preview-grid">
-          <LiveTile
+          <div
             v-for="tile in sortedTiles"
             :key="tile.id"
-            :tile="tile"
-            :group="group || undefined"
+            class="preview-cell"
             :style="{
               gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`,
               gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}`
             }"
-          />
+          ></div>
         </div>
       </div>
       <div class="preview-hint">实时预览</div>
@@ -60,7 +59,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { X, ImagePlus, Trash2 } from 'lucide-vue-next'
-import LiveTile from './components/TileGrid/LiveTile.vue'
 import CropImageDialog from './components/CropImageDialog.vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
@@ -212,6 +210,10 @@ async function onCropConfirmed(dataUrl: string) {
   gap: 6px;
   align-content: start;
   width: max-content;
+}
+.preview-cell {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
 }
 .preview-hint { margin-top: 10px; font-size: 11px; color: #888; }
 
