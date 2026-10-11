@@ -1,0 +1,248 @@
+<template>
+  <div class="group-style-window" :style="{ background: pageBg }">
+    <!-- 标题栏（无边框窗口自绘，可拖动） -->
+    <div class="page-header">
+      <div class="header-text">
+        <span class="page-title">分组背景</span>
+        <span v-if="group" class="page-subtitle">{{ group.name }}</span>
+      </div>
+      <button class="win-close" @click="closeWindow"><X :size="14" /></button>
+    </div>
+
+    <!-- 上栏：实时预览 -->
+    <div class="preview-area">
+      <div class="preview-stage" :style="previewStageStyle">
+        <div class="preview-grid">
+          <LiveTile
+            v-for="tile in sortedTiles"
+            :key="tile.id"
+            :tile="tile"
+            :group="group || undefined"
+            :style="{
+              gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`,
+              gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}`
+            }"
+          />
+        </div>
+      </div>
+      <div class="preview-hint">实时预览</div>
+    </div>
+
+    <!-- 下栏：设置控件（可滚动） -->
+    <div class="controls">
+      <div class="section-label">背景图片</div>
+      <div class="btn-row">
+        <button class="action-btn" @click="chooseBackground">
+          <ImagePlus :size="13" class="btn-icon" />选择图片
+        </button>
+        <button
+          v-if="group?.background"
+          class="action-btn danger"
+          @click="tilesStore.setGroupBackground(groupId, undefined); pushUpdate()"
+        >
+          <Trash2 :size="13" class="btn-icon" />清除背景
+        </button>
+      </div>
+      <div class="hint-text">组背景只对设置时组内已存在的磁贴生效；之后新增的磁贴不会自动继承。</div>
+    </div>
+
+    <!-- 图片裁剪预览 -->
+    <CropImageDialog
+      :visible="cropVisible"
+      :image-url="cropImageUrl"
+      :target-ratio="cropRatio"
+      @cancel="cropVisible = false"
+      @confirm="onCropConfirmed"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { X, ImagePlus, Trash2 } from 'lucide-vue-next'
+import LiveTile from './components/TileGrid/LiveTile.vue'
+import CropImageDialog from './components/CropImageDialog.vue'
+import { useTilesStore } from './stores/useTiles'
+import { useAppsStore } from './stores/useApps'
+import { useSettingsStore } from './stores/useSettings'
+
+const tilesStore = useTilesStore()
+const settingsStore = useSettingsStore()
+const appsStore = useAppsStore()
+
+const pageBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
+
+const groupId = ref('')
+const group = computed(() => tilesStore.groups.find((g) => g.id === groupId.value))
+
+const sizeSpan: Record<string, { rows: number; cols: number }> = {
+  small: { rows: 1, cols: 1 },
+  medium: { rows: 2, cols: 2 },
+  wide: { rows: 2, cols: 4 }
+}
+
+const sortedTiles = computed(() =>
+  group.value ? [...group.value.tiles].sort((a, b) => a.position - b.position) : []
+)
+
+// ---- 布局/刷新同步 ----
+let updateTimer: ReturnType<typeof setTimeout> | null = null
+
+function closeWindow() {
+  window.electronAPI.closeGroupStyleWindow()
+}
+
+function pushUpdate() {
+  if (updateTimer) clearTimeout(updateTimer)
+  updateTimer = setTimeout(() => {
+    window.electronAPI.notifyLayoutUpdated()
+  }, 300)
+}
+
+onMounted(async () => {
+  await settingsStore.loadTileOpacity()
+  // 独立窗口有独立的 apps store，需自行加载，否则预览显示 appId
+  appsStore.loadApps()
+  const target = await window.electronAPI.getGroupStyleTarget()
+  if (target) groupId.value = target
+})
+
+// ---- 预览尺寸 ----
+const previewStageStyle = computed(() => {
+  let maxRow = 0
+  let maxCol = 0
+  if (group.value) {
+    for (const t of group.value.tiles) {
+      const span = sizeSpan[t.size] || { rows: 2, cols: 2 }
+      maxRow = Math.max(maxRow, t.row + span.rows)
+      maxCol = Math.max(maxCol, t.col + span.cols)
+    }
+  }
+  if (maxRow === 0) maxRow = 2
+  if (maxCol === 0) maxCol = 2
+  const cell = 76
+  return {
+    width: `${maxCol * cell}px`,
+    height: `${maxRow * cell}px`
+  }
+})
+
+// ---- 背景图片 ----
+const cropVisible = ref(false)
+const cropImageUrl = ref('')
+const cropRatio = ref(1)
+
+async function chooseBackground() {
+  const filePath = await window.electronAPI.selectImage()
+  if (!filePath) return
+  const base64 = await window.electronAPI.readImageBase64(filePath)
+  if (!base64) return
+  let maxRow = 0
+  let maxCol = 0
+  if (group.value) {
+    for (const t of group.value.tiles) {
+      const span = sizeSpan[t.size] || { rows: 2, cols: 2 }
+      maxRow = Math.max(maxRow, t.row + span.rows)
+      maxCol = Math.max(maxCol, t.col + span.cols)
+    }
+  }
+  cropRatio.value = maxCol > 0 && maxRow > 0 ? maxCol / maxRow : 1
+  cropImageUrl.value = base64
+  cropVisible.value = true
+}
+
+async function onCropConfirmed(dataUrl: string) {
+  cropVisible.value = false
+  const saved = await window.electronAPI.saveImage(dataUrl, `group-${groupId.value}-${Date.now()}`)
+  if (saved) {
+    tilesStore.setGroupBackground(groupId.value, saved)
+    pushUpdate()
+  }
+}
+</script>
+
+<style scoped>
+.group-style-window {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(32, 32, 32, 0.62);
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 10px 18px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+.header-text { display: flex; align-items: baseline; gap: 10px; }
+.page-title { font-size: 14px; font-weight: 600; color: #fff; }
+.page-subtitle { font-size: 12px; color: #999; }
+.win-close {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.win-close:hover { background: rgba(255, 80, 80, 0.7); color: #fff; }
+
+.preview-area {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 16px;
+}
+.preview-stage {
+  max-width: 100%;
+  overflow: auto;
+}
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 70px);
+  grid-auto-rows: 70px;
+  gap: 6px;
+  align-content: start;
+  width: max-content;
+}
+.preview-hint { margin-top: 10px; font-size: 11px; color: #888; }
+
+.controls {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 20px 20px;
+}
+.controls::-webkit-scrollbar { width: 8px; }
+.controls::-webkit-scrollbar-track { background: transparent; }
+.controls::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+.controls::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+.section-label { font-size: 12px; color: #aaa; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.hint-text { font-size: 11px; color: #888; line-height: 1.5; }
+
+.action-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #e0e0e0;
+  padding: 7px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.action-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.action-btn.danger { color: #ff9090; }
+.action-btn.danger:hover { background: rgba(255, 100, 100, 0.15); }
+.btn-icon { vertical-align: middle; margin-right: 4px; }
+</style>

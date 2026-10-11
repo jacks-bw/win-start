@@ -41,49 +41,9 @@ function findGroup(): TileGroup | undefined {
 }
 
 async function handleSetBackground() {
-  // 忙碌锁：选图对话框和后续裁剪期间，开始菜单不因点外部而关闭
-  window.electronAPI.setMenuBusy(true)
-  const filePath = await window.electronAPI.selectImage()
   emit('close')
-  if (!filePath) {
-    window.electronAPI.setMenuBusy(false)
-    return
-  }
-  const base64 = await window.electronAPI.readImageBase64(filePath)
-  if (!base64) {
-    window.electronAPI.setMenuBusy(false)
-    return
-  }
-
-  // 按整组磁贴网格计算裁剪框比例
-  const spanMap: Record<string, { rows: number; cols: number }> = {
-    small: { rows: 1, cols: 1 },
-    medium: { rows: 2, cols: 2 },
-    wide: { rows: 2, cols: 4 }
-  }
-  const group = findGroup()
-  let maxRow = 0
-  let maxCol = 0
-  if (group) {
-    for (const t of group.tiles) {
-      const span = spanMap[t.size] || { rows: 2, cols: 2 }
-      maxRow = Math.max(maxRow, t.row + span.rows)
-      maxCol = Math.max(maxCol, t.col + span.cols)
-    }
-  }
-  const targetRatio = maxCol > 0 && maxRow > 0 ? maxCol / maxRow : 1
-
-  // 交接：释放选图阶段的锁，由 openImageCrop 内部同步重新加锁（无间隙）
-  window.electronAPI.setMenuBusy(false)
-  window.openImageCrop(base64, targetRatio, async (croppedDataUrl) => {
-    const savedPath = await window.electronAPI.saveImage(
-      croppedDataUrl,
-      `group-${props.groupId}-${Date.now()}`
-    )
-    if (savedPath) {
-      tilesStore.setGroupBackground(props.groupId, savedPath)
-    }
-  })
+  // 打开独立的分组背景设置窗口（仿磁贴样式窗，开始菜单期间被锁定）
+  await window.electronAPI.openGroupStyleWindow(props.groupId)
 }
 
 function handleRename() {

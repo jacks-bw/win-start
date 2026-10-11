@@ -11,6 +11,9 @@
   <!-- 磁贴样式设置窗口（独立窗口） -->
   <TileStyleWindow v-else-if="isTileStyleRoute" />
 
+  <!-- 分组背景设置窗口（独立窗口） -->
+  <GroupStyleWindow v-else-if="isGroupStyleRoute" />
+
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
     <!-- 最左侧：纵向工具栏（可自定义功能按钮：文件夹、设置、控制面板等） -->
@@ -117,6 +120,7 @@ import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import AppList from './components/AppList/AppList.vue'
 import CropImageDialog from './components/CropImageDialog.vue'
 import TileStyleWindow from './TileStyleWindow.vue'
+import GroupStyleWindow from './GroupStyleWindow.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
 import GroupContextMenu from './components/TileGrid/GroupContextMenu.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
@@ -148,6 +152,9 @@ const isAvatarCropRoute = computed(() => window.location.hash.includes('/avatar-
 
 // 判断是否是磁贴样式设置窗口（通过 hash 路由）
 const isTileStyleRoute = computed(() => window.location.hash.includes('/tile-style'))
+
+// 判断是否是分组背景设置窗口（通过 hash 路由）
+const isGroupStyleRoute = computed(() => window.location.hash.includes('/group-style'))
 
 const isVisible = ref(false)
 // 样式窗打开期间锁定开始菜单交互

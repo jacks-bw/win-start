@@ -163,6 +163,21 @@ export function setupIpc(
     windowManager.closeTileStyleWindow()
   })
 
+  // 打开分组背景独立窗口
+  ipcMain.handle('group-style:show', (_event, groupId: string) => {
+    windowManager.showGroupStyleWindow(groupId)
+  })
+
+  // 分组样式窗查询当前目标分组 id
+  ipcMain.handle('group-style:get-target', () => {
+    return windowManager.getGroupStyleTarget()
+  })
+
+  // 关闭分组样式窗
+  ipcMain.handle('group-style:close', () => {
+    windowManager.closeGroupStyleWindow()
+  })
+
   // 获取主题
   ipcMain.handle('theme:get', () => {
     return store.get('theme', 'dark')

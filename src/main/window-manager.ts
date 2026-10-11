@@ -24,6 +24,8 @@ export class WindowManager {
   private currentCropImagePath: string | null = null
   private tileStyleWindow: BrowserWindow | null = null
   private tileStyleTileId: string | null = null
+  private groupStyleWindow: BrowserWindow | null = null
+  private groupStyleGroupId: string | null = null
   private store: Store<StoreType>
   private isVisible = false
   // 忙碌锁（引用计数）：设置磁贴/分组背景等流程期间，忽略窗口 blur 自动关闭；
@@ -407,6 +409,71 @@ export class WindowManager {
   closeTileStyleWindow(): void {
     if (this.tileStyleWindow) {
       this.tileStyleWindow.close()
+    }
+  }
+
+  // 创建/显示分组背景设置窗口（独立窗口，仿磁贴样式窗）
+  showGroupStyleWindow(groupId: string): void {
+    this.groupStyleGroupId = groupId
+    this.setBusy(true)
+    this.setMenuBlocked(true)
+
+    if (this.groupStyleWindow) {
+      this.groupStyleWindow.focus()
+      this.groupStyleWindow.webContents.send('group-style:select', groupId)
+      return
+    }
+
+    this.groupStyleWindow = new BrowserWindow({
+      width: 560,
+      height: 640,
+      resizable: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      show: false,
+      center: true,
+      icon: getIconPath(),
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: false
+      }
+    })
+
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      this.groupStyleWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/group-style`)
+    } else {
+      this.groupStyleWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/group-style' })
+    }
+
+    this.groupStyleWindow.setMenuBarVisibility(false)
+
+    this.groupStyleWindow.once('ready-to-show', () => {
+      this.groupStyleWindow?.show()
+      if (this.groupStyleWindow) {
+        setAcrylicEffect(this.groupStyleWindow, 40)
+      }
+    })
+
+    this.groupStyleWindow.on('closed', () => {
+      this.groupStyleWindow = null
+      this.groupStyleGroupId = null
+      this.setBusy(false)
+      this.setMenuBlocked(false)
+      this.notifyLayoutUpdated()
+    })
+  }
+
+  getGroupStyleTarget(): string | null {
+    return this.groupStyleGroupId
+  }
+
+  closeGroupStyleWindow(): void {
+    if (this.groupStyleWindow) {
+      this.groupStyleWindow.close()
     }
   }
 }

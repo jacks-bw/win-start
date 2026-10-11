@@ -69,6 +69,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openTileStyleWindow: (tileId: string) => ipcRenderer.invoke('tile-style:show', tileId),
   getTileStyleTarget: () => ipcRenderer.invoke('tile-style:get-target'),
   closeTileStyleWindow: () => ipcRenderer.invoke('tile-style:close'),
+  openGroupStyleWindow: (groupId: string) => ipcRenderer.invoke('group-style:show', groupId),
+  getGroupStyleTarget: () => ipcRenderer.invoke('group-style:get-target'),
+  closeGroupStyleWindow: () => ipcRenderer.invoke('group-style:close'),
   notifyLayoutUpdated: () => ipcRenderer.invoke('layout:notify-updated'),
 
   // 磁贴桥接服务（Tile Bridge）- 第三方软件接入接口，默认不启用
