@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 用户头像
   getUserAvatar: () => ipcRenderer.invoke('user:avatar-get'),
+  setGifAvatar: (p: string) => ipcRenderer.invoke('user:avatar-set-gif', p),
   selectUserAvatar: () => ipcRenderer.invoke('user:avatar-select'),
   openAvatarCropWindow: (imagePath: string) => ipcRenderer.invoke('avatar-crop:open', imagePath),
   getCropImage: () => ipcRenderer.invoke('avatar-crop:get-image'),

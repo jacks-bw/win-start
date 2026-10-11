@@ -261,9 +261,13 @@ function powerAction(action: 'shutdown' | 'restart' | 'sleep' | 'lock') {
 // 选择用户头像（打开独立裁剪窗口）
 async function selectAvatar() {
   const path = await window.electronAPI.selectUserAvatar?.()
-  if (path) {
-    window.electronAPI.openAvatarCropWindow?.(path)
+  if (!path) return
+  // GIF 动图：跳过裁剪弹窗（canvas 会丢帧），直接保存原文件
+  if (path.toLowerCase().endsWith('.gif')) {
+    await window.electronAPI.setGifAvatar?.(path)
+    return
   }
+  window.electronAPI.openAvatarCropWindow?.(path)
 }
 
 async function reloadAvatar() {

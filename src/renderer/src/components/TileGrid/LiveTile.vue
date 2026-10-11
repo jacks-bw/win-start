@@ -79,13 +79,28 @@
         </div>
       </div>
 
-      <!-- 背面（通知内容） -->
+      <!-- 背面（通知内容；无通知时回退为图标+名称，保持翻转动画可见） -->
       <div class="tile-back">
         <div class="tile-bg" :style="{ background: tileColor }"></div>
         <div class="tile-content" :style="contentStyle">
-          <div v-if="nextNotification" class="tile-text">
-            <div class="tile-title">{{ nextNotification.title || tileName }}</div>
-            <div class="tile-body">{{ nextNotification.body }}</div>
+          <div v-if="showIcon" class="tile-icon" :style="iconContainerStyle">
+            <span
+              v-if="customIconImageBase64"
+              class="icon-img"
+              :style="{ backgroundImage: `url(${customIconImageBase64})`, width: `${iconSize}px`, height: `${iconSize}px` }"
+            ></span>
+            <component
+              v-else-if="customIconComponent"
+              :is="customIconComponent"
+              :size="iconSize"
+              :color="tile.iconColor || '#fff'"
+              :stroke-width="2"
+            />
+            <span v-else-if="appIcon" class="icon-img" :style="appIconStyle"></span>
+          </div>
+          <div v-if="showName && tileSize !== 'small'" class="tile-text">
+            <div class="tile-title">{{ nextNotification?.title || tileName }}</div>
+            <div v-if="nextNotification?.body" class="tile-body">{{ nextNotification.body }}</div>
           </div>
         </div>
       </div>
@@ -248,7 +263,7 @@ const sizeSpanMap: Record<string, { rows: number; cols: number }> = {
 // 是否使用组背景（只对设置组背景时已存在的磁贴生效）
 const useGroupBg = computed(() => {
   const group = props.group
-  if (!group?.background || props.tile.background) return false
+  if (!group?.background || props.tile.background || (props.tile as Record<string, unknown>).backgroundCleared) return false
   // 没有快照时（旧数据）视为全部生效；有快照则只对快照内的磁贴生效
   return !group.backgroundTiles || group.backgroundTiles.includes(props.tile.id)
 })
@@ -468,12 +483,6 @@ const currentNotification = computed(() => notifications.value[0])
 const nextNotification = computed(() => notifications.value[1])
 
 onMounted(() => {
-  // 如果开启动态磁贴且有通知内容，设置定时翻转
-  if (props.tile.liveEnabled && notifications.value.length >= 1) {
-    flipInterval = setInterval(() => {
-      isFlipped.value = !isFlipped.value
-    }, 5000) // 5秒翻转一次
-  }
   // 检测标题是否溢出
   checkNameOverflow()
   // 监听磁贴尺寸变化，自动重新检测溢出
@@ -490,20 +499,29 @@ watch(tileName, () => {
   checkNameOverflow()
 })
 
-// 监听通知内容变化，动态启动/停止翻转
-watch(notifications, (newVal) => {
+function startFlip() {
+  if (flipInterval) return
+  flipInterval = setInterval(() => {
+    isFlipped.value = !isFlipped.value
+  }, 5000)
+}
+function stopFlip() {
   if (flipInterval) {
     clearInterval(flipInterval)
     flipInterval = null
   }
-  if (props.tile.liveEnabled && newVal.length >= 1) {
-    flipInterval = setInterval(() => {
-      isFlipped.value = !isFlipped.value
-    }, 5000)
-  } else {
-    isFlipped.value = false
-  }
-})
+  isFlipped.value = false
+}
+
+// 监听开关：随时开启/关闭翻转
+watch(
+  () => props.tile.liveEnabled,
+  (on) => {
+    if (on) startFlip()
+    else stopFlip()
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {
   if (flipInterval) {

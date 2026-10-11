@@ -6,7 +6,7 @@
     @contextmenu.prevent
   >
     <div class="menu-section">
-      <div class="menu-item" @click="handleResize('small')">
+      <div class="menu-item">
         <span class="menu-label">调整大小</span>
         <span class="menu-submenu">›</span>
       </div>
@@ -20,34 +20,39 @@
 
     <div class="menu-divider"></div>
 
+    <div class="menu-item" @click="handleUnpin">
+      <PinOff :size="14" class="menu-icon" />
+      <span class="menu-label">从"开始"屏幕取消固定</span>
+    </div>
+
     <div class="menu-item" @click="handleLiveToggle">
+      <Zap :size="14" class="menu-icon" />
       <span class="menu-label">
         {{ tile?.liveEnabled ? '关闭实时动态磁贴' : '开启实时动态磁贴' }}
       </span>
     </div>
 
     <div class="menu-item" @click="handleSetBackground">
+      <ImagePlus :size="14" class="menu-icon" />
       <span class="menu-label">设置磁贴背景</span>
     </div>
 
-    <div v-if="tile?.background" class="menu-item" @click="handleRemoveBackground">
+    <div v-if="canRemoveBg" class="menu-item" @click="handleRemoveBackground">
+      <Trash2 :size="14" class="menu-icon" />
       <span class="menu-label">移除磁贴背景</span>
     </div>
 
-    <div class="menu-item" @click="handleUnpin">
-      <span class="menu-label">从"开始"屏幕取消固定</span>
+    <div v-if="canApplyGroupBg" class="menu-item" @click="handleApplyGroupBg">
+      <Layers :size="14" class="menu-icon" />
+      <span class="menu-label">应用组背景</span>
     </div>
 
-    <div class="menu-divider"></div>
-
-    <div class="menu-item" @click="handlePinTaskbar">
-      <span class="menu-label">固定到任务栏</span>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { PinOff, Zap, ImagePlus, Trash2, Layers } from 'lucide-vue-next'
 import { useTilesStore } from '../../stores/useTiles'
 
 const props = defineProps<{
@@ -68,6 +73,29 @@ const tile = computed(() => {
     if (found) return found
   }
   return null
+})
+
+// 有自己的背景，或正在继承组背景（且没被手动清掉）时，都允许"移除"
+const canRemoveBg = computed(() => {
+  if (!tile.value) return false
+  if (tile.value.background) return true
+  for (const group of tilesStore.groups) {
+    if (group.tiles.find((t) => t.id === props.tileId)) {
+      return !!group.background && !(tile.value as Record<string, unknown>).backgroundCleared
+    }
+  }
+  return false
+})
+
+// 被手动清空、但所在组仍有组背景时，显示"应用组背景"
+const canApplyGroupBg = computed(() => {
+  if (!tile.value) return false
+  if (tile.value.background) return false
+  if (!(tile.value as Record<string, unknown>).backgroundCleared) return false
+  for (const group of tilesStore.groups) {
+    if (group.tiles.find((t) => t.id === props.tileId)) return !!group.background
+  }
+  return false
 })
 
 function handleResize(size: 'small' | 'medium' | 'wide') {
@@ -91,15 +119,16 @@ function handleRemoveBackground() {
   emit('close')
 }
 
+function handleApplyGroupBg() {
+  tilesStore.applyGroupBackground(props.tileId)
+  emit('close')
+}
+
 function handleUnpin() {
   tilesStore.removeTile(props.tileId)
   emit('close')
 }
 
-function handlePinTaskbar() {
-  console.log('固定到任务栏:', props.tileId)
-  emit('close')
-}
 </script>
 
 <style scoped>
@@ -127,6 +156,12 @@ function handlePinTaskbar() {
 
 .menu-item:hover {
   background: var(--item-hover);
+}
+
+.menu-icon {
+  flex-shrink: 0;
+  margin-right: 10px;
+  opacity: 0.85;
 }
 
 .menu-label {

@@ -397,6 +397,18 @@ export function setupIpc(
     windowManager.closeAvatarCropWindow()
   })
 
+  // GIF 头像：跳过 canvas 裁剪（会丢帧），直接复制原文件
+  ipcMain.handle('user:avatar-set-gif', async (_event, srcPath: string) => {
+    const userDataPath = app.getPath('userData')
+    const avatarDir = join(userDataPath, 'avatars')
+    mkdirSync(avatarDir, { recursive: true })
+    const destPath = join(avatarDir, 'user-avatar.gif')
+    copyFileSync(srcPath, destPath)
+    store.set('userAvatar', destPath)
+    windowManager.notifyAvatarUpdated()
+    return destPath
+  })
+
   // 打开控制面板
   ipcMain.handle('system:open-control-panel', () => {
     exec('control')

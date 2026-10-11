@@ -362,6 +362,23 @@ export const useTilesStore = defineStore('tiles', () => {
       const tile = group.tiles.find((t) => t.id === tileId)
       if (tile) {
         tile.background = background
+        if (background) {
+          delete (tile as Record<string, unknown>).backgroundCleared
+        } else {
+          ;(tile as Record<string, unknown>).backgroundCleared = true
+        }
+        saveLayout()
+        return
+      }
+    }
+  }
+
+  // 让某个磁贴重新继承组背景（取消"手动清空"）
+  function applyGroupBackground(tileId: string) {
+    for (const group of groups.value) {
+      const tile = group.tiles.find((t) => t.id === tileId)
+      if (tile) {
+        delete (tile as Record<string, unknown>).backgroundCleared
         saveLayout()
         return
       }
@@ -496,6 +513,8 @@ export const useTilesStore = defineStore('tiles', () => {
       group.backgroundCrop = crop
       // 记录此刻组内磁贴快照：只有这些磁贴会应用组背景
       group.backgroundTiles = background ? group.tiles.map((t) => t.id) : undefined
+      // 重设组背景时，清掉所有磁贴的"手动清空"标记，统一继承新组背景
+      for (const t of group.tiles) delete (t as Record<string, unknown>).backgroundCleared
       // 清除该组所有磁贴自己的背景，让组背景生效
       for (const tile of group.tiles) {
         tile.background = undefined
@@ -551,6 +570,7 @@ export const useTilesStore = defineStore('tiles', () => {
     moveTile,
     moveTileToGrid,
     setTileBackground,
+    applyGroupBackground,
     clearAllBackgrounds,
     setTileShowIcon,
     setTileShowName,
