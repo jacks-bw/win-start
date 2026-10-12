@@ -20,11 +20,31 @@ fn menu_ready() {
     MENU_READY.store(true, Ordering::SeqCst);
 }
 
+static FIRST_SHOW: AtomicBool = AtomicBool::new(true);
+
+// 首次显示后强制重绘：移动 1 像素再移回，触发合成器刷新首帧
+fn force_first_paint(win: &tauri::WebviewWindow) {
+    if !FIRST_SHOW.swap(false, Ordering::SeqCst) { return; }
+    if let Ok(size) = win.outer_size() {
+        use tauri::PhysicalSize;
+        let w = win.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            // 高度 -1 再恢复，强制 WebView2 重新布局并合成首帧
+            let _ = w.set_size(PhysicalSize::new(size.width, size.height.saturating_sub(1)));
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            let _ = w.set_size(PhysicalSize::new(size.width, size.height));
+        });
+    }
+}
+
 // 显示开始菜单：首次需等渲染就绪，避免空白
 fn do_show(win: &tauri::WebviewWindow) {
     if MENU_READY.load(Ordering::SeqCst) {
         let _ = win.show();
         let _ = win.set_focus();
+        let _ = win.emit("menu-open", ());
+        force_first_paint(win);
         return;
     }
     let w = win.clone();
@@ -33,6 +53,8 @@ fn do_show(win: &tauri::WebviewWindow) {
             if MENU_READY.load(Ordering::SeqCst) {
                 let _ = w.show();
                 let _ = w.set_focus();
+                let _ = w.emit("menu-open", ());
+                force_first_paint(&w);
                 return;
             }
             std::thread::sleep(std::time::Duration::from_millis(30));
@@ -40,6 +62,8 @@ fn do_show(win: &tauri::WebviewWindow) {
         // 兜底：超时也显示
         let _ = w.show();
         let _ = w.set_focus();
+        let _ = w.emit("menu-open", ());
+        force_first_paint(&w);
     });
 }
 
@@ -55,6 +79,7 @@ fn show_start_menu(window: tauri::WebviewWindow) {
 
 #[tauri::command]
 fn hide_start_menu(window: tauri::WebviewWindow) {
+    let _ = window.emit("menu-close", ());
     let _ = window.hide();
 }
 
@@ -237,6 +262,52 @@ fn run() {
 
             let _ = apply_acrylic(&win, Some((32, 32, 32, 40)));
 
+            // 去掉系统"标题栏和窗口边框强调色"导致的一圈彩色边框
+            #[cfg(target_os = "windows")]
+            if let Ok(hwnd_t) = win.hwnd() {
+                use windows::Win32::Foundation::HWND;
+                use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS};
+                // 用裸指针重建本 crate 版本的 HWND，避免 windows crate 版本不一致
+                let hwnd = HWND(hwnd_t.0);
+                unsafe {
+                    // DWMWA_BORDER_COLOR = 34, DWMWA_COLOR_NONE = 0xFFFFFFFE
+                    let none: u32 = 0xFFFFFFFE;
+                    let _ = DwmSetWindowAttribute(
+                        hwnd, DWMWA_BORDER_COLOR,
+                        &none as *const u32 as *const _,
+                        std::mem::size_of::<u32>() as u32,
+                    );
+                    // DWMWA_CAPTION_COLOR = 35 也设为无
+                    let _ = DwmSetWindowAttribute(
+                        hwnd, DWMWA_CAPTION_COLOR,
+                        &none as *const u32 as *const _,
+                        std::mem::size_of::<u32>() as u32,
+                    );
+                    // DWMWA_VISIBLE_FRAME_BORDER_THICKNESS = 38, 厚度 0
+                    let thickness: i32 = 0;
+                    let _ = DwmSetWindowAttribute(
+                        hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
+                        &thickness as *const i32 as *const _,
+                        std::mem::size_of::<i32>() as u32,
+                    );
+                }
+            }
+
+            // WebView2 默认背景设为透明，避免窗口显示瞬间白闪
+            let _ = win.with_webview(|webview| {
+                use webview2_com::Microsoft::Web::WebView2::Win32::{
+                    ICoreWebView2Controller2, COREWEBVIEW2_COLOR,
+                };
+                use windows61::core::Interface;
+                unsafe {
+                    let ctrl = webview.controller();
+                    if let Ok(c2) = ctrl.cast::<ICoreWebView2Controller2>() {
+                        let mut transparent = COREWEBVIEW2_COLOR { A: 0, R: 0, G: 0, B: 0 };
+                        let _ = c2.DefaultBackgroundColor(&mut transparent);
+                    }
+                }
+            });
+
             // 启动时把窗口放到屏幕左下角
             if let Ok(Some(monitor)) = win.current_monitor() {
                 if let Ok(size) = win.outer_size() {
@@ -250,6 +321,7 @@ fn run() {
             let win_clone = win.clone();
             win.on_window_event(move |event| {
                 if let WindowEvent::Focused(false) = event {
+                    let _ = win_clone.emit("menu-close", ());
                     let _ = win_clone.hide();
                 }
             });

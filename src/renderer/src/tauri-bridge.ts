@@ -121,8 +121,10 @@ const electronAPI = new Proxy(real as any, {
 // @ts-expect-error
 window.electronAPI = electronAPI
 
+// Rust 显式事件（可靠）
+listen('menu-open', () => menuOpenCbs.forEach(cb => cb()))
+listen('menu-close', () => menuCloseCbs.forEach(cb => cb()))
+// 兜底：聚焦也视为打开
 listen('tauri://focus', () => menuOpenCbs.forEach(cb => cb()))
-// 不在 blur 时关闭内容：Rust 端失焦已自动 hide 整个窗口
-setTimeout(() => menuOpenCbs.forEach(cb => cb()), 100)
 
 export {}

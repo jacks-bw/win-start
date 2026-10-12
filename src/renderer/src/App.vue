@@ -449,11 +449,9 @@ onMounted(async () => {
   await Promise.all([appsStore.loadApps(), tilesStore.loadLayout(), settingsStore.loadTileOpacity()])
   // 清理死磁贴和死固定
   pruneDeadReferences()
-  // 等首帧渲染完成后通知主进程菜单就绪（避免首次打开空白）
+  // 数据就绪后通知主进程（窗口隐藏时 rAF 不触发，不能用 rAF）
   await nextTick()
-  requestAnimationFrame(() => {
-    window.electronAPI.menuReady?.()
-  })
+  window.electronAPI.menuReady?.()
 
   // 应用系统主题色
   applyAccentColor(await window.electronAPI.getAccentColor())
