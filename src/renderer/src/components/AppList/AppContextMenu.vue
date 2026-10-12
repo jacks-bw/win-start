@@ -17,6 +17,21 @@
       <span class="menu-label">移出文件夹</span>
     </div>
 
+    <div v-if="otherFolders.length > 0" class="menu-item has-submenu" @mouseenter="showSubmenu = true" @mouseleave="showSubmenu = false">
+      <span class="menu-label">添加到文件夹</span>
+      <span class="menu-arrow">▶</span>
+      <div v-if="showSubmenu" class="submenu">
+        <div
+          v-for="f in otherFolders"
+          :key="f.id"
+          class="menu-item"
+          @click="handleMoveToFolder(f.id)"
+        >
+          <span class="menu-label">{{ f.name }}</span>
+        </div>
+      </div>
+    </div>
+
     <div v-if="!app.uwp" class="menu-divider"></div>
 
     <template v-if="!app.uwp">
@@ -32,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
 
@@ -51,6 +66,9 @@ const appsStore = useAppsStore()
 
 // 检查应用是否在文件夹里
 const isInFolder = computed(() => !!props.app.folderId)
+const showSubmenu = ref(false)
+// 其他可加入的文件夹（排除当前所在的）
+const otherFolders = computed(() => appsStore.folders.filter(f => f.id !== props.app.folderId))
 
 // 检查该程序是否已经固定为磁贴
 const isPinnedToStart = computed(() => {
@@ -90,6 +108,11 @@ function handlePinTaskbar() {
 
 function handleRemoveFromFolder() {
   appsStore.removeAppFromFolder(props.app.id)
+  emit('close')
+}
+
+function handleMoveToFolder(folderId: string) {
+  appsStore.moveAppToFolder(props.app.id, folderId)
   emit('close')
 }
 
@@ -138,6 +161,20 @@ function handleUninstall() {
   color: #fff;
 }
 
+.has-submenu { position: relative; }
+.menu-arrow { font-size: 10px; color: #888; }
+.submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  min-width: 160px;
+  background: rgba(45, 45, 45, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  z-index: 1001;
+}
 .menu-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.08);

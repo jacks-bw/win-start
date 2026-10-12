@@ -158,7 +158,9 @@ export const useAppsStore = defineStore('apps', () => {
     return apps.value.filter(
       (app) =>
         app.name.toLowerCase().includes(q) ||
-        app.group.toLowerCase().includes(q)
+        app.group.toLowerCase().includes(q) ||
+        (app as any).pinyin?.replace(/ /g, '').includes(q) ||
+        (app as any).pinyinInitials?.includes(q)
     )
   })
 

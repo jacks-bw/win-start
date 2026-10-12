@@ -12,8 +12,7 @@
           v-for="app in appsStore.recentApps"
           :key="app.id"
           :app="app"
-          draggable="true"
-          @dragstart="handleAppDragStart($event, app)"
+          @mousedown="handleAppMouseDown($event, app)"
           @click="handleLaunch(app)"
           @contextmenu="handleContextMenu($event, app)"
         />
@@ -26,8 +25,7 @@
           v-for="app in appsStore.pinnedAppList"
           :key="app.id"
           :app="app"
-          draggable="true"
-          @dragstart="handleAppDragStart($event, app)"
+          @mousedown="handleAppMouseDown($event, app)"
           @click="handleLaunch(app)"
           @contextmenu="handleContextMenu($event, app)"
         />
@@ -36,10 +34,7 @@
       <!-- 所有应用 - 按字母分组 -->
       <div
         class="section all-apps-section"
-        :class="{ 'drag-over': isSectionDragOver }"
-        @dragover.prevent="handleSectionDragOver"
-        @dragleave="handleSectionDragLeave"
-        @drop.prevent="handleSectionDrop"
+        :class="{ 'drag-over': dragOverFolderId === '__root__' }"
       >
         <div v-if="!appsStore.searchQuery" class="section-title all-apps-title">
           所有应用
@@ -53,6 +48,7 @@
           @contextmenu="handleFolderContextMenu($event, folder)"
           @launch-app="handleLaunch"
           @app-contextmenu="handleContextMenu"
+          @app-mousedown="handleAppMouseDown"
         />
 
         <!-- 按字母分组的应用（排除文件夹里的） -->
@@ -68,8 +64,7 @@
             v-for="app in group.items"
             :key="app.id"
             :app="app"
-            draggable="true"
-            @dragstart="handleAppDragStart($event, app)"
+            @mousedown="handleAppMouseDown($event, app)"
             @click="handleLaunch(app)"
             @contextmenu="handleContextMenu($event, app)"
           />
@@ -94,12 +89,26 @@
         <span class="menu-label"><Pencil :size="14" class="menu-icon" /> 重命名</span>
       </div>
       <div
+        v-if="!folderMenu.isEmpty"
+        class="menu-item"
+        @click="handleFolderDissolve"
+      >
+        <span class="menu-label"><X :size="14" class="menu-icon" /> 解散文件夹</span>
+      </div>
+      <div
+        v-else
         class="menu-item danger"
-        :class="{ disabled: !folderMenu.isEmpty }"
         @click="handleFolderDelete"
       >
         <span class="menu-label"><Trash2 :size="14" class="menu-icon" /> 删除文件夹</span>
       </div>
+    </div>
+
+    <!-- 拖拽跟随浮层 -->
+    <div v-if="dragGhost.visible" class="drag-ghost" :style="{ left: dragGhost.x + 'px', top: dragGhost.y + 'px' }">
+      <span v-if="dragGhost.icon" class="ghost-icon" :style="{ backgroundImage: `url(${dragGhost.icon})` }"></span>
+      <span v-else class="ghost-icon ghost-icon-ph">{{ dragGhost.name.charAt(0).toUpperCase() }}</span>
+      <span class="ghost-name">{{ dragGhost.name }}</span>
     </div>
 
     <!-- 字母跳转面板 -->
@@ -132,7 +141,7 @@ import AppItem from './AppItem.vue'
 import FolderItem from './FolderItem.vue'
 import { useAppsStore } from '../../stores/useApps'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Pencil, Trash2 } from 'lucide-vue-next'
+import { Pencil, Trash2, X } from 'lucide-vue-next'
 
 const appsStore = useAppsStore()
 
@@ -197,35 +206,63 @@ function handleContextMenu(e: MouseEvent, app: AppItem) {
   }
 }
 
-function handleAppDragStart(e: DragEvent, app: AppItem) {
-  e.dataTransfer?.setData('text/plain', app.id)
-  e.dataTransfer!.effectAllowed = 'move'
+// 鼠标拖拽（WebView2 透明窗口不支持 HTML5 DnD，改用鼠标事件模拟）
+const dragGhost = ref({ visible: false, x: 0, y: 0, name: '', icon: '' })
+const dragState = ref<{ appId: string; startX: number; startY: number; dragging: boolean } | null>(null)
+const dragOverFolderId = ref<string | null>(null)
+
+function handleAppMouseDown(e: MouseEvent, app: AppItem) {
+  if (e.button !== 0) return
+  dragState.value = { appId: app.id, startX: e.clientX, startY: e.clientY, dragging: false }
+  window.addEventListener('mousemove', handleAppMouseMove)
+  window.addEventListener('mouseup', handleAppMouseUp)
 }
 
-// 所有应用区域拖拽（用于从文件夹移出）
-const isSectionDragOver = ref(false)
-
-function handleSectionDragOver(e: DragEvent) {
-  e.preventDefault()
-  isSectionDragOver.value = true
-}
-
-function handleSectionDragLeave() {
-  isSectionDragOver.value = false
-}
-
-function handleSectionDrop(e: DragEvent) {
-  e.preventDefault()
-  isSectionDragOver.value = false
-  const appId = e.dataTransfer?.getData('text/plain')
-  if (appId) {
-    const app = appsStore.apps.find((a) => a.id === appId)
-    // 如果应用在文件夹里，移出文件夹
-    if (app && app.folderId) {
-      appsStore.removeAppFromFolder(appId)
-    }
+function handleAppMouseMove(e: MouseEvent) {
+  const st = dragState.value
+  if (!st) return
+  if (!st.dragging) {
+    const dx = e.clientX - st.startX
+    const dy = e.clientY - st.startY
+    if (Math.sqrt(dx*dx + dy*dy) < 5) return
+    st.dragging = true
+    const app = appsStore.apps.find(a => a.id === st.appId)
+    dragGhost.value = { visible: true, x: e.clientX, y: e.clientY, name: app?.name || '', icon: app?.icon || '' }
+  }
+  dragGhost.value.x = e.clientX
+  dragGhost.value.y = e.clientY
+  // 检测鼠标下的文件夹
+  dragOverFolderId.value = null
+  const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+  const header = el?.closest('.folder-header') as HTMLElement | null
+  if (header) {
+    dragOverFolderId.value = header.dataset.folderId || null
+  }
+  // 检测是否在"所有应用"区域（移出文件夹）
+  const section = el?.closest('.all-apps-section') as HTMLElement | null
+  if (section && !header) {
+    dragOverFolderId.value = '__root__'
   }
 }
+
+function handleAppMouseUp() {
+  const st = dragState.value
+  window.removeEventListener('mousemove', handleAppMouseMove)
+  window.removeEventListener('mouseup', handleAppMouseUp)
+  if (st?.dragging && st.appId) {
+    const target = dragOverFolderId.value
+    if (target === '__root__') {
+      appsStore.removeAppFromFolder(st.appId)
+    } else if (target) {
+      appsStore.moveAppToFolder(st.appId, target)
+    }
+  }
+  dragState.value = null
+  dragOverFolderId.value = null
+  dragGhost.value.visible = false
+}
+
+
 
 function handleFolderContextMenu(e: MouseEvent, folder: AppFolder) {
   e.preventDefault()
@@ -250,6 +287,24 @@ function handleFolderRename() {
       appsStore.renameFolder(folder.id, newName)
     })
   }
+  closeFolderMenu()
+}
+
+function handleFolderDissolve() {
+  const folder = appsStore.folders.find((f) => f.id === folderMenu.value.folderId)
+  if (!folder) { closeFolderMenu(); return }
+  window.showConfirmDialog({
+    title: '解散文件夹',
+    message: `确定解散文件夹"${folder.name}"吗？里面的 ${folder.appIds.length} 个应用将移回列表。`,
+    confirmText: '解散',
+    danger: true,
+    onConfirm: () => {
+      for (const appId of [...folder.appIds]) {
+        appsStore.removeAppFromFolder(appId)
+      }
+      appsStore.deleteFolder(folder.id)
+    }
+  })
   closeFolderMenu()
 }
 
@@ -381,6 +436,47 @@ onUnmounted(() => {
   background: rgba(0, 120, 215, 0.08);
   outline: 1px dashed rgba(0, 120, 215, 0.4);
   outline-offset: -2px;
+}
+
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(0, 120, 215, 0.5);
+  padding: 5px 12px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  color: #e0e0e0;
+  z-index: 10001;
+  transform: translate(12px, 12px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  max-width: 220px;
+}
+.ghost-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+}
+.ghost-icon-ph {
+  background: var(--accent-color, #0078d7);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+.ghost-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 文件夹右键菜单 */

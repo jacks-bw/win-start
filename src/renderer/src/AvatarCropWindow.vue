@@ -59,6 +59,7 @@ const CROP_SIZE = 240
 
 const imageUrl = computed(() => {
   if (!imagePath.value) return ''
+  if (imagePath.value.startsWith('data:')) return imagePath.value
   return `file:///${imagePath.value.replace(/\\/g, '/')}`
 })
 
@@ -81,21 +82,29 @@ onMounted(async () => {
   img.onload = () => {
     imgWidth.value = img.naturalWidth
     imgHeight.value = img.naturalHeight
-    // 初始缩放：让图片短边等于裁剪框大小
-    const minDim = Math.min(imgWidth.value, imgHeight.value)
-    scale.value = CROP_SIZE / minDim
-    // 居中
-    offsetX.value = (CROP_SIZE - imgWidth.value * scale.value) / 2
-    offsetY.value = (CROP_SIZE - imgHeight.value * scale.value) / 2
+    // 初始缩放：让图片完全覆盖裁剪框
+    scale.value = Math.max(CROP_SIZE / imgWidth.value, CROP_SIZE / imgHeight.value)
+    clampOffset()
     imgLoaded.value = true
   }
   img.src = imageUrl.value
 })
 
+function minScale() {
+  return Math.max(CROP_SIZE / (imgWidth.value || 1), CROP_SIZE / (imgHeight.value || 1))
+}
+function clampOffset() {
+  const w = imgWidth.value * scale.value
+  const h = imgHeight.value * scale.value
+  // 图片边缘不能拖进裁剪框内
+  offsetX.value = Math.min(0, Math.max(CROP_SIZE - w, offsetX.value))
+  offsetY.value = Math.min(0, Math.max(CROP_SIZE - h, offsetY.value))
+}
 function onWheelZoom(e: WheelEvent) {
   e.preventDefault()
-  const delta = e.deltaY > 0 ? -0.1 : 0.1
-  scale.value = Math.max(0.1, Math.min(5, scale.value + delta))
+  const delta = e.deltaY > 0 ? -0.02 : 0.02
+  scale.value = Math.max(minScale(), Math.min(5, scale.value + delta))
+  clampOffset()
 }
 
 function onMouseDown(e: MouseEvent) {
@@ -113,6 +122,7 @@ function onMouseMove(e: MouseEvent) {
   if (!isDragging.value) return
   offsetX.value = dragStartOffsetX.value + (e.clientX - dragStartX.value)
   offsetY.value = dragStartOffsetY.value + (e.clientY - dragStartY.value)
+  clampOffset()
 }
 
 function onMouseUp() {
@@ -132,6 +142,19 @@ function onCancel() {
 
 function confirmCrop() {
   if (!imgLoaded.value || imgWidth.value === 0) return
+  // GIF 保存原图 + 裁剪变换，前端显示时按变换定位
+  if (imagePath.value.startsWith('data:image/gif')) {
+    const crop = {
+      x: offsetX.value,
+      y: offsetY.value,
+      scale: scale.value,
+      imgW: imgWidth.value,
+      imgH: imgHeight.value,
+      cropSize: CROP_SIZE
+    }
+    window.electronAPI.saveGifAvatar?.(imagePath.value, crop)
+    return
+  }
 
   // 计算裁剪区域在原始图片中的坐标
   const cropX = -offsetX.value / scale.value

@@ -1,13 +1,11 @@
 <template>
-  <div class="folder-item" :class="{ expanded: isExpanded, 'drag-over': isDragOver }">
+  <div class="folder-item" :class="{ expanded: isExpanded }">
     <!-- 文件夹头部 -->
     <div
       class="folder-header"
+      :data-folder-id="folder.id"
       @click="handleToggle"
       @contextmenu="$emit('contextmenu', $event)"
-      @dragover.prevent="handleDragOver"
-      @dragleave="handleDragLeave"
-      @drop.prevent="handleDrop"
     >
       <span class="folder-arrow">
         <ChevronDown v-if="isExpanded" :size="14" />
@@ -39,8 +37,7 @@
         v-for="app in folderApps"
         :key="app.id"
         class="folder-app-item"
-        draggable="true"
-        @dragstart="handleAppDragStart($event, app)"
+        @mousedown="$emit('app-mousedown', $event, app)"
         @click="$emit('launch-app', app)"
         @contextmenu="$emit('app-contextmenu', $event, app)"
       >
@@ -68,13 +65,13 @@ const emit = defineEmits<{
   contextmenu: [e: MouseEvent]
   'launch-app': [app: AppItem]
   'app-contextmenu': [e: MouseEvent, app: AppItem]
+  'app-mousedown': [e: MouseEvent, app: AppItem]
 }>()
 
 const appsStore = useAppsStore()
 const editInput = ref<HTMLInputElement | null>(null)
 const isEditing = ref(false)
 const editName = ref('')
-const isDragOver = ref(false)
 
 const isExpanded = computed(() => appsStore.expandedFolders.has(props.folder.id))
 const folderApps = computed(() => appsStore.getFolderApps(props.folder.id))
@@ -105,29 +102,7 @@ function cancelEdit() {
   isEditing.value = false
 }
 
-function handleDragOver(e: DragEvent) {
-  e.preventDefault()
-  isDragOver.value = true
-}
 
-function handleDragLeave() {
-  isDragOver.value = false
-}
-
-function handleDrop(e: DragEvent) {
-  e.preventDefault()
-  e.stopPropagation()
-  isDragOver.value = false
-  const appId = e.dataTransfer?.getData('text/plain')
-  if (appId) {
-    appsStore.moveAppToFolder(appId, props.folder.id)
-  }
-}
-
-function handleAppDragStart(e: DragEvent, app: AppItem) {
-  e.dataTransfer?.setData('text/plain', app.id)
-  e.dataTransfer!.effectAllowed = 'move'
-}
 </script>
 
 <style scoped>

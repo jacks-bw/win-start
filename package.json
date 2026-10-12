@@ -7,15 +7,18 @@
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:vite": "vite",
     "build": "electron-vite build && electron-builder",
     "build:dir": "electron-vite build && electron-builder --dir",
     "build:portable": "electron-vite build && electron-builder portable",
     "preview": "electron-vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "tauri:kill": "taskkill /f /im win-start.exe 2>nul || echo no process"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.3",
     "electron-store": "^8.2.0",
     "extract-file-icon": "^0.3.2",
     "lucide-vue-next": "^0.577.0",

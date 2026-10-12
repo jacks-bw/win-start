@@ -8,7 +8,7 @@ mod scanner;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, WindowEvent,
+    Emitter, Manager, WindowEvent,
 };
 use window_vibrancy::apply_acrylic;
 
@@ -28,6 +28,165 @@ fn hide_start_menu(window: tauri::WebviewWindow) {
     let _ = window.hide();
 }
 
+#[tauri::command]
+fn open_toolbar_item(key: String) {
+    use std::process::Command;
+    let (program, arg): (&str, Option<&str>) = match key.as_str() {
+        "explorer" => ("explorer.exe", None),
+        "settings" => ("cmd", Some("/c start ms-settings:")),
+        "controlPanel" => ("control.exe", None),
+        "recycleBin" => ("explorer.exe", Some("shell:RecycleBinFolder")),
+        "documents" => ("explorer.exe", None),
+        "downloads" => ("explorer.exe", None),
+        "run" => ("cmd", Some("/c start rundll32.exe shell32.dll,#61")),
+        "taskManager" => ("taskmgr.exe", None),
+        _ => return,
+    };
+    let mut cmd = Command::new(program);
+    if let Some(a) = arg { cmd.arg(a); }
+    if key == "documents" {
+        cmd.arg(dirs::document_dir().unwrap().to_string_lossy().as_ref());
+    }
+    if key == "downloads" {
+        let dl = dirs::download_dir().unwrap();
+        cmd.arg(dl.to_string_lossy().as_ref());
+    }
+    let _ = cmd.spawn();
+}
+
+#[derive(serde::Serialize)]
+struct AvatarInfo {
+    path: String,
+    #[serde(rename = "cropX")]
+    crop_x: Option<f64>,
+    #[serde(rename = "cropY")]
+    crop_y: Option<f64>,
+    scale: Option<f64>,
+    #[serde(rename = "imgW")]
+    img_w: Option<f64>,
+    #[serde(rename = "imgH")]
+    img_h: Option<f64>,
+    #[serde(rename = "cropSize")]
+    crop_size: Option<f64>,
+}
+
+#[tauri::command]
+fn get_user_avatar() -> Option<AvatarInfo> {
+    let dir = dirs::data_dir()?.join("win-start");
+    for (i, name) in ["user-avatar.png", "user-avatar.gif"].iter().enumerate() {
+        let p = dir.join(name);
+        if p.exists() {
+            let crop_path = dir.join("avatar-crop.json");
+            let (mut cx, mut cy, mut sc, mut iw, mut ih, mut cs) = (None, None, None, None, None, None);
+            if let Ok(txt) = std::fs::read_to_string(&crop_path) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
+                    cx = v.get("x").and_then(|x| x.as_f64());
+                    cy = v.get("y").and_then(|x| x.as_f64());
+                    sc = v.get("scale").and_then(|x| x.as_f64());
+                    iw = v.get("imgW").and_then(|x| x.as_f64());
+                    ih = v.get("imgH").and_then(|x| x.as_f64());
+                    cs = v.get("cropSize").and_then(|x| x.as_f64());
+                }
+            }
+            if i == 0 { cx = None; cy = None; sc = None; iw = None; ih = None; cs = None; }
+            return Some(AvatarInfo {
+                path: p.to_string_lossy().to_string(),
+                crop_x: cx, crop_y: cy, scale: sc, img_w: iw, img_h: ih, crop_size: cs,
+            });
+        }
+    }
+    None
+}
+
+#[tauri::command]
+async fn select_user_avatar(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let file = app.dialog().file().add_filter("图片", &["png", "jpg", "jpeg", "gif", "bmp"]).blocking_pick_file();
+    let path = file.and_then(|f| f.into_path().ok()).map(|p| p.to_string_lossy().to_string());
+    if let Some(p) = path {
+        use tauri::WebviewUrl;
+        use tauri::WebviewWindowBuilder;
+        // 存到主进程状态，渲染窗通过 get_crop_image 取
+        *app.state::<CropImagePath>().0.lock().unwrap() = p.clone();
+        let win = WebviewWindowBuilder::new(&app, "avatar-crop", WebviewUrl::External("http://localhost:5173/#/avatar-crop".parse().unwrap()))
+            .title("裁剪用户头像")
+            .inner_size(380.0, 460.0)
+            .resizable(false)
+            .decorations(true)
+            .skip_taskbar(true)
+            .build()
+            .map_err(|e| e.to_string())?;
+        let _ = win;
+    }
+    Ok(None) // 裁剪完成后由裁剪窗自己调 set_user_avatar
+}
+
+#[tauri::command]
+fn set_user_avatar(path: String) -> Result<Option<String>, String> {
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let ext = std::path::Path::new(&path).extension().and_then(|s| s.to_str()).unwrap_or("png");
+    let dest = dir.join(format!("user-avatar.{}", ext));
+    std::fs::copy(&path, &dest).map_err(|e| e.to_string())?;
+    Ok(Some(dest.to_string_lossy().to_string()))
+}
+
+use std::sync::Mutex;
+
+struct CropImagePath(Mutex<String>);
+
+#[tauri::command]
+fn get_crop_image(state: tauri::State<CropImagePath>) -> String {
+    state.0.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn save_gif_avatar(app: tauri::AppHandle, data_url: String, crop: Option<serde_json::Value>) -> Result<(), String> {
+    use base64::Engine;
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(dir.join("user-avatar.png"));
+    let dest = dir.join("user-avatar.gif");
+    let b = data_url.strip_prefix("data:image/gif;base64,").unwrap_or(&data_url);
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b).map_err(|e| e.to_string())?;
+    std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    // 保存裁剪变换
+    if let Some(c) = crop {
+        let _ = std::fs::write(dir.join("avatar-crop.json"), c.to_string());
+    }
+    let _ = app.emit("avatar:updated", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn read_file_base64(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let ext = std::path::Path::new(&path).extension().and_then(|s| s.to_str()).unwrap_or("png");
+    let mime = match ext {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        _ => "image/png",
+    };
+    Ok(format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(bytes)))
+}
+
+#[tauri::command]
+fn save_cropped_avatar(app: tauri::AppHandle, base64: String) -> Result<(), String> {
+    use base64::Engine;
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // 清掉旧的 gif/png
+    let _ = std::fs::remove_file(dir.join("user-avatar.gif"));
+    let dest = dir.join("user-avatar.png");
+    let b = base64.strip_prefix("data:image/png;base64,").unwrap_or(&base64);
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b).map_err(|e| e.to_string())?;
+    std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    let _ = app.emit("avatar:updated", ());
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn run() {
     tauri::Builder::default()
@@ -37,11 +196,26 @@ fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![scan_apps, show_start_menu, hide_start_menu])
+        .invoke_handler(tauri::generate_handler![
+            scan_apps, show_start_menu, hide_start_menu, open_toolbar_item,
+            get_user_avatar, select_user_avatar, set_user_avatar, save_cropped_avatar,
+            read_file_base64, get_crop_image, save_gif_avatar
+        ])
         .setup(|app| {
+            app.manage(CropImagePath(Mutex::new(String::new())));
             let win = app.get_webview_window("main").unwrap();
 
             let _ = apply_acrylic(&win, Some((32, 32, 32, 40)));
+
+            // 启动时把窗口放到屏幕左下角
+            if let Ok(Some(monitor)) = win.current_monitor() {
+                if let Ok(size) = win.outer_size() {
+                    let work = monitor.work_area();
+                    let x = work.position.x;
+                    let y = work.position.y + work.size.height as i32 - size.height as i32;
+                    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+                }
+            }
 
             let win_clone = win.clone();
             win.on_window_event(move |event| {
@@ -93,23 +267,27 @@ fn run() {
                 })
                 .build(app)?;
 
-            // Alt+W
+            // Alt+W（注册失败不阻塞启动）
             let win_clone = win.clone();
-            app.handle().plugin(
-                tauri_plugin_global_shortcut::Builder::new()
-                    .with_shortcut("Alt+W")?
-                    .with_handler(move |_app, _shortcut, event| {
-                        if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                            if win_clone.is_visible().unwrap_or(false) {
-                                let _ = win_clone.hide();
-                            } else {
-                                let _ = win_clone.show();
-                                let _ = win_clone.set_focus();
+            let builder = tauri_plugin_global_shortcut::Builder::new().with_shortcut("Alt+W");
+            match builder {
+                Ok(b) => {
+                    let plugin = b
+                        .with_handler(move |_app, _shortcut, event| {
+                            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                                if win_clone.is_visible().unwrap_or(false) {
+                                    let _ = win_clone.hide();
+                                } else {
+                                    let _ = win_clone.show();
+                                    let _ = win_clone.set_focus();
+                                }
                             }
-                        }
-                    })
-                    .build(),
-            )?;
+                        })
+                        .build();
+                    let _ = app.handle().plugin(plugin);
+                }
+                Err(e) => eprintln!("[Warn] Alt+W 注册失败: {}", e),
+            }
 
             Ok(())
         })

@@ -53,7 +53,12 @@ fn scan_lnk_dir(dir: &Path, out: &mut Vec<AppEntry>) {
 
 fn scan_uwp() -> Vec<AppEntry> {
     let output = Command::new("powershell")
-        .args(["-NoProfile", "-Command", "Get-StartApps | ConvertTo-Json"])
+        .args([
+            "-NoProfile",
+            "-Command",
+            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-StartApps | ConvertTo-Json"
+        ])
+        .stdout(std::process::Stdio::piped())
         .output();
     let Ok(output) = output else { return vec![] };
     let stdout = String::from_utf8_lossy(&output.stdout);

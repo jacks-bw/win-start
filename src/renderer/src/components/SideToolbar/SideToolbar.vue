@@ -45,7 +45,9 @@
 
       <!-- 用户头像：点击直接换头像（最底部） -->
       <div class="avatar-circle" @click.stop="selectAvatar">
-        <img v-if="avatarPath" :src="avatarUrl" class="avatar-img" />
+        <div v-if="avatarInfo.url" class="avatar-clip">
+          <img :src="avatarInfo.url" class="avatar-img" :class="{ 'no-crop': !hasCrop }" :style="avatarImgStyle" />
+        </div>
         <User v-else :size="16" />
         <span class="toolbar-tooltip">用户头像</span>
       </div>
@@ -154,11 +156,20 @@ const removeMenu = ref({ visible: false, y: 0, key: '' })
 const powerMenuVisible = ref(false)
 
 // 头像
-const avatarPath = ref<string | null>(null)
-const avatarVersion = ref(0)
-const avatarUrl = computed(() => {
-  if (!avatarPath.value) return ''
-  return `file:///${avatarPath.value.replace(/\\/g, '/')}?v=${avatarVersion.value}`
+interface AvatarData { url: string; cropX?: number; cropY?: number; scale?: number; imgW?: number; imgH?: number; cropSize?: number }
+const avatarInfo = ref<AvatarData>({ url: '' })
+const hasCrop = computed(() => !!(avatarInfo.value.cropSize && avatarInfo.value.scale))
+const avatarImgStyle = computed(() => {
+  const a = avatarInfo.value
+  if (!a.cropSize || !a.scale || !a.imgW || !a.imgH) return {}
+  // 头像容器 32x32，裁剪框 CROP_SIZE=256，缩放比
+  const container = 32
+  const k = container / a.cropSize
+  return {
+    width: `${a.imgW * a.scale * k}px`,
+    height: `${a.imgH * a.scale * k}px`,
+    transform: `translate(${a.cropX! * k}px, ${a.cropY! * k}px)`
+  }
 })
 
 // 当前配置对应的按钮列表
@@ -273,8 +284,7 @@ async function selectAvatar() {
 async function reloadAvatar() {
   const saved = await window.electronAPI.getUserAvatar?.()
   if (saved) {
-    avatarPath.value = saved
-    avatarVersion.value++
+    avatarInfo.value = saved as AvatarData
   }
 }
 
@@ -375,7 +385,18 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #1a86e0, #0067b8);
 }
 
+.avatar-clip {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  position: relative;
+}
 .avatar-img {
+  display: block;
+  max-width: none;
+}
+.avatar-img.no-crop {
   width: 100%;
   height: 100%;
   object-fit: cover;

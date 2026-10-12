@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.winstart.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run dev:vite",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
@@ -25,14 +25,10 @@
         "alwaysOnTop": false,
         "visible": false,
         "x": 0,
-        "y": 0
+        "y": 0,
+        "devtools": true
       }
-    ],
-    "trayIcon": {
-      "id": "main-tray",
-      "iconPath": "../resources/icons/icon.ico",
-      "tooltip": "win-start"
-    }
+    ]
   },
   "bundle": {
     "active": true,

@@ -25,6 +25,11 @@ export default defineConfig({
   },
   renderer: {
     root: '.',
+    server: {
+      watch: {
+        ignored: ['**/src-tauri/target/**', '**/out/**', '**/dist/**', '**/node_modules/**']
+      }
+    },
     build: {
       rollupOptions: {
         input: {
