@@ -2,6 +2,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod icon_extract;
 mod scanner;
 
 use tauri::{

@@ -1,6 +1,6 @@
 // 扫描开始菜单程序：.lnk 快捷方式 + UWP（Get-StartApps）
-// 对应 Electron 的 scanner.ts / lnk-scan.ts / uwp-apps.ts
 
+use crate::icon_extract::extract_icon_png;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,8 +12,8 @@ pub struct AppEntry {
     pub name: String,
     pub path: String,
     #[serde(rename = "type")]
-    pub kind: String, // "win32" | "uwp"
-    pub icon: String, // 暂为空，后续提取
+    pub kind: String,
+    pub icon: String,
 }
 
 fn user_start_menu() -> Option<PathBuf> {
@@ -37,12 +37,13 @@ fn scan_lnk_dir(dir: &Path, out: &mut Vec<AppEntry>) {
                 .unwrap_or("")
                 .to_string();
             let id = format!("lnk:{}", path.to_string_lossy());
+            let icon = extract_icon_png(&path.to_string_lossy()).unwrap_or_default();
             out.push(AppEntry {
                 id,
                 name,
                 path: path.to_string_lossy().to_string(),
                 kind: "win32".into(),
-                icon: String::new(),
+                icon,
             });
         } else if path.is_dir() {
             scan_lnk_dir(&path, out);
@@ -56,8 +57,9 @@ fn scan_uwp() -> Vec<AppEntry> {
         .output();
     let Ok(output) = output else { return vec![] };
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
-    let Ok(json) = parsed else { return vec![] };
+    let Ok(json): Result<serde_json::Value, _> = serde_json::from_str(&stdout) else {
+        return vec![];
+    };
     let arr = match json {
         serde_json::Value::Array(a) => a,
         single => vec![single],
@@ -86,7 +88,6 @@ pub fn scan_all() -> Vec<AppEntry> {
         scan_lnk_dir(&dir, &mut apps);
     }
     apps.extend(scan_uwp());
-    // 去重
     apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     apps.dedup_by(|a, b| a.id == b.id);
     apps
