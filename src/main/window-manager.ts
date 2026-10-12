@@ -1,4 +1,4 @@
-﻿import { BrowserWindow, screen, app } from 'electron'
+import { BrowserWindow, screen, app } from 'electron'
 import { join } from 'path'
 import type Store from 'electron-store'
 import { setAcrylicEffect } from './acrylic'
@@ -59,7 +59,7 @@ export class WindowManager {
       movable: false,
       minimizable: false,
       maximizable: false,
-      skipTaskbar: false,
+      skipTaskbar: true,
       alwaysOnTop: false,
       fullscreenable: false,
       backgroundColor: '#00000000',
@@ -214,6 +214,7 @@ export class WindowManager {
       resizable: false,
       frame: true,
       title: '快捷键设置',
+      skipTaskbar: true,
       backgroundColor: '#1e1e1e',
       icon: getIconPath(),
       webPreferences: {
@@ -255,6 +256,7 @@ export class WindowManager {
       resizable: false,
       frame: true,
       title: '裁剪用户头像',
+      skipTaskbar: true,
       backgroundColor: '#1e1e1e',
       icon: getIconPath(),
       webPreferences: {
@@ -319,6 +321,7 @@ export class WindowManager {
       resizable: false,
       frame: false,
       transparent: true,
+      skipTaskbar: true,
       backgroundColor: '#00000000',
       show: false,
       center: true,
@@ -390,6 +393,7 @@ export class WindowManager {
       resizable: false,
       frame: false,
       transparent: true,
+      skipTaskbar: true,
       backgroundColor: '#00000000',
       show: false,
       center: true,
