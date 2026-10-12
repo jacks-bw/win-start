@@ -11,6 +11,37 @@ use tauri::{
     Emitter, Manager, WindowEvent,
 };
 use window_vibrancy::apply_acrylic;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static MENU_READY: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+fn menu_ready() {
+    MENU_READY.store(true, Ordering::SeqCst);
+}
+
+// 显示开始菜单：首次需等渲染就绪，避免空白
+fn do_show(win: &tauri::WebviewWindow) {
+    if MENU_READY.load(Ordering::SeqCst) {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return;
+    }
+    let w = win.clone();
+    std::thread::spawn(move || {
+        for _ in 0..200 {
+            if MENU_READY.load(Ordering::SeqCst) {
+                let _ = w.show();
+                let _ = w.set_focus();
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+        // 兜底：超时也显示
+        let _ = w.show();
+        let _ = w.set_focus();
+    });
+}
 
 #[tauri::command]
 fn scan_apps() -> Vec<scanner::AppEntry> {
@@ -19,8 +50,7 @@ fn scan_apps() -> Vec<scanner::AppEntry> {
 
 #[tauri::command]
 fn show_start_menu(window: tauri::WebviewWindow) {
-    let _ = window.show();
-    let _ = window.set_focus();
+    do_show(&window);
 }
 
 #[tauri::command]
@@ -197,7 +227,7 @@ fn run() {
             None,
         ))
         .invoke_handler(tauri::generate_handler![
-            scan_apps, show_start_menu, hide_start_menu, open_toolbar_item,
+            scan_apps, show_start_menu, hide_start_menu, menu_ready, open_toolbar_item,
             get_user_avatar, select_user_avatar, set_user_avatar, save_cropped_avatar,
             read_file_base64, get_crop_image, save_gif_avatar
         ])
@@ -249,8 +279,7 @@ fn run() {
                             if win.is_visible().unwrap_or(false) {
                                 let _ = win.hide();
                             } else {
-                                let _ = win.show();
-                                let _ = win.set_focus();
+                                do_show(&win);
                             }
                         }
                     }
@@ -278,8 +307,7 @@ fn run() {
                                 if win_clone.is_visible().unwrap_or(false) {
                                     let _ = win_clone.hide();
                                 } else {
-                                    let _ = win_clone.show();
-                                    let _ = win_clone.set_focus();
+                                    do_show(&win_clone);
                                 }
                             }
                         })

@@ -62,6 +62,7 @@ const real = {
   },
   scanApps: () => invoke('scan_apps'),
   showStartMenu: () => invoke('show_start_menu'),
+  menuReady: () => invoke('menu_ready'),
   hideStartMenu: () => invoke('hide_start_menu'),
   onAppsChanged: (cb: () => void) => { listen('apps-changed', () => cb()) },
   onMenuOpen: (cb: () => void) => { menuOpenCbs.push(cb) },
