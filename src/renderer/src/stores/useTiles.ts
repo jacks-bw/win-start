@@ -160,6 +160,12 @@ export const useTilesStore = defineStore('tiles', () => {
       const idx = group.tiles.findIndex((t) => t.id === tileId)
       if (idx >= 0) {
         group.tiles.splice(idx, 1)
+        // 组空了就清掉背景，避免下次新增磁贴时自动套上旧图
+        if (group.tiles.length === 0) {
+          group.background = undefined
+          group.backgroundCrop = undefined
+          group.backgroundTiles = undefined
+        }
       }
     })
     saveLayout()
@@ -513,6 +519,25 @@ export const useTilesStore = defineStore('tiles', () => {
       group.backgroundCrop = crop
       // 记录此刻组内磁贴快照：只有这些磁贴会应用组背景
       group.backgroundTiles = background ? group.tiles.map((t) => t.id) : undefined
+      // 记录设置背景时组的实际像素尺寸，后续增删磁贴不再拉伸图片
+      if (background) {
+        let maxRow = 0, maxCol = 0
+        const spanMap: Record<string, { rows: number; cols: number }> = {
+          small: { rows: 1, cols: 1 },
+          medium: { rows: 2, cols: 2 },
+          wide: { rows: 2, cols: 4 }
+        }
+        for (const t of group.tiles) {
+          const sp = spanMap[t.size] || { rows: 2, cols: 2 }
+          maxRow = Math.max(maxRow, t.row + sp.rows)
+          maxCol = Math.max(maxCol, t.col + sp.cols)
+        }
+        ;(group as Record<string, unknown>).backgroundGroupW = maxCol * 76
+        ;(group as Record<string, unknown>).backgroundGroupH = maxRow * 76
+      } else {
+        delete (group as Record<string, unknown>).backgroundGroupW
+        delete (group as Record<string, unknown>).backgroundGroupH
+      }
       // 重设组背景时，清掉所有磁贴的"手动清空"标记，统一继承新组背景
       for (const t of group.tiles) delete (t as Record<string, unknown>).backgroundCleared
       // 清除该组所有磁贴自己的背景，让组背景生效

@@ -284,8 +284,11 @@ const backgroundStyle = computed(() => {
     }
 
     const cellSize = 76 // 每个格子的大小（70内容+6gap）
-    const groupWidth = maxCol * cellSize
-    const groupHeight = maxRow * cellSize
+    // 优先用设置背景时记录的组尺寸，避免后续增删磁贴拉伸图片
+    const storedW = (props.group as Record<string, unknown>).backgroundGroupW as number | undefined
+    const storedH = (props.group as Record<string, unknown>).backgroundGroupH as number | undefined
+    const groupWidth = storedW || maxCol * cellSize
+    const groupHeight = storedH || maxRow * cellSize
     const offsetX = -(props.tile.col * cellSize)
     const offsetY = -(props.tile.row * cellSize)
 

@@ -13,7 +13,7 @@
     <div class="preview-area">
       <div class="preview-viewport" :style="previewViewportStyle">
         <div class="preview-stage" :style="previewStageStyle">
-          <div class="preview-grid">
+          <div class="preview-grid" :style="previewGridStyle">
             <div
               v-for="tile in sortedTiles"
               :key="tile.id"
@@ -150,24 +150,43 @@ function cellStyle(tile: any) {
     gridRow: `${tile.row + 1} / span ${span.rows}`,
     gridColumn: `${tile.col + 1} / span ${span.cols}`
   }
-  if (bgImage.value) {
-    // 组总尺寸（和 previewStageStyle 一致）
-    let maxRow = 0, maxCol = 0
-    for (const t of group.value?.tiles || []) {
-      const sp = sizeSpan[t.size] || { rows: 2, cols: 2 }
-      maxRow = Math.max(maxRow, t.row + sp.rows)
-      maxCol = Math.max(maxCol, t.col + sp.cols)
-    }
-    const cell = 76
-    const natW = maxCol * cell
-    const natH = maxRow * cell
-    style.backgroundImage = `url(${bgImage.value})`
+  if (!bgImage.value) return style
+  // 只给设置背景时快照里的磁贴显示组背景；新增磁贴不继承
+  const snap = group.value?.backgroundTiles
+  if (snap && !snap.includes(tile.id)) return style
+  const cell = 76
+  const g: Record<string, unknown> = group.value || {}
+  const natW = (g.backgroundGroupW as number) || 0
+  const natH = (g.backgroundGroupH as number) || 0
+  const isGif = (group.value?.background || '').toLowerCase().endsWith('.gif')
+  style.backgroundImage = `url(${bgImage.value})`
+  style.backgroundRepeat = 'no-repeat'
+  if (isGif && bgNaturalSize.value) {
+    // GIF 整组 cover 等比缩放后切片
+    const iw = bgNaturalSize.value.w, ih = bgNaturalSize.value.h
+    const s = Math.max(natW / iw, natH / ih)
+    const dw = iw * s, dh = ih * s
+    const cx = (natW - dw) / 2, cy = (natH - dh) / 2
+    style.backgroundSize = `${dw}px ${dh}px`
+    style.backgroundPosition = `${cx - tile.col * cell}px ${cy - tile.row * cell}px`
+  } else {
     style.backgroundSize = `${natW}px ${natH}px`
     style.backgroundPosition = `-${tile.col * cell}px -${tile.row * cell}px`
-    style.backgroundRepeat = 'no-repeat'
   }
   return style
 }
+
+
+// 宫格列数按组实际列数，避免超过 6 列时换行错位
+const previewGridStyle = computed(() => {
+  let maxCol = 0
+  for (const t of group.value?.tiles || []) {
+    const sp = sizeSpan[t.size] || { rows: 2, cols: 2 }
+    maxCol = Math.max(maxCol, t.col + sp.cols)
+  }
+  if (maxCol === 0) maxCol = 2
+  return { gridTemplateColumns: `repeat(${maxCol}, 70px)` }
+})
 
 // ---- 背景图片 ----
 const cropVisible = ref(false)
@@ -176,6 +195,15 @@ const cropRatio = ref(1)
 
 // 预览用的组背景图 base64
 const bgImage = ref('')
+// GIF 原始尺寸（预览 cover 切片用）
+const bgNaturalSize = ref<{ w: number; h: number } | null>(null)
+watch(bgImage, (url) => {
+  bgNaturalSize.value = null
+  if (!url) return
+  const img = new Image()
+  img.onload = () => { bgNaturalSize.value = { w: img.naturalWidth, h: img.naturalHeight } }
+  img.src = url
+})
 watch(
   () => group.value?.background,
   async (path) => {
