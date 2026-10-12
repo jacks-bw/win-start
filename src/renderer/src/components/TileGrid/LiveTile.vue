@@ -289,8 +289,12 @@ const backgroundStyle = computed(() => {
     const storedH = (props.group as Record<string, unknown>).backgroundGroupH as number | undefined
     const groupWidth = storedW || maxCol * cellSize
     const groupHeight = storedH || maxRow * cellSize
-    const offsetX = -(props.tile.col * cellSize)
-    const offsetY = -(props.tile.row * cellSize)
+    // 用设置时记录的磁贴位置，拖动后切片固定不变
+    const off = (props.tile as Record<string, unknown>).bgOffset as { row: number; col: number } | undefined
+    const fixedRow = off?.row ?? props.tile.row
+    const fixedCol = off?.col ?? props.tile.col
+    const offsetX = -(fixedCol * cellSize)
+    const offsetY = -(fixedRow * cellSize)
 
     // GIF 整组 cover：先按组尺寸等比缩放整图，再按磁贴位置切片
     const isGif = (currentBgPath.value || '').toLowerCase().endsWith('.gif')

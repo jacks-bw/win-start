@@ -519,6 +519,10 @@ export const useTilesStore = defineStore('tiles', () => {
       group.backgroundCrop = crop
       // 记录此刻组内磁贴快照：只有这些磁贴会应用组背景
       group.backgroundTiles = background ? group.tiles.map((t) => t.id) : undefined
+      // 记录每个磁贴当时的位置，之后拖动磁贴不再改变它看到的切片
+      for (const t of group.tiles) {
+        ;(t as Record<string, unknown>).bgOffset = { row: t.row, col: t.col }
+      }
       // 记录设置背景时组的实际像素尺寸，后续增删磁贴不再拉伸图片
       if (background) {
         let maxRow = 0, maxCol = 0

@@ -161,6 +161,9 @@ function cellStyle(tile: any) {
   const isGif = (group.value?.background || '').toLowerCase().endsWith('.gif')
   style.backgroundImage = `url(${bgImage.value})`
   style.backgroundRepeat = 'no-repeat'
+  const off = (tile as Record<string, unknown>).bgOffset as { row: number; col: number } | undefined
+  const fixedRow = off?.row ?? tile.row
+  const fixedCol = off?.col ?? tile.col
   if (isGif && bgNaturalSize.value) {
     // GIF 整组 cover 等比缩放后切片
     const iw = bgNaturalSize.value.w, ih = bgNaturalSize.value.h
@@ -168,10 +171,10 @@ function cellStyle(tile: any) {
     const dw = iw * s, dh = ih * s
     const cx = (natW - dw) / 2, cy = (natH - dh) / 2
     style.backgroundSize = `${dw}px ${dh}px`
-    style.backgroundPosition = `${cx - tile.col * cell}px ${cy - tile.row * cell}px`
+    style.backgroundPosition = `${cx - fixedCol * cell}px ${cy - fixedRow * cell}px`
   } else {
     style.backgroundSize = `${natW}px ${natH}px`
-    style.backgroundPosition = `-${tile.col * cell}px -${tile.row * cell}px`
+    style.backgroundPosition = `-${fixedCol * cell}px -${fixedRow * cell}px`
   }
   return style
 }
