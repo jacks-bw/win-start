@@ -499,16 +499,29 @@ watch(tileName, () => {
   checkNameOverflow()
 })
 
+let flipTimeout: ReturnType<typeof setTimeout> | null = null
 function startFlip() {
-  if (flipInterval) return
-  flipInterval = setInterval(() => {
-    isFlipped.value = !isFlipped.value
-  }, 5000)
+  if (flipInterval || flipTimeout) return
+  // 按磁贴 id 哈希把初始延迟均匀分布在 0~5s，避免多个磁贴同时翻转
+  let h = 0
+  const id = props.tile.id || ''
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  const delay = (h % 5000)
+  flipTimeout = setTimeout(() => {
+    flipTimeout = null
+    flipInterval = setInterval(() => {
+      isFlipped.value = !isFlipped.value
+    }, 5000)
+  }, delay)
 }
 function stopFlip() {
   if (flipInterval) {
     clearInterval(flipInterval)
     flipInterval = null
+  }
+  if (flipTimeout) {
+    clearTimeout(flipTimeout)
+    flipTimeout = null
   }
   isFlipped.value = false
 }
@@ -526,6 +539,9 @@ watch(
 onUnmounted(() => {
   if (flipInterval) {
     clearInterval(flipInterval)
+  }
+  if (flipTimeout) {
+    clearTimeout(flipTimeout)
   }
   if (resizeObserver) {
     resizeObserver.disconnect()
