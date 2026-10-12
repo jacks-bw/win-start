@@ -17,6 +17,17 @@ fn scan_apps() -> Vec<scanner::AppEntry> {
     scanner::scan_all()
 }
 
+#[tauri::command]
+fn show_start_menu(window: tauri::WebviewWindow) {
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+#[tauri::command]
+fn hide_start_menu(window: tauri::WebviewWindow) {
+    let _ = window.hide();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn run() {
     tauri::Builder::default()
@@ -26,7 +37,7 @@ fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![scan_apps])
+        .invoke_handler(tauri::generate_handler![scan_apps, show_start_menu, hide_start_menu])
         .setup(|app| {
             let win = app.get_webview_window("main").unwrap();
 
