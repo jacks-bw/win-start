@@ -261,12 +261,16 @@ function handleAppMouseUp(e: MouseEvent) {
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
       if (el?.closest('.tile-grid')) {
         const tilesStore = useTilesStore()
-        let gid = tilesStore.groups[0]?.id
-        if (!gid) {
-          tilesStore.addGroup('组1')
-          gid = tilesStore.groups[0].id
+        // 已固定的磁贴不允许重复固定
+        const exists = tilesStore.allTiles.some((t) => t.appId === st.appId)
+        if (!exists) {
+          let gid = tilesStore.groups[0]?.id
+          if (!gid) {
+            tilesStore.addGroup('组1')
+            gid = tilesStore.groups[0].id
+          }
+          tilesStore.addTile(gid, st.appId, 'medium')
         }
-        tilesStore.addTile(gid, st.appId, 'medium')
       }
     }
   }

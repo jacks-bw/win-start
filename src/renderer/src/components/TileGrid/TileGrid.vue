@@ -31,6 +31,18 @@
       class="drag-preview"
       :style="dragPreview.style"
     ></div>
+
+    <!-- 安卓风格：拖起后跟随光标的浮动磁贴 -->
+    <div
+      v-if="floatGhost.visible"
+      class="tile-float-ghost"
+      :class="'size-' + (floatGhost.size || 'medium')"
+      :style="{ left: floatGhost.x + 'px', top: floatGhost.y + 'px' }"
+    >
+      <span v-if="floatGhost.icon" class="float-icon" :style="{ backgroundImage: `url(${floatGhost.icon})` }"></span>
+      <span v-else class="float-icon float-icon-ph">{{ floatGhost.name.charAt(0) }}</span>
+      <span class="float-name">{{ floatGhost.name }}</span>
+    </div>
   </div>
 </template>
 
@@ -57,6 +69,27 @@ const dragPreview = reactive({
   col: 0,
   row: 0,
   groupId: ''
+})
+
+// 安卓风格浮动磁贴
+const floatGhost = reactive({ visible: false, x: 0, y: 0, size: 'medium', name: '', icon: '' })
+function onFloatMove(e: MouseEvent) {
+  floatGhost.x = e.clientX
+  floatGhost.y = e.clientY
+}
+watch(() => tilesStore.draggingTileId, (id) => {
+  if (id) {
+    const tile = tilesStore.allTiles.find((t) => t.id === id)
+    const app = tile ? appsStore.apps.find((a) => a.id === tile.appId) : null
+    floatGhost.visible = true
+    floatGhost.size = tilesStore.draggingTileSize || 'medium'
+    floatGhost.name = app?.name || ''
+    floatGhost.icon = app?.icon || ''
+    window.addEventListener('mousemove', onFloatMove)
+  } else {
+    floatGhost.visible = false
+    window.removeEventListener('mousemove', onFloatMove)
+  }
 })
 
 function handleGridDragOver(e: DragEvent) {
@@ -288,6 +321,39 @@ onMounted(() => {
   background-size: 76px 76px;
   border-radius: 2px;
 }
+
+/* 安卓风格浮动磁贴 */
+.tile-float-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10002;
+  transform: translate(-50%, -50%) scale(1.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(35, 55, 80, 0.92);
+  color: #fff;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.12);
+  transition: scale 0.12s ease;
+  overflow: hidden;
+}
+.tile-float-ghost.size-small { width: 70px; height: 70px; }
+.tile-float-ghost.size-medium { width: 146px; height: 146px; }
+.tile-float-ghost.size-wide { width: 298px; height: 146px; }
+.float-icon {
+  width: 48px; height: 48px;
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+}
+.float-icon-ph {
+  background: var(--accent-color, #0078d7);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 600;
+}
+.float-name { margin-top: 8px; font-size: 12px; text-align: center; padding: 0 6px; }
+.tile-float-ghost.size-small .float-name { display: none; }
 
 /* 磁贴尺寸对应的网格跨度（以小磁贴为单位） */
 .tile-grid-inner > .size-small {

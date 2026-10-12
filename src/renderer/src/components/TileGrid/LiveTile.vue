@@ -190,14 +190,24 @@ function handleMouseDown(e: MouseEvent) {
       isDragging.value = true
       tilesStore.setDraggingTile(props.tile.id, props.tile.size)
     }
-    // 找目标网格位置
+    // 找目标网格位置：以拖拽磁贴自身尺寸为单位，按光标所在区块中心吸附
     const cellSize = 76
+    const spanMap: Record<string, { rows: number; cols: number }> = {
+      small: { rows: 1, cols: 1 },
+      medium: { rows: 2, cols: 2 },
+      wide: { rows: 2, cols: 4 }
+    }
+    const span = spanMap[props.tile.size] || { rows: 1, cols: 1 }
+    const MAX_COLS = 6
     const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null
     const gridInner = el?.closest('.tile-grid-inner') as HTMLElement | null
     if (gridInner) {
       const rect = gridInner.getBoundingClientRect()
-      const col = Math.floor((ev.clientX - rect.left) / cellSize)
-      const row = Math.floor((ev.clientY - rect.top) / cellSize)
+      // 光标视为磁贴中心，反推左上角，再四舍五入吸附
+      let col = Math.round((ev.clientX - rect.left) / cellSize - span.cols / 2)
+      let row = Math.round((ev.clientY - rect.top) / cellSize - span.rows / 2)
+      col = Math.max(0, Math.min(MAX_COLS - span.cols, col))
+      row = Math.max(0, row)
       const groupSection = gridInner.closest('.tile-group-section') as HTMLElement | null
       const groupId = groupSection?.getAttribute('data-group-id') || ''
       if (groupId) {
