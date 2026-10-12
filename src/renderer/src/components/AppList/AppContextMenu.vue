@@ -91,7 +91,10 @@ function handlePinToStart() {
     })
     tilesStore.saveLayout()
   } else {
-    // 添加到第一个分组
+    // 没有分组时自动创建一个
+    if (tilesStore.groups.length === 0) {
+      tilesStore.addGroup('组1')
+    }
     const firstGroup = tilesStore.groups[0]
     if (firstGroup) {
       tilesStore.addTile(firstGroup.id, props.app.id, 'medium')

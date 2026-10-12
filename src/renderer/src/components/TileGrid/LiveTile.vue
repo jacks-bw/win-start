@@ -13,9 +13,7 @@
       ...($attrs.style || {}),
       transform: `perspective(600px) rotateX(${tiltY}deg) rotateY(${tiltX}deg)`
     }"
-    draggable="true"
-    @dragstart="handleDragStart"
-    @dragend="handleDragEnd"
+    @mousedown="handleMouseDown"
     @click="$emit('click')"
     @contextmenu="$emit('contextmenu', $event)"
     @mousemove="handleTiltMove"
@@ -178,18 +176,45 @@ const isDragTarget = computed(
 )
 
 // 拖拽事件
-function handleDragStart(e: DragEvent) {
-  isDragging.value = true
-  e.dataTransfer?.setData('text/plain', props.tile.id)
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
+function handleMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  const startX = e.clientX
+  const startY = e.clientY
+  let started = false
+  function onMove(ev: MouseEvent) {
+    if (!started) {
+      const dx = ev.clientX - startX
+      const dy = ev.clientY - startY
+      if (Math.sqrt(dx*dx + dy*dy) < 5) return
+      started = true
+      isDragging.value = true
+      tilesStore.setDraggingTile(props.tile.id, props.tile.size)
+    }
+    // 找目标网格位置
+    const cellSize = 76
+    const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null
+    const gridInner = el?.closest('.tile-grid-inner') as HTMLElement | null
+    if (gridInner) {
+      const rect = gridInner.getBoundingClientRect()
+      const col = Math.floor((ev.clientX - rect.left) / cellSize)
+      const row = Math.floor((ev.clientY - rect.top) / cellSize)
+      const groupSection = gridInner.closest('.tile-group-section') as HTMLElement | null
+      const groupId = groupSection?.getAttribute('data-group-id') || ''
+      if (groupId) {
+        tilesStore.moveTileToGrid(props.tile.id, groupId, row, col)
+      }
+    }
   }
-  tilesStore.setDraggingTile(props.tile.id, props.tile.size)
-}
-
-function handleDragEnd() {
-  isDragging.value = false
-  tilesStore.setDraggingTile(null)
+  function onUp() {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+    if (started) {
+      isDragging.value = false
+      tilesStore.setDraggingTile(null)
+    }
+  }
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
 }
 
 // 根据 appId 获取显示名称和图标
@@ -599,6 +624,7 @@ onUnmounted(() => {
 .tile-container.dragging {
   opacity: 0.4;
   transform: scale(0.95);
+  pointer-events: none;
 }
 
 /* 拖拽目标位置高亮 */

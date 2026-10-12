@@ -152,6 +152,7 @@ export const useTilesStore = defineStore('tiles', () => {
       col: pos.col
     }
     group.tiles.push(newTile)
+    fixOverlaps(group)
     saveLayout()
   }
 
@@ -171,13 +172,95 @@ export const useTilesStore = defineStore('tiles', () => {
     saveLayout()
   }
 
+  // 从某个磁贴开始，按流式布局重排它及其后面的磁贴（方案A：每个条带单行排列）
+  function reflowFrom(group: TileGroup, startIndex: number) {
+    const tiles = group.tiles
+    const startTile = tiles[startIndex]
+    if (!startTile) return
+    const MAX_COLS = 6
+
+    // 起始条带：与起始磁贴同行、且 position 在它前面的磁贴占据的宽度和高度
+    let bandTop = startTile.row
+    let bandLeft = 0
+    let bandHeight = 1
+    for (let i = 0; i < startIndex; i++) {
+      const t = tiles[i]
+      if (t.row === startTile.row) {
+        const sp = sizeSpan[t.size] || { rows: 1, cols: 1 }
+        bandLeft += sp.cols
+        bandHeight = Math.max(bandHeight, sp.rows)
+      }
+    }
+
+    for (let i = startIndex; i < tiles.length; i++) {
+      const t = tiles[i]
+      const sp = sizeSpan[t.size] || { rows: 1, cols: 1 }
+      // 当前条带放不下，换行
+      if (bandLeft + sp.cols > MAX_COLS) {
+        bandTop += bandHeight
+        bandLeft = 0
+        bandHeight = 1
+      }
+      t.row = bandTop
+      t.col = bandLeft
+      bandLeft += sp.cols
+      bandHeight = Math.max(bandHeight, sp.rows)
+    }
+  }
+
+  // 检测并修复重叠：被重叠的磁贴自动下移
+  function fixOverlaps(group: TileGroup) {
+    const MAX_COLS = 6
+    const sorted = [...group.tiles].sort((a, b) => a.position - b.position)
+    for (let i = 0; i < sorted.length; i++) {
+      const t = sorted[i]
+      const sp = sizeSpan[t.size] || { rows: 1, cols: 1 }
+      let guard = 0
+      while (guard++ < 100) {
+        let collided = false
+        for (let j = 0; j < i; j++) {
+          const o = sorted[j]
+          const osp = sizeSpan[o.size] || { rows: 1, cols: 1 }
+          const overlap =
+            t.row < o.row + osp.rows &&
+            t.row + sp.rows > o.row &&
+            t.col < o.col + osp.cols &&
+            t.col + sp.cols > o.col
+          if (overlap) {
+            // 下移到该重叠磁贴底边
+            t.row = o.row + osp.rows
+            collided = true
+            break
+          }
+        }
+        // 超出右边界也下移
+        if (t.col + sp.cols > MAX_COLS) {
+          t.col = 0
+          t.row += 1
+          collided = true
+        }
+        if (!collided) break
+      }
+    }
+  }
+
   function resizeTile(tileId: string, size: TileItem['size']) {
     groups.value.forEach((group) => {
-      const tile = group.tiles.find((t) => t.id === tileId)
-      if (tile) {
+      const idx = group.tiles.findIndex((t) => t.id === tileId)
+      if (idx >= 0) {
+        const tile = group.tiles[idx]
+        const oldSpan = sizeSpan[tile.size]?.cols || 1
+        const newSpan = sizeSpan[size]?.cols || 1
         tile.size = size
         if (size === 'small') {
           tile.liveEnabled = false
+        }
+        // 只有放大（占用变宽）才触发向后重排；缩小保持布局
+        if (newSpan > oldSpan) {
+          // 按 position 排序后找到索引
+          const sorted = [...group.tiles].sort((a, b) => a.position - b.position)
+          const sortedIdx = sorted.findIndex((t) => t.id === tileId)
+          reflowFrom(group, sortedIdx)
         }
       }
     })
@@ -345,6 +428,7 @@ export const useTilesStore = defineStore('tiles', () => {
       console.log('[moveTileToGrid] cross-group moved to', targetGroup.id)
     }
 
+    fixOverlaps(targetGroup)
     saveLayout()
   }
 

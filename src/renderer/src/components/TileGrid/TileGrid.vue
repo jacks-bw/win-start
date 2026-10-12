@@ -1,6 +1,6 @@
 <template>
   <div class="tile-grid">
-    <div v-for="group in tilesStore.groups" :key="group.id" class="tile-group-section">
+    <div v-for="group in tilesStore.groups" :key="group.id" class="tile-group-section" :data-group-id="group.id">
       <!-- 分组标题（右键打开分组菜单） -->
       <div class="group-header" @contextmenu="handleGroupContextMenu($event, group)">
         <span class="group-name">{{ group.name }}</span>
@@ -280,10 +280,11 @@ onMounted(() => {
 }
 
 /* 拖拽时显示浅网格线（对齐到单元格起点=磁贴左边缘） */
+.tile-grid-inner,
 .tile-grid-inner.dragging {
   background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 76px 76px;
   border-radius: 2px;
 }

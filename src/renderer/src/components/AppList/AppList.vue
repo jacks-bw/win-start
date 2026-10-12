@@ -140,6 +140,7 @@ import SearchBox from './SearchBox.vue'
 import AppItem from './AppItem.vue'
 import FolderItem from './FolderItem.vue'
 import { useAppsStore } from '../../stores/useApps'
+import { useTilesStore } from '../../stores/useTiles'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Pencil, Trash2, X } from 'lucide-vue-next'
 
@@ -245,7 +246,7 @@ function handleAppMouseMove(e: MouseEvent) {
   }
 }
 
-function handleAppMouseUp() {
+function handleAppMouseUp(e: MouseEvent) {
   const st = dragState.value
   window.removeEventListener('mousemove', handleAppMouseMove)
   window.removeEventListener('mouseup', handleAppMouseUp)
@@ -255,6 +256,18 @@ function handleAppMouseUp() {
       appsStore.removeAppFromFolder(st.appId)
     } else if (target) {
       appsStore.moveAppToFolder(st.appId, target)
+    } else {
+      // 检测是否拖到磁贴区域
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      if (el?.closest('.tile-grid')) {
+        const tilesStore = useTilesStore()
+        let gid = tilesStore.groups[0]?.id
+        if (!gid) {
+          tilesStore.addGroup('组1')
+          gid = tilesStore.groups[0].id
+        }
+        tilesStore.addTile(gid, st.appId, 'medium')
+      }
     }
   }
   dragState.value = null
