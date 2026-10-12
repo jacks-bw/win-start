@@ -6,6 +6,10 @@ import { createStore } from './store'
 import { LaunchButtonManager } from './launch-button-manager'
 import { startMenuWatcher } from './start-menu-watcher'
 
+// 启动参数：限制内存占用
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256')
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,WinDelaySpellcheckServiceInit')
+
 let windowManager: WindowManager | null = null
 let store: ReturnType<typeof createStore> | null = null
 let launchButtonManager: LaunchButtonManager | null = null

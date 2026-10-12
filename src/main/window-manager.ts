@@ -237,6 +237,11 @@ export class WindowManager {
     this.shortcutsWindow.on('closed', () => {
       this.shortcutsWindow = null
     })
+    this.shortcutsWindow.on('close', () => {
+      if (this.shortcutsWindow && !this.shortcutsWindow.isDestroyed()) {
+        this.shortcutsWindow.webContents.close()
+      }
+    })
   }
 
   // 创建/显示头像裁剪窗口
@@ -289,8 +294,8 @@ export class WindowManager {
 
   // 关闭头像裁剪窗口
   closeAvatarCropWindow(): void {
-    if (this.avatarCropWindow) {
-      this.avatarCropWindow.close()
+    if (this.avatarCropWindow && !this.avatarCropWindow.isDestroyed()) {
+      this.avatarCropWindow.destroy()
     }
   }
 
@@ -370,8 +375,8 @@ export class WindowManager {
 
   // 关闭磁贴样式窗（渲染进程里的关闭按钮调用）
   closeTileStyleWindow(): void {
-    if (this.tileStyleWindow) {
-      this.tileStyleWindow.close()
+    if (this.tileStyleWindow && !this.tileStyleWindow.isDestroyed()) {
+      this.tileStyleWindow.destroy()
     }
   }
 
@@ -436,8 +441,8 @@ export class WindowManager {
   }
 
   closeGroupStyleWindow(): void {
-    if (this.groupStyleWindow) {
-      this.groupStyleWindow.close()
+    if (this.groupStyleWindow && !this.groupStyleWindow.isDestroyed()) {
+      this.groupStyleWindow.destroy()
     }
   }
 }
