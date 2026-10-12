@@ -9,10 +9,22 @@
       <span class="menu-label">设置组背景</span>
     </div>
 
+    <div v-if="group?.background" class="menu-item" @click="handleRemoveBackground">
+      <span class="menu-label">移除组背景</span>
+    </div>
+
+    <div class="menu-item" @click="handleToggleLiveAll">
+      <span class="menu-label">{{ allLive ? '关闭整组动态磁贴' : '开启整组动态磁贴' }}</span>
+    </div>
+
     <div class="menu-divider"></div>
 
     <div class="menu-item" @click="handleRename">
       <span class="menu-label">重命名</span>
+    </div>
+
+    <div v-if="group?.tiles?.length" class="menu-item" @click="handleClearGroup">
+      <span class="menu-label">清空组</span>
     </div>
 
     <div class="menu-item danger" @click="handleDelete">
@@ -34,10 +46,45 @@ const emit = defineEmits<{
   close: []
 }>()
 
+import { computed } from 'vue'
 const tilesStore = useTilesStore()
+
+const group = computed(() => tilesStore.groups.find((g) => g.id === props.groupId))
+const allLive = computed(() => {
+  const tiles = group.value?.tiles || []
+  return tiles.length > 0 && tiles.every((t) => t.liveEnabled)
+})
 
 function findGroup(): TileGroup | undefined {
   return tilesStore.groups.find((g) => g.id === props.groupId)
+}
+
+function handleRemoveBackground() {
+  tilesStore.setGroupBackground(props.groupId, undefined)
+  emit('close')
+}
+
+function handleToggleLiveAll() {
+  const g = findGroup()
+  if (!g) return
+  const target = !allLive.value
+  for (const t of g.tiles) {
+    if (t.size !== 'small') t.liveEnabled = target
+  }
+  tilesStore.saveLayout()
+  emit('close')
+}
+
+function handleClearGroup() {
+  const g = findGroup()
+  if (!g) return
+  g.tiles.splice(0, g.tiles.length)
+  // 清空后清掉背景，避免下次新增磁贴套上旧图
+  g.background = undefined
+  g.backgroundCrop = undefined
+  g.backgroundTiles = undefined
+  tilesStore.saveLayout()
+  emit('close')
 }
 
 async function handleSetBackground() {
