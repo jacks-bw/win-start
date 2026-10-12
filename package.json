@@ -10,7 +10,10 @@
     "build": "electron-vite build && electron-builder",
     "build:dir": "electron-vite build && electron-builder --dir",
     "build:portable": "electron-vite build && electron-builder portable",
-    "preview": "electron-vite preview"
+    "preview": "electron-vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "electron-store": "^8.2.0",
@@ -21,6 +24,7 @@
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
+    "@tauri-apps/cli": "^2",
     "@types/node": "^20.11.0",
     "@vitejs/plugin-vue": "^5.0.0",
     "electron": "^28.2.0",

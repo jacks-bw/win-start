@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicehash/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "win-start",
+  "version": "0.1.0",
+  "identifier": "com.winstart.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "win-start",
+        "width": 740,
+        "height": 720,
+        "minWidth": 800,
+        "minHeight": 500,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "skipTaskbar": true,
+        "alwaysOnTop": false,
+        "visible": false,
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "trayIcon": {
+      "id": "main-tray",
+      "iconPath": "../resources/icons/icon.ico",
+      "tooltip": "win-start"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["../resources/icons/icon.ico"]
+  }
+}
