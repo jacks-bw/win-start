@@ -255,6 +255,16 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.group-name:hover {
+  background: var(--item-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #fff);
 }
 
 /* CSS Grid 磁贴布局 - 基于 Win10 真实网格 */

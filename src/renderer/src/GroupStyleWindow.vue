@@ -13,20 +13,12 @@
     <div class="preview-area">
       <div class="preview-viewport" :style="previewViewportStyle">
         <div class="preview-stage" :style="previewStageStyle">
-          <div
-            v-if="bgImage"
-            class="preview-bg"
-            :style="{ backgroundImage: `url(${bgImage})` }"
-          ></div>
           <div class="preview-grid">
             <div
               v-for="tile in sortedTiles"
               :key="tile.id"
               class="preview-cell"
-              :style="{
-                gridRow: `${tile.row + 1} / span ${sizeSpan[tile.size]?.rows || 1}`,
-                gridColumn: `${tile.col + 1} / span ${sizeSpan[tile.size]?.cols || 1}`
-              }"
+              :style="cellStyle(tile)"
             ></div>
           </div>
         </div>
@@ -150,6 +142,32 @@ const previewStageStyle = computed(() => {
     top: `${(PREVIEW_H - scaledH) / 2}px`
   }
 })
+
+// 每个宫格按组背景切片显示：和实际 LiveTile 渲染一致
+function cellStyle(tile: any) {
+  const span = sizeSpan[tile.size] || { rows: 2, cols: 2 }
+  const style: Record<string, string> = {
+    gridRow: `${tile.row + 1} / span ${span.rows}`,
+    gridColumn: `${tile.col + 1} / span ${span.cols}`
+  }
+  if (bgImage.value) {
+    // 组总尺寸（和 previewStageStyle 一致）
+    let maxRow = 0, maxCol = 0
+    for (const t of group.value?.tiles || []) {
+      const sp = sizeSpan[t.size] || { rows: 2, cols: 2 }
+      maxRow = Math.max(maxRow, t.row + sp.rows)
+      maxCol = Math.max(maxCol, t.col + sp.cols)
+    }
+    const cell = 76
+    const natW = maxCol * cell
+    const natH = maxRow * cell
+    style.backgroundImage = `url(${bgImage.value})`
+    style.backgroundSize = `${natW}px ${natH}px`
+    style.backgroundPosition = `-${tile.col * cell}px -${tile.row * cell}px`
+    style.backgroundRepeat = 'no-repeat'
+  }
+  return style
+}
 
 // ---- 背景图片 ----
 const cropVisible = ref(false)
@@ -279,7 +297,9 @@ async function onCropConfirmed(dataUrl: string) {
 }
 .preview-cell {
   background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 2px;
+  box-sizing: border-box;
 }
 .preview-hint { margin-top: 10px; font-size: 11px; color: #888; }
 
