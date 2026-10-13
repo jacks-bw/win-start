@@ -159,6 +159,61 @@ fn launch_uwp(app_id: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+// 解析 .lnk 快捷方式，返回目标 exe/文件的完整路径
+fn resolve_lnk_target(lnk_path: &str) -> Option<String> {
+    use windows::core::{GUID, Interface, PCWSTR};
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, IPersistFile, CLSCTX_INPROC_SERVER,
+        COINIT_APARTMENTTHREADED, STGM_READ,
+    };
+    use windows::Win32::UI::Shell::IShellLinkW;
+    // CLSID_ShellLink = {00021401-0000-0000-C000-000000000046}
+    const CLSID_SHELL_LINK: GUID = GUID {
+        data1: 0x00021401, data2: 0, data3: 0,
+        data4: [0xC0, 0, 0, 0, 0, 0, 0, 0x46],
+    };
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let shell: IShellLinkW =
+            CoCreateInstance(&CLSID_SHELL_LINK, None, CLSCTX_INPROC_SERVER).ok()?;
+        let pf: IPersistFile = shell.cast().ok()?;
+        let wide = to_wide(lnk_path);
+        pf.Load(PCWSTR(wide.as_ptr()), STGM_READ).ok()?;
+        let mut buf = [0u16; 260];
+        // dwFlags=SLGP_SHORTPATH(1)
+        shell
+            .GetPath(&mut buf, std::ptr::null_mut(), 1)
+            .ok()?;
+        let len = buf.iter().position(|&c| c == 0).unwrap_or(0);
+        let target = String::from_utf16_lossy(&buf[..len]);
+        if target.is_empty() { None } else { Some(target) }
+    }
+}
+
+#[tauri::command]
+fn show_in_folder(path: String) -> Result<(), String> {
+    // 若是 .lnk，先解析到目标 exe（安装目录）；解析失败则回退到快捷方式本身
+    let target = if path.to_lowercase().ends_with(".lnk") {
+        resolve_lnk_target(&path).unwrap_or(path)
+    } else {
+        path
+    };
+    std::process::Command::new("explorer.exe")
+        .arg(format!("/select,{}", target))
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn uninstall_program() -> Result<(), String> {
+    std::process::Command::new("cmd")
+        .args(["/c", "start", "control", "appwiz.cpl"])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[derive(serde::Serialize)]
 struct AvatarInfo {
     path: String,
@@ -304,6 +359,7 @@ fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_apps, show_start_menu, hide_start_menu, menu_ready, open_toolbar_item,
             launch_app, launch_uwp,
+            show_in_folder, uninstall_program,
             get_user_avatar, select_user_avatar, set_user_avatar, save_cropped_avatar,
             read_file_base64, get_crop_image, save_gif_avatar
         ])
