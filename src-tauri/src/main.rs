@@ -21,6 +21,8 @@ fn menu_ready() {
 }
 
 static FIRST_SHOW: AtomicBool = AtomicBool::new(true);
+// 样式设置窗口打开时，主菜单失焦不自动隐藏
+static MENU_BLOCKED: AtomicBool = AtomicBool::new(false);
 
 // 首次显示后强制重绘：移动 1 像素再移回，触发合成器刷新首帧
 fn force_first_paint(win: &tauri::WebviewWindow) {
@@ -270,12 +272,43 @@ async fn select_user_avatar(app: tauri::AppHandle) -> Result<Option<String>, Str
         *app.state::<CropImagePath>().0.lock().unwrap() = p.clone();
         let win = WebviewWindowBuilder::new(&app, "avatar-crop", WebviewUrl::External("http://localhost:5173/#/avatar-crop".parse().unwrap()))
             .title("裁剪用户头像")
-            .inner_size(380.0, 460.0)
+            .inner_size(380.0, 480.0)
             .resizable(false)
-            .decorations(true)
+            .decorations(false)
+            .transparent(true)
             .skip_taskbar(true)
+            .center()
             .build()
             .map_err(|e| e.to_string())?;
+        let _ = window_vibrancy::apply_acrylic(&win, Some((32, 32, 32, 40)));
+        // WebView2 透明背景
+        let _ = win.with_webview(|webview| {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2Controller2, COREWEBVIEW2_COLOR,
+            };
+            use windows61::core::Interface;
+            unsafe {
+                let ctrl = webview.controller();
+                if let Ok(c2) = ctrl.cast::<ICoreWebView2Controller2>() {
+                    let mut transparent = COREWEBVIEW2_COLOR { A: 0, R: 0, G: 0, B: 0 };
+                    let _ = c2.DefaultBackgroundColor(&mut transparent);
+                }
+            }
+        });
+        // 去强调色边框
+        #[cfg(target_os = "windows")]
+        if let Ok(hwnd_t) = win.hwnd() {
+            use windows::Win32::Foundation::HWND;
+            use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS};
+            let hwnd = HWND(hwnd_t.0);
+            unsafe {
+                let none: u32 = 0xFFFFFFFE;
+                let _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &none as *const u32 as *const _, 4);
+                let _ = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &none as *const u32 as *const _, 4);
+                let thickness: i32 = 0;
+                let _ = DwmSetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS, &thickness as *const i32 as *const _, 4);
+            }
+        }
         let _ = win;
     }
     Ok(None) // 裁剪完成后由裁剪窗自己调 set_user_avatar
@@ -347,6 +380,235 @@ fn save_cropped_avatar(app: tauri::AppHandle, base64: String) -> Result<(), Stri
     Ok(())
 }
 
+// ===================== 磁贴布局持久化 =====================
+fn data_dir() -> Result<std::path::PathBuf, String> {
+    let d = dirs::data_dir().map(|d| d.join("win-start")).ok_or("no data dir")?;
+    std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+    Ok(d)
+}
+
+#[tauri::command]
+fn load_tile_layout() -> Option<serde_json::Value> {
+    let p = data_dir().ok()?.join("tile-layout.json");
+    let s = std::fs::read_to_string(p).ok()?;
+    serde_json::from_str(&s).ok()
+}
+
+#[tauri::command]
+fn save_tile_layout(layout: serde_json::Value) -> Result<(), String> {
+    let p = data_dir()?.join("tile-layout.json");
+    std::fs::write(&p, layout.to_string()).map_err(|e| e.to_string())
+}
+
+// ===================== 背景图片选择 / 读写 =====================
+#[tauri::command]
+async fn select_image(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let file = app
+        .dialog()
+        .file()
+        .add_filter("图片", &["png", "jpg", "jpeg", "gif", "bmp", "webp"])
+        .blocking_pick_file();
+    Ok(file.and_then(|f| f.into_path().ok()).map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+async fn select_svg(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let file = app.dialog().file().add_filter("SVG 图标", &["svg"]).blocking_pick_file();
+    Ok(file.and_then(|f| f.into_path().ok()).map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn read_image_base64(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let ext = std::path::Path::new(&path).extension().and_then(|s| s.to_str()).unwrap_or("png").to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        _ => "image/png",
+    };
+    Ok(format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(bytes)))
+}
+
+#[tauri::command]
+fn save_image(base64: String, file_name: String) -> Result<String, String> {
+    use base64::Engine;
+    let dir = data_dir()?.join("tile-backgrounds");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // data:image/<ext>;base64,...
+    let (mime, data_part) = {
+        let trimmed = base64.strip_prefix("data:").unwrap_or(&base64);
+        if let Some(semi) = trimmed.find(';') {
+            let mime = &trimmed[..semi];
+            let rest = &trimmed[semi..];
+            let b64 = rest.strip_prefix(";base64,").unwrap_or("");
+            (mime.to_string(), b64.to_string())
+        } else {
+            ("image/png".to_string(), trimmed.to_string())
+        }
+    };
+    let ext = match mime.as_str() {
+        "image/jpeg" => "jpg",
+        "image/gif" => "gif",
+        "image/bmp" => "bmp",
+        "image/webp" => "webp",
+        "image/svg+xml" => "svg",
+        _ => "png",
+    };
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data_part).map_err(|e| e.to_string())?;
+    let safe_name = file_name.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_', "_");
+    let dest = dir.join(format!("{}.{}", safe_name, ext));
+    std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    Ok(dest.to_string_lossy().to_string())
+}
+
+// ===================== 磁贴 / 分组样式窗口 =====================
+struct StyleTargets {
+    tile: Mutex<String>,
+    group: Mutex<String>,
+}
+
+fn open_style_window(
+    app: &tauri::AppHandle,
+    label: &str,
+    hash: &str,
+    select_event: &str,
+    target: &str,
+) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+    // 已存在则聚焦并切换目标
+    if let Some(win) = app.get_webview_window(label) {
+        let _ = win.set_focus();
+        let _ = win.emit(select_event, target);
+        return Ok(());
+    }
+    let url = format!("http://localhost:5173/#{}", hash);
+    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url.parse().unwrap()))
+        .title(if label == "tile-style" { "磁贴样式" } else { "分组背景" })
+        .inner_size(560.0, 640.0)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .skip_taskbar(true)
+        .center()
+        .visible(true)
+        .build();
+    let win = win.map_err(|e| e.to_string())?;
+    // 先在隐藏状态下做毛玻璃 / 去边框
+    let _ = window_vibrancy::apply_acrylic(&win, Some((32, 32, 32, 40)));
+    #[cfg(target_os = "windows")]
+    if let Ok(hwnd_t) = win.hwnd() {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS};
+        let hwnd = HWND(hwnd_t.0);
+        unsafe {
+            let none: u32 = 0xFFFFFFFE;
+            let _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &none as *const u32 as *const _, 4);
+            let _ = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &none as *const u32 as *const _, 4);
+            let thickness: i32 = 0;
+            let _ = DwmSetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS, &thickness as *const i32 as *const _, 4);
+        }
+    }
+    // 运行时创建的窗口立即取 controller 可能尚未就绪，
+    // 延迟到主线程设置 WebView2 透明背景，避免白屏
+    let win_for_bg = win.clone();
+    std::thread::spawn(move || {
+        for _ in 0..8 {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let w = win_for_bg.clone();
+            let w2 = w.clone();
+            if w
+                .run_on_main_thread(move || {
+                    let _ = w2.with_webview(|webview| {
+                        use webview2_com::Microsoft::Web::WebView2::Win32::{
+                            ICoreWebView2Controller2, COREWEBVIEW2_COLOR,
+                        };
+                        use windows61::core::Interface;
+                        unsafe {
+                            let ctrl = webview.controller();
+                            if let Ok(c2) = ctrl.cast::<ICoreWebView2Controller2>() {
+                                let mut transparent = COREWEBVIEW2_COLOR { A: 0, R: 0, G: 0, B: 0 };
+                                let _ = c2.DefaultBackgroundColor(&mut transparent);
+                            }
+                        }
+                    });
+                })
+                .is_ok()
+            {
+                break;
+            }
+        }
+    });
+    // 关闭时解锁主菜单并通知主窗口刷新
+    {
+        let app2 = app.clone();
+        let label2 = label.to_string();
+        win.on_window_event(move |event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                MENU_BLOCKED.store(false, Ordering::SeqCst);
+                let _ = app2.emit("menu-blocked", false);
+                let _ = app2.emit("layout-updated", ());
+                let _ = label2;
+            }
+        });
+    }
+    MENU_BLOCKED.store(true, Ordering::SeqCst);
+    let _ = app.emit("menu-blocked", true);
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_tile_style_window(app: tauri::AppHandle, state: tauri::State<'_, StyleTargets>, tile_id: String) -> Result<(), String> {
+    *state.tile.lock().unwrap() = tile_id.clone();
+    open_style_window(&app, "tile-style", "/tile-style", "tile-style:select", &tile_id)
+}
+
+#[tauri::command]
+fn get_tile_style_target(state: tauri::State<StyleTargets>) -> String {
+    state.tile.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn close_tile_style_window(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("tile-style") {
+        let _ = win.close();
+    }
+    MENU_BLOCKED.store(false, Ordering::SeqCst);
+    let _ = app.emit("menu-blocked", false);
+    let _ = app.emit("layout-updated", ());
+}
+
+#[tauri::command]
+async fn open_group_style_window(app: tauri::AppHandle, state: tauri::State<'_, StyleTargets>, group_id: String) -> Result<(), String> {
+    *state.group.lock().unwrap() = group_id.clone();
+    open_style_window(&app, "group-style", "/group-style", "group-style:select", &group_id)
+}
+
+#[tauri::command]
+fn get_group_style_target(state: tauri::State<StyleTargets>) -> String {
+    state.group.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn close_group_style_window(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("group-style") {
+        let _ = win.close();
+    }
+    MENU_BLOCKED.store(false, Ordering::SeqCst);
+    let _ = app.emit("menu-blocked", false);
+    let _ = app.emit("layout-updated", ());
+}
+
+#[tauri::command]
+fn notify_layout_updated(app: tauri::AppHandle) {
+    let _ = app.emit("layout-updated", ());
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn run() {
     tauri::Builder::default()
@@ -361,10 +623,16 @@ fn run() {
             launch_app, launch_uwp,
             show_in_folder, uninstall_program,
             get_user_avatar, select_user_avatar, set_user_avatar, save_cropped_avatar,
-            read_file_base64, get_crop_image, save_gif_avatar
+            read_file_base64, get_crop_image, save_gif_avatar,
+            load_tile_layout, save_tile_layout,
+            select_image, select_svg, read_image_base64, save_image,
+            open_tile_style_window, get_tile_style_target, close_tile_style_window,
+            open_group_style_window, get_group_style_target, close_group_style_window,
+            notify_layout_updated
         ])
         .setup(|app| {
             app.manage(CropImagePath(Mutex::new(String::new())));
+            app.manage(StyleTargets { tile: Mutex::new(String::new()), group: Mutex::new(String::new()) });
             let win = app.get_webview_window("main").unwrap();
 
             let _ = apply_acrylic(&win, Some((32, 32, 32, 40)));
@@ -428,8 +696,12 @@ fn run() {
             let win_clone = win.clone();
             win.on_window_event(move |event| {
                 if let WindowEvent::Focused(false) = event {
-                    let _ = win_clone.emit("menu-close", ());
-                    let _ = win_clone.hide();
+                    if MENU_BLOCKED.load(Ordering::SeqCst) {
+                        // 样式窗打开中，主菜单保持显示，不关闭
+                    } else {
+                        let _ = win_clone.emit("menu-close", ());
+                        let _ = win_clone.hide();
+                    }
                 }
             });
 

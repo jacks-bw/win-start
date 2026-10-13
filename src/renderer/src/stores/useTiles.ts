@@ -447,15 +447,22 @@ export const useTilesStore = defineStore('tiles', () => {
   }
 
   // 设置单个磁贴背景
-  function setTileBackground(tileId: string, background: string | undefined) {
+  function setTileBackground(
+    tileId: string,
+    background: string | undefined,
+    gifCrop?: { rw: number; rh: number; px: number; py: number }
+  ) {
     for (const group of groups.value) {
       const tile = group.tiles.find((t) => t.id === tileId)
       if (tile) {
         tile.background = background
         if (background) {
           delete (tile as Record<string, unknown>).backgroundCleared
+          if (gifCrop) (tile as Record<string, unknown>).backgroundGifCrop = gifCrop
+          else delete (tile as Record<string, unknown>).backgroundGifCrop
         } else {
           ;(tile as Record<string, unknown>).backgroundCleared = true
+          delete (tile as Record<string, unknown>).backgroundGifCrop
         }
         saveLayout()
         return
@@ -596,11 +603,18 @@ export const useTilesStore = defineStore('tiles', () => {
   }
 
   // 设置组背景（只对当前已存在的磁贴生效，之后新增的磁贴不自动继承）
-  function setGroupBackground(groupId: string, background: string | undefined, crop?: { x: number; y: number; width: number; height: number }) {
+  function setGroupBackground(
+    groupId: string,
+    background: string | undefined,
+    crop?: { x: number; y: number; width: number; height: number },
+    gifCrop?: { rw: number; rh: number; px: number; py: number }
+  ) {
     const group = groups.value.find((g) => g.id === groupId)
     if (group) {
       group.background = background
       group.backgroundCrop = crop
+      if (background && gifCrop) (group as Record<string, unknown>).backgroundGifCrop = gifCrop
+      else delete (group as Record<string, unknown>).backgroundGifCrop
       // 记录此刻组内磁贴快照：只有这些磁贴会应用组背景
       group.backgroundTiles = background ? group.tiles.map((t) => t.id) : undefined
       // 记录每个磁贴当时的位置，之后拖动磁贴不再改变它看到的切片

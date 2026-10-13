@@ -1,5 +1,11 @@
 <template>
   <div class="avatar-crop-window">
+    <!-- 标题栏（无边框窗口自绘，可拖动） -->
+    <div class="page-header">
+      <span class="page-title">裁剪用户头像</span>
+      <button class="win-close" @click="onCancel"><X :size="14" /></button>
+    </div>
+
     <div class="crop-body">
       <div
         class="crop-container"
@@ -33,6 +39,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { X } from 'lucide-vue-next'
 
 const cropContainerRef = ref<HTMLElement | null>(null)
 const imgLoaded = ref(false)
@@ -186,8 +193,30 @@ function confirmCrop() {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #1e1e1e;
+  background: rgba(32, 32, 32, 0.4);
+  color: #e0e0e0;
+  overflow: hidden;
 }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 10px 18px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+.page-title { font-size: 14px; font-weight: 600; color: #fff; }
+.win-close {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.win-close:hover { background: rgba(255, 80, 80, 0.7); color: #fff; }
 
 .crop-body {
   flex: 1;
@@ -235,8 +264,9 @@ function confirmCrop() {
 }
 
 .crop-footer {
-  padding: 12px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+  padding: 10px 20px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -253,9 +283,9 @@ function confirmCrop() {
 }
 
 .btn {
-  padding: 6px 16px;
+  padding: 7px 22px;
   font-size: 13px;
-  border-radius: 4px;
+  border-radius: 5px;
   cursor: pointer;
   border: none;
   transition: all 0.15s ease;

@@ -119,6 +119,8 @@ const imageCache = new Map<string, string>()
 const props = defineProps<{
   tile: TileItem
   group?: TileGroup
+  // 预览模式：不播放实时动态翻转动画
+  static?: boolean
 }>()
 
 defineEmits<{
@@ -331,8 +333,20 @@ const backgroundStyle = computed(() => {
     const offsetX = -(fixedCol * cellSize)
     const offsetY = -(fixedRow * cellSize)
 
-    // GIF 整组 cover：先按组尺寸等比缩放整图，再按磁贴位置切片
+    // GIF 组背景：优先使用用户裁剪坐标；否则按整组 cover 等比缩放后切片
     const isGif = (currentBgPath.value || '').toLowerCase().endsWith('.gif')
+    const gGifCrop = (props.group as Record<string, unknown>).backgroundGifCrop as { rw: number; rh: number; px: number; py: number } | undefined
+    if (isGif && gGifCrop) {
+      const dw = gGifCrop.rw * groupWidth
+      const dh = gGifCrop.rh * groupHeight
+      const ox = gGifCrop.px * groupWidth
+      const oy = gGifCrop.py * groupHeight
+      return {
+        backgroundSize: `${dw}px ${dh}px`,
+        backgroundPosition: `${ox + offsetX}px ${oy + offsetY}px`,
+        backgroundRepeat: 'no-repeat'
+      }
+    }
     if (isGif && bgNaturalSize.value) {
       const iw = bgNaturalSize.value.w
       const ih = bgNaturalSize.value.h
@@ -351,6 +365,51 @@ const backgroundStyle = computed(() => {
     return {
       backgroundSize: `${groupWidth}px ${groupHeight}px`,
       backgroundPosition: `${offsetX}px ${offsetY}px`,
+      backgroundRepeat: 'no-repeat'
+    }
+  }
+  // 单个磁贴自己的背景：GIF 若有裁剪坐标则按裁剪显示（保留动画）
+  const tGifCrop = (props.tile as Record<string, unknown>).backgroundGifCrop as { rw: number; rh: number; px: number; py: number } | undefined
+  const isSingleGif = (currentBgPath.value || '').toLowerCase().endsWith('.gif') && tGifCrop
+  if (isSingleGif && tGifCrop) {
+    // 磁贴当前实际像素尺寸（格子 76 = 70 内容 + 6 间距）
+    const tileSpanMap: Record<string, { rows: number; cols: number }> = {
+      small: { rows: 1, cols: 1 },
+      medium: { rows: 2, cols: 2 },
+      wide: { rows: 2, cols: 4 }
+    }
+    const tspan = tileSpanMap[props.tile.size] || { rows: 1, cols: 1 }
+    const tileW = tspan.cols * 76 - 6
+    const tileH = tspan.rows * 76 - 6
+
+    if (bgNaturalSize.value) {
+      const Iw = bgNaturalSize.value.w
+      const Ih = bgNaturalSize.value.h
+      // 裁剪区域在原图中的归一化矩形
+      const w0 = 1 / tGifCrop.rw
+      const h0 = 1 / tGifCrop.rh
+      const x0 = -tGifCrop.px / tGifCrop.rw
+      const y0 = -tGifCrop.py / tGifCrop.rh
+      // 等比缩放：让裁剪区域铺满（cover）当前磁贴，尺寸切换时不拉伸
+      const s = Math.max(tileW / (w0 * Iw), tileH / (h0 * Ih))
+      const dW = Iw * s
+      const dH = Ih * s
+      // 裁剪中心对齐磁贴中心
+      const cx = (x0 + w0 / 2) * dW
+      const cy = (y0 + h0 / 2) * dH
+      return {
+        backgroundSize: `${dW}px ${dH}px`,
+        backgroundPosition: `${tileW / 2 - cx}px ${tileH / 2 - cy}px`,
+        backgroundRepeat: 'no-repeat'
+      }
+    }
+
+    // 原图尺寸未就绪时的兜底
+    const posX = tGifCrop.rw === 1 ? 0 : (100 * tGifCrop.px) / (1 - tGifCrop.rw)
+    const posY = tGifCrop.rh === 1 ? 0 : (100 * tGifCrop.py) / (1 - tGifCrop.rh)
+    return {
+      backgroundSize: `${tGifCrop.rw * 100}% ${tGifCrop.rh * 100}%`,
+      backgroundPosition: `${posX}% ${posY}%`,
       backgroundRepeat: 'no-repeat'
     }
   }
@@ -572,6 +631,7 @@ function stopFlip() {
 watch(
   () => props.tile.liveEnabled,
   (on) => {
+    if (props.static) { stopFlip(); return }
     if (on) startFlip()
     else stopFlip()
   },

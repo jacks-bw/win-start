@@ -44,13 +44,21 @@
       <div class="hint-text">组背景只对设置时组内已存在的磁贴生效；之后新增的磁贴不会自动继承。</div>
     </div>
 
+    <!-- 底部确定 / 取消 -->
+    <div class="page-footer">
+      <button class="footer-btn" @click="cancelWindow">取消</button>
+      <button class="footer-btn primary" @click="confirmWindow">确定</button>
+    </div>
+
     <!-- 图片裁剪预览 -->
     <CropImageDialog
       :visible="cropVisible"
       :image-url="cropImageUrl"
       :target-ratio="cropRatio"
+      :gif-mode="cropGifMode"
       @cancel="cropVisible = false"
       @confirm="onCropConfirmed"
+      @transform="onCropTransform"
     />
   </div>
 </template>
@@ -82,26 +90,44 @@ const sortedTiles = computed(() =>
   group.value ? [...group.value.tiles].sort((a, b) => a.position - b.position) : []
 )
 
-// ---- 布局/刷新同步 ----
+// ---- 布局/刷新同步（编辑期间不通知主窗口，点确定才保存） ----
 let updateTimer: ReturnType<typeof setTimeout> | null = null
+let snapshot = ''
 
 function closeWindow() {
-  window.electronAPI.closeGroupStyleWindow()
+  cancelWindow()
 }
 
 function pushUpdate() {
   if (updateTimer) clearTimeout(updateTimer)
-  updateTimer = setTimeout(() => {
-    window.electronAPI.notifyLayoutUpdated()
-  }, 300)
+}
+
+async function confirmWindow() {
+  await tilesStore.saveLayout()
+  await window.electronAPI.notifyLayoutUpdated()
+  window.electronAPI.closeGroupStyleWindow()
+}
+
+async function cancelWindow() {
+  try {
+    if (snapshot) {
+      tilesStore.groups = JSON.parse(snapshot)
+      await tilesStore.saveLayout()
+    }
+  } catch (e) {
+    console.error('回滚失败', e)
+  }
+  window.electronAPI.closeGroupStyleWindow()
 }
 
 onMounted(async () => {
   await settingsStore.loadTileOpacity()
+  await tilesStore.loadLayout()
   // 独立窗口有独立的 apps store，需自行加载，否则预览显示 appId
   appsStore.loadApps()
   const target = await window.electronAPI.getGroupStyleTarget()
   if (target) groupId.value = target
+  snapshot = JSON.stringify(tilesStore.groups)
 })
 
 // ---- 预览尺寸 ----
@@ -164,7 +190,14 @@ function cellStyle(tile: any) {
   const off = (tile as Record<string, unknown>).bgOffset as { row: number; col: number } | undefined
   const fixedRow = off?.row ?? tile.row
   const fixedCol = off?.col ?? tile.col
-  if (isGif && bgNaturalSize.value) {
+  const gCrop = (g.backgroundGifCrop as { rw: number; rh: number; px: number; py: number } | undefined)
+  if (isGif && gCrop) {
+    // GIF 按用户裁剪坐标映射到整组平面后切片
+    const dw = gCrop.rw * natW, dh = gCrop.rh * natH
+    const ox = gCrop.px * natW, oy = gCrop.py * natH
+    style.backgroundSize = `${dw}px ${dh}px`
+    style.backgroundPosition = `${ox - fixedCol * cell}px ${oy - fixedRow * cell}px`
+  } else if (isGif && bgNaturalSize.value) {
     // GIF 整组 cover 等比缩放后切片
     const iw = bgNaturalSize.value.w, ih = bgNaturalSize.value.h
     const s = Math.max(natW / iw, natH / ih)
@@ -195,6 +228,8 @@ const previewGridStyle = computed(() => {
 const cropVisible = ref(false)
 const cropImageUrl = ref('')
 const cropRatio = ref(1)
+const cropGifMode = ref(false)
+const cropGifBase64 = ref('')
 
 // 预览用的组背景图 base64
 const bgImage = ref('')
@@ -225,15 +260,9 @@ async function chooseBackground() {
   if (!filePath) return
   const base64 = await window.electronAPI.readImageBase64(filePath)
   if (!base64) return
-  // GIF 动图：跳过 canvas 裁剪，直接保存原图，靠 background-size 拉伸适配整组
-  if (filePath.toLowerCase().endsWith('.gif')) {
-    const saved = await window.electronAPI.saveImage(base64, `group-${groupId.value}-${Date.now()}`)
-    if (saved) {
-      tilesStore.setGroupBackground(groupId.value, saved)
-      pushUpdate()
-    }
-    return
-  }
+  const isGif = filePath.toLowerCase().endsWith('.gif')
+  cropGifMode.value = isGif
+  cropGifBase64.value = isGif ? base64 : ''
   let maxRow = 0
   let maxCol = 0
   if (group.value) {
@@ -246,6 +275,17 @@ async function chooseBackground() {
   cropRatio.value = maxCol > 0 && maxRow > 0 ? maxCol / maxRow : 1
   cropImageUrl.value = base64
   cropVisible.value = true
+}
+
+async function onCropTransform(meta: { rw: number; rh: number; px: number; py: number }) {
+  cropVisible.value = false
+  const base64 = cropGifBase64.value
+  if (!base64) return
+  const saved = await window.electronAPI.saveImage(base64, `group-${groupId.value}-${Date.now()}`)
+  if (saved) {
+    tilesStore.setGroupBackground(groupId.value, saved, undefined, meta)
+    pushUpdate()
+  }
 }
 
 async function onCropConfirmed(dataUrl: string) {
@@ -289,6 +329,27 @@ async function onCropConfirmed(dataUrl: string) {
   border-radius: 4px;
 }
 .win-close:hover { background: rgba(255, 80, 80, 0.7); color: #fff; }
+
+.page-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 20px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.footer-btn {
+  padding: 7px 22px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+}
+.footer-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.footer-btn.primary { background: #0078d7; color: #fff; }
+.footer-btn.primary:hover { background: #106ebe; }
 
 .preview-area {
   flex-shrink: 0;

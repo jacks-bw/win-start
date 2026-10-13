@@ -75,8 +75,8 @@ const real = {
   onTileOpacityChanged: (_cb: (o: number) => void) => {},
   onTileBridgeUpdate: (_cb: (d: unknown) => void) => {},
   onTileBridgeClear: (_cb: (d: unknown) => void) => {},
-  onLayoutUpdated: (_cb: () => void) => {},
-  onMenuBlocked: (_cb: (b: boolean) => void) => {},
+  onLayoutUpdated: (cb: () => void) => { listen('layout-updated', () => cb()) },
+  onMenuBlocked: (cb: (b: boolean) => void) => { listen('menu-blocked', (e: any) => cb(!!e.payload)) },
   getAccentColor: () => Promise.resolve('#f7630c'),
   getToolbarItems: () => Promise.resolve(['explorer', 'settings', 'controlPanel', 'recycleBin']),
   setToolbarItems: () => Promise.resolve(null),
@@ -115,6 +115,24 @@ const real = {
   saveGifAvatar: (dataUrl: string, crop: any) => invoke('save_gif_avatar', { dataUrl, crop }).then(() => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) }),
   getListAlpha: () => Promise.resolve(0.4),
   getTileOpacity: () => Promise.resolve(0.9),
+  // 磁贴布局持久化
+  loadTileLayout: () => invoke('load_tile_layout'),
+  saveTileLayout: (layout: unknown) => invoke('save_tile_layout', { layout }),
+  // 背景图片
+  selectImage: () => invoke<string | null>('select_image'),
+  selectSvg: () => invoke<string | null>('select_svg'),
+  readImageBase64: (path: string) => invoke<string>('read_image_base64', { path }),
+  saveImage: (base64: string, fileName: string) => invoke<string>('save_image', { base64, fileName }),
+  // 磁贴样式窗口
+  openTileStyleWindow: (tileId: string) => invoke('open_tile_style_window', { tileId }),
+  getTileStyleTarget: () => invoke<string>('get_tile_style_target'),
+  closeTileStyleWindow: () => invoke('close_tile_style_window'),
+  onTileStyleSelect: (cb: (id: string) => void) => { listen('tile-style:select', (e: any) => cb(e.payload)) },
+  // 分组背景窗口
+  openGroupStyleWindow: (groupId: string) => invoke('open_group_style_window', { groupId }),
+  getGroupStyleTarget: () => invoke<string>('get_group_style_target'),
+  closeGroupStyleWindow: () => invoke('close_group_style_window'),
+  notifyLayoutUpdated: () => invoke('notify_layout_updated'),
   hideMenu: () => invoke('hide_start_menu'),
   setMenuBusy: (_b: boolean) => {},
 }

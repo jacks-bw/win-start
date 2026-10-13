@@ -12,7 +12,7 @@
     <!-- 上栏：实时预览 -->
     <div class="preview-area">
       <div class="preview-stage" :style="previewStageStyle">
-        <LiveTile v-if="tile" :tile="tile" :group="group" />
+        <LiveTile v-if="tile" :tile="tile" :group="group" static />
       </div>
       <div class="preview-hint">实时预览</div>
     </div>
@@ -111,6 +111,12 @@
       </div>
     </div>
 
+    <!-- 底部确定 / 取消 -->
+    <div class="page-footer">
+      <button class="footer-btn" @click="cancelWindow">取消</button>
+      <button class="footer-btn primary" @click="confirmWindow">确定</button>
+    </div>
+
     <!-- 图标选择器 -->
     <div v-if="showIconPicker" class="icon-picker-overlay" @click.self="showIconPicker = false">
       <div class="icon-picker-dialog">
@@ -140,8 +146,10 @@
       :visible="cropVisible"
       :image-url="cropImageUrl"
       :target-ratio="cropRatio"
+      :gif-mode="cropGifMode"
       @cancel="cropVisible = false"
       @confirm="onCropConfirmed"
+      @transform="onCropTransform"
     />
   </div>
 </template>
@@ -181,26 +189,48 @@ const group = computed(() => {
   return undefined
 })
 
-// ---- 布局/刷新同步 ----
+// ---- 布局/刷新同步（编辑期间不通知主窗口，点确定才保存） ----
 let updateTimer: ReturnType<typeof setTimeout> | null = null
+// 打开时的布局快照，用于点取消时回滚
+let snapshot = ''
 
 function closeWindow() {
+  cancelWindow()
+}
+
+// 编辑过程中不主动通知主窗口（主菜单已锁定，确定时统一刷新）
+function pushUpdate() {
+  if (updateTimer) clearTimeout(updateTimer)
+}
+
+// 确定：保存并通知主窗口刷新，然后关闭
+async function confirmWindow() {
+  await tilesStore.saveLayout()
+  await window.electronAPI.notifyLayoutUpdated()
   window.electronAPI.closeTileStyleWindow()
 }
 
-function pushUpdate() {
-  if (updateTimer) clearTimeout(updateTimer)
-  updateTimer = setTimeout(() => {
-    window.electronAPI.notifyLayoutUpdated()
-  }, 300)
+// 取消：把布局回滚到打开时的快照，不通知主窗口，直接关闭
+async function cancelWindow() {
+  try {
+    if (snapshot) {
+      tilesStore.groups = JSON.parse(snapshot)
+      await tilesStore.saveLayout()
+    }
+  } catch (e) {
+    console.error('回滚失败', e)
+  }
+  window.electronAPI.closeTileStyleWindow()
 }
 
 onMounted(async () => {
   await settingsStore.loadTileOpacity()
-  // 独立窗口有独立的 apps store，需自行加载程序列表，否则预览显示 appId 而非软件名
+  // 独立窗口有独立 store，需自行加载磁贴布局与程序列表
+  await tilesStore.loadLayout()
   appsStore.loadApps()
   const target = await window.electronAPI.getTileStyleTarget()
   if (target) tileId.value = target
+  snapshot = JSON.stringify(tilesStore.groups)
   window.electronAPI.onTileStyleSelect((id) => {
     tileId.value = id
     showIconPicker.value = false
@@ -222,9 +252,10 @@ const previewStageStyle = computed(() => {
     wide: { rows: 2, cols: 4 }
   }
   const s = cell[tile.value?.size || 'medium'] || { rows: 2, cols: 2 }
+  // 与实际网格磁贴尺寸一致（格子 76 = 70 内容 + 6 间距，N 格 = N*76-6）
   return {
-    width: `${s.cols * 76}px`,
-    height: `${s.rows * 76}px`
+    width: `${s.cols * 76 - 6}px`,
+    height: `${s.rows * 76 - 6}px`
   }
 })
 
@@ -232,25 +263,33 @@ const previewStageStyle = computed(() => {
 const cropVisible = ref(false)
 const cropImageUrl = ref('')
 const cropRatio = ref(1)
+const cropGifMode = ref(false)
+const cropGifBase64 = ref('')
 
 async function chooseBackground() {
   const filePath = await window.electronAPI.selectImage()
   if (!filePath) return
   const base64 = await window.electronAPI.readImageBase64(filePath)
   if (!base64) return
-  // GIF 动图：跳过 canvas 裁剪（会丢失动画），直接保存原图，靠 CSS background-size 自适应
-  if (filePath.toLowerCase().endsWith('.gif')) {
-    const saved = await window.electronAPI.saveImage(base64, `tile-${tileId.value}-${Date.now()}`)
-    if (saved) {
-      tilesStore.setTileBackground(tileId.value, saved)
-      pushUpdate()
-    }
-    return
-  }
+  const isGif = filePath.toLowerCase().endsWith('.gif')
   const ratioMap: Record<string, number> = { small: 1, medium: 1, wide: 2 }
   cropRatio.value = ratioMap[tile.value?.size || 'medium'] || 1
+  cropGifMode.value = isGif
+  cropGifBase64.value = isGif ? base64 : ''
   cropImageUrl.value = base64
   cropVisible.value = true
+}
+
+// GIF：只拿到裁剪坐标，保存原图并附带裁剪信息
+async function onCropTransform(meta: { rw: number; rh: number; px: number; py: number }) {
+  cropVisible.value = false
+  const base64 = cropGifBase64.value
+  if (!base64) return
+  const saved = await window.electronAPI.saveImage(base64, `tile-${tileId.value}-${Date.now()}`)
+  if (saved) {
+    tilesStore.setTileBackground(tileId.value, saved, meta)
+    pushUpdate()
+  }
 }
 
 async function onCropConfirmed(dataUrl: string) {
@@ -378,6 +417,27 @@ function setAlign(pos: string) {
   border-radius: 4px;
 }
 .win-close:hover { background: rgba(255, 80, 80, 0.7); color: #fff; }
+
+.page-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 20px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.footer-btn {
+  padding: 7px 22px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+}
+.footer-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.footer-btn.primary { background: #0078d7; color: #fff; }
+.footer-btn.primary:hover { background: #106ebe; }
 
 /* 上栏：预览 */
 .preview-area {

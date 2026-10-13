@@ -1,38 +1,28 @@
 <template>
-  <div v-if="visible" class="crop-overlay" @click.self="handleCancel">
+  <div v-if="visible" class="crop-overlay">
     <div class="crop-dialog">
       <div class="crop-header">
         <span>裁剪图片</span>
         <button class="close-btn" @click="handleCancel"><X :size="18" /></button>
       </div>
       <div class="crop-body">
-        <div class="crop-container" ref="containerRef" @wheel.prevent="onWheelZoom">
+        <!-- 裁剪取景框（固定，图片在框内拖动/缩放） -->
+        <div
+          class="crop-viewport"
+          ref="viewportRef"
+          :style="{ width: viewW + 'px', height: viewH + 'px' }"
+          @wheel.prevent="onWheelZoom"
+          @mousedown="startDrag"
+        >
           <img
             :src="imageUrl"
             class="crop-image"
-            :style="imageTransformStyle"
-            @mousedown="startImageDrag"
+            :style="imageStyle"
             draggable="false"
           />
-          <div class="crop-overlay-mask">
-            <div
-              class="crop-box"
-              :style="cropBoxStyle"
-              @mousedown="startCropBoxDrag"
-            >
-              <div class="crop-corner tl" @mousedown.stop="startResize('tl', $event)"></div>
-              <div class="crop-corner tr" @mousedown.stop="startResize('tr', $event)"></div>
-              <div class="crop-corner bl" @mousedown.stop="startResize('bl', $event)"></div>
-              <div class="crop-corner br" @mousedown.stop="startResize('br', $event)"></div>
-            </div>
-          </div>
+          <div class="crop-frame"></div>
         </div>
-        <div class="crop-controls">
-          <label class="scale-control">
-            缩放: {{ Math.round(scale * 100) }}%
-            <input type="range" min="0.1" max="3" step="0.01" v-model.number="scale" />
-          </label>
-        </div>
+        <div class="zoom-info">缩放：{{ Math.round(scale * 100) }}%（滚轮缩放，拖动图片调整位置）</div>
       </div>
       <div class="crop-footer">
         <button class="dialog-btn" @click="handleCancel">取消</button>
@@ -43,244 +33,149 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 
 const props = defineProps<{
   visible: boolean
   imageUrl: string
   targetRatio: number
+  // GIF 等不能用 canvas 裁剪的图：只记录缩放/位移坐标，动画保留
+  gifMode?: boolean
 }>()
 
 const emit = defineEmits<{
   cancel: []
   confirm: [dataUrl: string]
+  // GIF 模式：仅返回裁剪坐标（相对比例，与具体磁贴尺寸无关）
+  transform: [meta: { rw: number; rh: number; px: number; py: number }]
 }>()
 
-const containerRef = ref<HTMLElement | null>(null)
+const viewportRef = ref<HTMLElement | null>(null)
 
 const scale = ref(1)
 const imgWidth = ref(0)
 const imgHeight = ref(0)
 const offsetX = ref(0)
 const offsetY = ref(0)
-const cropBox = reactive({ x: 50, y: 50, width: 200, height: 200 })
 
-// 图片加载完成后自动缩放到容器中间，并按目标比例居中放置裁剪框
+// 取景框尺寸（固定）：正方形 280；宽磁贴 2:1 用 320×160
+const viewW = computed(() => (props.targetRatio >= 2 ? 320 : 280))
+const viewH = computed(() => (props.targetRatio >= 2 ? 160 : 280))
+
+const imageStyle = computed(() => ({
+  width: `${imgWidth.value * scale.value}px`,
+  height: `${imgHeight.value * scale.value}px`,
+  transform: `translate(${offsetX.value}px, ${offsetY.value}px)`
+}))
+
 function setupImage() {
-  const containerW = containerRef.value?.clientWidth || 0
-  const containerH = containerRef.value?.clientHeight || 0
-  if (!containerW || !containerH) return
-
+  if (!props.imageUrl) return
   const img = new Image()
   img.onload = () => {
-    imgWidth.value = img.width
-    imgHeight.value = img.height
-    scale.value = Math.min(containerW / img.width, containerH / img.height) * 0.9
-    offsetX.value = 0
-    offsetY.value = 0
-
-    const ratio = props.targetRatio || 1
-    const maxW = containerW * 0.8
-    const maxH = containerH * 0.8
-    let cropW = maxW
-    let cropH = cropW / ratio
-    if (cropH > maxH) {
-      cropH = maxH
-      cropW = cropH * ratio
-    }
-    cropBox.x = (containerW - cropW) / 2
-    cropBox.y = (containerH - cropH) / 2
-    cropBox.width = cropW
-    cropBox.height = cropH
+    imgWidth.value = img.naturalWidth
+    imgHeight.value = img.naturalHeight
+    // 初始缩放：让图片完全覆盖取景框
+    scale.value = Math.max(viewW.value / img.naturalWidth, viewH.value / img.naturalHeight)
+    // 初始居中
+    offsetX.value = (viewW.value - img.naturalWidth * scale.value) / 2
+    offsetY.value = (viewH.value - img.naturalHeight * scale.value) / 2
+    clampOffset()
   }
   img.src = props.imageUrl
+}
+
+// 图片完全覆盖取景框所需的最小缩放
+function minScale() {
+  return Math.max(viewW.value / (imgWidth.value || 1), viewH.value / (imgHeight.value || 1))
+}
+
+// 图片边缘不能拖进取景框内（始终铺满）
+function clampOffset() {
+  const w = imgWidth.value * scale.value
+  const h = imgHeight.value * scale.value
+  offsetX.value = Math.min(0, Math.max(viewW.value - w, offsetX.value))
+  offsetY.value = Math.min(0, Math.max(viewH.value - h, offsetY.value))
 }
 
 watch(
   () => props.visible,
   (v) => {
-    if (v) {
-      // 等待容器渲染完成后再测量
-      requestAnimationFrame(setupImage)
-    }
+    if (v) requestAnimationFrame(setupImage)
   }
 )
 
-const imageTransformStyle = computed(() => {
-  if (!containerRef.value || imgWidth.value === 0) return {}
-  const containerW = containerRef.value.clientWidth
-  const containerH = containerRef.value.clientHeight
-  const centerX = containerW / 2
-  const centerY = containerH / 2
-  const x = centerX - (imgWidth.value * scale.value) / 2 + offsetX.value
-  const y = centerY - (imgHeight.value * scale.value) / 2 + offsetY.value
-  return {
-    transform: `translate(${x}px, ${y}px) scale(${scale.value})`,
-    transformOrigin: 'top left'
-  }
-})
-
-const cropBoxStyle = computed(() => ({
-  left: `${cropBox.x}px`,
-  top: `${cropBox.y}px`,
-  width: `${cropBox.width}px`,
-  height: `${cropBox.height}px`
-}))
-
-// ---- 图片拖动 ----
-let isImageDragging = false
-let imageDragStartX = 0
-let imageDragStartY = 0
-let imageStartOffsetX = 0
-let imageStartOffsetY = 0
-
-function startImageDrag(e: MouseEvent) {
-  e.preventDefault()
-  isImageDragging = true
-  imageDragStartX = e.clientX
-  imageDragStartY = e.clientY
-  imageStartOffsetX = offsetX.value
-  imageStartOffsetY = offsetY.value
-  window.addEventListener('mousemove', onImageDrag)
-  window.addEventListener('mouseup', stopImageDrag)
-}
-
-function onImageDrag(e: MouseEvent) {
-  if (!isImageDragging) return
-  offsetX.value = imageStartOffsetX + (e.clientX - imageDragStartX)
-  offsetY.value = imageStartOffsetY + (e.clientY - imageDragStartY)
-}
-
-function stopImageDrag() {
-  isImageDragging = false
-  window.removeEventListener('mousemove', onImageDrag)
-  window.removeEventListener('mouseup', stopImageDrag)
-}
-
-// ---- 滚轮缩放 ----
+// ---- 滚轮缩放（每次 2%） ----
 function onWheelZoom(e: WheelEvent) {
-  const delta = e.deltaY > 0 ? -0.1 : 0.1
-  scale.value = Math.max(0.1, Math.min(5, scale.value + delta))
+  const delta = e.deltaY > 0 ? -0.02 : 0.02
+  scale.value = Math.max(minScale(), Math.min(5, scale.value + delta))
+  clampOffset()
 }
 
-// ---- 裁剪框整体拖动 ----
-let isCropBoxDragging = false
-let cropBoxDragStartX = 0
-let cropBoxDragStartY = 0
-let cropBoxStartX = 0
-let cropBoxStartY = 0
+// ---- 拖动图片 ----
+let dragging = false
+let startX = 0
+let startY = 0
+let startOffsetX = 0
+let startOffsetY = 0
 
-function startCropBoxDrag(e: MouseEvent) {
+function startDrag(e: MouseEvent) {
+  if (!imgWidth.value) return
   e.preventDefault()
-  isCropBoxDragging = true
-  cropBoxDragStartX = e.clientX
-  cropBoxDragStartY = e.clientY
-  cropBoxStartX = cropBox.x
-  cropBoxStartY = cropBox.y
-  window.addEventListener('mousemove', onCropBoxDrag)
-  window.addEventListener('mouseup', stopCropBoxDrag)
+  dragging = true
+  startX = e.clientX
+  startY = e.clientY
+  startOffsetX = offsetX.value
+  startOffsetY = offsetY.value
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', stopDrag)
 }
 
-function onCropBoxDrag(e: MouseEvent) {
-  if (!isCropBoxDragging) return
-  cropBox.x = cropBoxStartX + (e.clientX - cropBoxDragStartX)
-  cropBox.y = cropBoxStartY + (e.clientY - cropBoxDragStartY)
+function onMove(e: MouseEvent) {
+  if (!dragging) return
+  offsetX.value = startOffsetX + (e.clientX - startX)
+  offsetY.value = startOffsetY + (e.clientY - startY)
+  clampOffset()
 }
 
-function stopCropBoxDrag() {
-  isCropBoxDragging = false
-  window.removeEventListener('mousemove', onCropBoxDrag)
-  window.removeEventListener('mouseup', stopCropBoxDrag)
+function stopDrag() {
+  dragging = false
+  window.removeEventListener('mousemove', onMove)
+  window.removeEventListener('mouseup', stopDrag)
 }
 
-// ---- 裁剪框四角缩放 ----
-let isResizing = false
-let resizeCorner = ''
-let resizeStartX = 0
-let resizeStartY = 0
-let resizeStartBox = { x: 0, y: 0, width: 0, height: 0 }
-
-function startResize(corner: string, e: MouseEvent) {
-  e.stopPropagation()
-  isResizing = true
-  resizeCorner = corner
-  resizeStartX = e.clientX
-  resizeStartY = e.clientY
-  resizeStartBox = { ...cropBox }
-  window.addEventListener('mousemove', onResize)
-  window.addEventListener('mouseup', stopResize)
-}
-
-function onResize(e: MouseEvent) {
-  if (!isResizing) return
-  const dx = e.clientX - resizeStartX
-  const dy = e.clientY - resizeStartY
-  const ratio = props.targetRatio || 1
-  const box = { ...resizeStartBox }
-
-  let newWidth = resizeStartBox.width
-  if (resizeCorner.includes('r')) newWidth = resizeStartBox.width + dx
-  if (resizeCorner.includes('l')) newWidth = resizeStartBox.width - dx
-
-  let newHeight = resizeStartBox.height
-  if (resizeCorner.includes('b')) newHeight = resizeStartBox.height + dy
-  if (resizeCorner.includes('t')) newHeight = resizeStartBox.height - dy
-
-  if (Math.abs(newWidth - resizeStartBox.width) * ratio > Math.abs(newHeight - resizeStartBox.height)) {
-    newWidth = Math.max(50, newWidth)
-    newHeight = newWidth / ratio
-  } else {
-    newHeight = Math.max(50 / ratio, newHeight)
-    newWidth = newHeight * ratio
-  }
-
-  if (resizeCorner.includes('l')) box.x = resizeStartBox.x + (resizeStartBox.width - newWidth)
-  if (resizeCorner.includes('t')) box.y = resizeStartBox.y + (resizeStartBox.height - newHeight)
-  box.width = newWidth
-  box.height = newHeight
-
-  cropBox.x = box.x
-  cropBox.y = box.y
-  cropBox.width = box.width
-  cropBox.height = box.height
-}
-
-function stopResize() {
-  isResizing = false
-  window.removeEventListener('mousemove', onResize)
-  window.removeEventListener('mouseup', stopResize)
-}
-
-// ---- 确认：把裁剪框区域截成一张图 ----
+// ---- 确认 ----
 function handleConfirm() {
-  const container = containerRef.value
-  if (!container || !props.imageUrl) return
-  const containerW = container.clientWidth
-  const containerH = container.clientHeight
-
+  if (!props.imageUrl || !imgWidth.value) return
   const img = new Image()
-  img.src = props.imageUrl
   img.onload = () => {
     const s = scale.value
-    const imgLeft = containerW / 2 - (img.width * s) / 2 + offsetX.value
-    const imgTop = containerH / 2 - (img.height * s) / 2 + offsetY.value
+
+    // GIF 模式：只记录裁剪比例，不做 canvas 截图（保留动图）
+    if (props.gifMode) {
+      const rw = (img.width * s) / viewW.value
+      const rh = (img.height * s) / viewH.value
+      const px = offsetX.value / viewW.value
+      const py = offsetY.value / viewH.value
+      emit('transform', { rw, rh, px, py })
+      return
+    }
+
+    const cropX = -offsetX.value / s
+    const cropY = -offsetY.value / s
+    const cropW = viewW.value / s
+    const cropH = viewH.value / s
 
     const canvas = document.createElement('canvas')
-    canvas.width = Math.round(cropBox.width)
-    canvas.height = Math.round(cropBox.height)
+    canvas.width = 256
+    canvas.height = Math.round(256 / props.targetRatio)
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.fillStyle = '#000'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    const drawX = imgLeft - cropBox.x
-    const drawY = imgTop - cropBox.y
-    ctx.drawImage(img, drawX, drawY, img.width * s, img.height * s)
-
+    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
     emit('confirm', canvas.toDataURL('image/png'))
   }
+  img.src = props.imageUrl
 }
 
 function handleCancel() {
@@ -291,11 +186,8 @@ function handleCancel() {
 <style scoped>
 .crop-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
   z-index: 3000;
   display: flex;
   align-items: center;
@@ -303,139 +195,95 @@ function handleCancel() {
 }
 
 .crop-dialog {
-  background: #252525;
+  background: rgba(38, 38, 38, 0.92);
   border-radius: 8px;
-  width: 600px;
-  max-width: 90vw;
+  width: 420px;
+  max-width: 92vw;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 .crop-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 14px;
   font-weight: 600;
   color: #e0e0e0;
 }
-
 .close-btn {
   background: transparent;
   border: none;
   color: #888;
-  font-size: 20px;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: flex;
 }
-
-.close-btn:hover {
-  color: #fff;
-}
+.close-btn:hover { color: #fff; background: rgba(255, 80, 80, 0.7); }
 
 .crop-body {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 20px 16px;
 }
 
-.crop-container {
+/* 取景框：固定尺寸、overflow 裁剪，图片只能在框内移动 */
+.crop-viewport {
   position: relative;
-  width: 100%;
-  height: 350px;
-  background: #111;
-  border-radius: 4px;
   overflow: hidden;
-  cursor: move;
+  background: #141414;
+  cursor: grab;
   user-select: none;
-  -webkit-user-select: none;
+  border-radius: 2px;
+  /* 框外压暗 */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
 }
+.crop-viewport:active { cursor: grabbing; }
 
 .crop-image {
   position: absolute;
   top: 0;
   left: 0;
-  max-width: none;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.crop-overlay-mask {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   pointer-events: none;
+  transform-origin: top left;
 }
 
-.crop-box {
+.crop-frame {
   position: absolute;
-  border: 2px solid #0078d7;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-  pointer-events: auto;
-  cursor: move;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid #ffffff;
+  box-sizing: border-box;
 }
 
-.crop-corner {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  background: #0078d7;
-  border: 2px solid #fff;
-  border-radius: 50%;
-}
-
-.crop-corner.tl { top: -6px; left: -6px; cursor: nwse-resize; }
-.crop-corner.tr { top: -6px; right: -6px; cursor: nesw-resize; }
-.crop-corner.bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
-.crop-corner.br { bottom: -6px; right: -6px; cursor: nwse-resize; }
-
-.crop-controls {
-  margin-top: 16px;
-}
-
-.scale-control {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.zoom-info {
   font-size: 12px;
-  color: #ccc;
-}
-
-.scale-control input[type="range"] {
-  flex: 1;
+  color: #999;
 }
 
 .crop-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 14px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 18px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
-
 .dialog-btn {
-  padding: 8px 20px;
-  border-radius: 4px;
+  padding: 7px 22px;
+  border-radius: 5px;
   border: none;
   cursor: pointer;
   font-size: 13px;
-  background: #333;
-  color: #ccc;
-  transition: background 0.15s ease;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
 }
-
-.dialog-btn:hover {
-  background: #444;
-}
-
-.dialog-btn.primary {
-  background: #0078d7;
-  color: #fff;
-}
-
-.dialog-btn.primary:hover {
-  background: #106ebe;
-}
+.dialog-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.dialog-btn.primary { background: #0078d7; color: #fff; }
+.dialog-btn.primary:hover { background: #106ebe; }
 </style>

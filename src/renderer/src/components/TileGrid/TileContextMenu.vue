@@ -108,10 +108,14 @@ function handleLiveToggle() {
   emit('close')
 }
 
-function handleSetBackground() {
+async function handleSetBackground() {
   // 打开独立的磁贴样式窗口（背景图片 + 图标/名称样式同步设置）
   emit('close')
-  window.electronAPI.openTileStyleWindow(props.tileId)
+  try {
+    await window.electronAPI.openTileStyleWindow(props.tileId)
+  } catch (e) {
+    alert('打开磁贴样式窗口失败: ' + (e as any)?.message + ' | ' + String(e))
+  }
 }
 
 function handleRemoveBackground() {
