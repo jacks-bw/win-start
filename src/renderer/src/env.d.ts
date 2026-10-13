@@ -51,6 +51,7 @@ interface ElectronAPI {
     wallpaperPath?: string | null
     wallpaperDarken?: number
     panelAlpha?: number
+    tileBlur?: number
   }>
   setHotkey: (hotkey: string) => Promise<void>
   getTileOpacity: () => Promise<number>
@@ -73,6 +74,8 @@ interface ElectronAPI {
   onWallpaperDarkenChanged: (callback: (v: number) => void) => void
   setPanelAlpha: (v: number) => Promise<number>
   onPanelAlphaChanged: (callback: (v: number) => void) => void
+  setTileBlur: (v: number) => Promise<number>
+  onTileBlurChanged: (callback: (v: number) => void) => void
 }
 
 interface AppItem {

@@ -121,6 +121,19 @@
             />
             <span class="opacity-value">{{ Math.round(panelAlpha * 100) }}%</span>
           </div>
+          <div class="opacity-row">
+            <span class="darken-label">磁贴毛玻璃</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              :value="tileBlurPct"
+              @input="onTileBlurInput(parseFloat(($event.target as HTMLInputElement).value))"
+            />
+            <span class="opacity-value">{{ tileBlurPct }}%</span>
+          </div>
+          <div class="tip">仅模糊磁贴覆盖住的壁纸，磁贴间隙保持清晰；拖到 0% 可关闭。内部按 0–60px 模糊半径换算。</div>
           <div v-if="wallpaperError" class="tip error">{{ wallpaperError }}</div>
           <div class="panel-actions">
             <button class="action-btn" :disabled="!wallpaperPath" @click="removeWallpaper">移除壁纸</button>
@@ -279,6 +292,8 @@ const wallpaperPath = ref<string | null>(null)
 const wallpaperPreview = ref('')
 const wallpaperDarken = ref(0.5)
 const panelAlpha = ref(0.4)
+const MAX_TILE_BLUR_PX = 60
+const tileBlurPct = ref(Math.round((20 / 60) * 100))
 const wallpaperError = ref('')
 
 async function refreshWallpaperPreview(path: string | null) {
@@ -335,6 +350,18 @@ async function onPanelAlphaInput(v: number) {
     if (typeof saved === 'number') panelAlpha.value = saved
   } catch (e) {
     console.error('设置列表/工具栏背景深度失败', e)
+  }
+}
+
+async function onTileBlurInput(pct: number) {
+  tileBlurPct.value = pct
+  try {
+    const px = (pct / 100) * MAX_TILE_BLUR_PX
+    const saved = await window.electronAPI.setTileBlur(px)
+    const finalPx = typeof saved === 'number' ? saved : px
+    tileBlurPct.value = Math.round((finalPx / MAX_TILE_BLUR_PX) * 100)
+  } catch (e) {
+    console.error('设置磁贴毛玻璃失败', e)
   }
 }
 
@@ -417,6 +444,7 @@ onMounted(async () => {
     if (s?.wallpaperPath) wallpaperPath.value = s.wallpaperPath
     wallpaperDarken.value = typeof s?.wallpaperDarken === 'number' ? s.wallpaperDarken : 0.5
     panelAlpha.value = typeof s?.panelAlpha === 'number' ? s.panelAlpha : 0.4
+    tileBlurPct.value = Math.round(((typeof s?.tileBlur === 'number' ? s.tileBlur : 20) / 60) * 100)
     if (wallpaperPath.value) await refreshWallpaperPreview(wallpaperPath.value)
   } catch (e) {
     console.error('加载设置失败', e)

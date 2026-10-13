@@ -73,6 +73,10 @@ const real = {
   clearWallpaper: () => invoke('clear_wallpaper'),
   setWallpaperDarken: (v: number) => invoke<number>('set_wallpaper_darken', { v }),
   setPanelAlpha: (v: number) => invoke<number>('set_panel_alpha', { v }),
+  setTileBlur: (v: number) => invoke<number>('set_tile_blur', { v }),
+  onTileBlurChanged: (cb: (v: number) => void) => {
+    listen('tile-blur-changed', (e) => cb(e.payload as number))
+  },
   onPanelAlphaChanged: (cb: (v: number) => void) => {
     listen('panel-alpha-changed', (e) => cb(e.payload as number))
   },

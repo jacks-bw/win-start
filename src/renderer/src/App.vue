@@ -20,6 +20,48 @@
     <div v-if="wallpaperUrl" class="wallpaper-layer">
       <img class="wallpaper-img" :src="wallpaperUrl" alt="" draggable="false" />
       <div class="wallpaper-darken" :style="{ background: `rgba(0, 0, 0, ${wallpaperDarken})` }"></div>
+      <!-- 仅磁贴覆盖区域模糊的壁纸：SVG 多矩形 clipPath + 高斯模糊 -->
+      <svg
+        v-if="tileBlur > 0"
+        class="wallpaper-blur-svg"
+        :width="vpW"
+        :height="vpH"
+      >
+        <defs>
+          <clipPath id="tile-blur-clip" clipPathUnits="userSpaceOnUse">
+            <rect
+              v-for="(r, i) in blurRects"
+              :key="i"
+              :x="r.x"
+              :y="r.y"
+              :width="r.w"
+              :height="r.h"
+              rx="2"
+            />
+          </clipPath>
+          <filter id="tile-blur-filter" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur :stdDeviation="tileBlur" />
+          </filter>
+        </defs>
+        <g clip-path="url(#tile-blur-clip)">
+          <image
+            :href="wallpaperUrl"
+            x="0"
+            y="0"
+            :width="vpW"
+            :height="vpH"
+            preserveAspectRatio="xMaxYMin slice"
+            filter="url(#tile-blur-filter)"
+          />
+          <rect
+            x="0"
+            y="0"
+            :width="vpW"
+            :height="vpH"
+            :fill="`rgba(0, 0, 0, ${wallpaperDarken})`"
+          />
+        </g>
+      </svg>
     </div>
 
     <!-- 最左侧：纵向工具栏（可自定义功能按钮：文件夹、设置、控制面板等） -->
@@ -126,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import AvatarCropWindow from './AvatarCropWindow.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
@@ -157,6 +199,64 @@ const tilePanelBg = computed(() => 'transparent')
 // 开始菜单壁纸（位于毛玻璃层之上、内容之下）
 const wallpaperUrl = ref('')
 const wallpaperDarken = ref(0.5)
+// 磁贴覆盖区域壁纸毛玻璃模糊强度(px)
+const tileBlur = ref(20)
+function applyTileBlur(v: number) {
+  const n = typeof v === 'number' && !Number.isNaN(v) ? v : 20
+  tileBlur.value = n
+  document.documentElement.style.setProperty('--tile-blur', `${n}px`)
+  updateBlurMask()
+}
+
+// 按磁贴实际矩形生成模糊壁纸裁剪块（磁贴 3D 翻转容器下 backdrop-filter 不生效；
+// CSS mask 在部分环境下不渲染，改用多块 overflow:hidden 裁剪同一张模糊壁纸，最稳）
+type BlurRect = { x: number; y: number; w: number; h: number }
+const blurRects = ref<BlurRect[]>([])
+const vpW = ref(window.innerWidth)
+const vpH = ref(window.innerHeight)
+let blurTimer: ReturnType<typeof setTimeout> | undefined
+function collectTileRects(): BlurRect[] {
+  const list: BlurRect[] = []
+  document.querySelectorAll('.tile-grid-inner .tile-container').forEach((el) => {
+    const r = el.getBoundingClientRect()
+    if (r.width > 4 && r.height > 4) {
+      list.push({ x: r.x, y: r.y, w: r.width, h: r.height })
+    }
+  })
+  return list
+}
+function buildBlurPieces() {
+  vpW.value = window.innerWidth
+  vpH.value = window.innerHeight
+  if (!wallpaperUrl.value || tileBlur.value <= 0) {
+    blurRects.value = []
+    return
+  }
+  const rects = collectTileRects()
+  blurRects.value = rects
+  if (rects.length === 0 && blurTimer === undefined) {
+    let retries = 0
+    const retry = () => {
+      const list = collectTileRects()
+      if (list.length > 0) {
+        blurRects.value = list
+        blurTimer = undefined
+      } else if (retries++ < 8) {
+        blurTimer = setTimeout(retry, 300)
+      } else {
+        blurTimer = undefined
+      }
+    }
+    blurTimer = setTimeout(retry, 300)
+  }
+}
+function updateBlurMask() {
+  if (blurTimer !== undefined) { clearTimeout(blurTimer); blurTimer = undefined }
+  blurTimer = setTimeout(() => {
+    blurTimer = undefined
+    buildBlurPieces()
+  }, 16)
+}
 async function loadWallpaper(path: string | null | undefined) {
   if (!path) {
     wallpaperUrl.value = ''
@@ -497,6 +597,7 @@ onMounted(async () => {
   try {
     const s = await window.electronAPI.getSettings()
     wallpaperDarken.value = typeof s?.wallpaperDarken === 'number' ? s.wallpaperDarken : 0.5
+    applyTileBlur(typeof s?.tileBlur === 'number' ? s.tileBlur : 20)
     await loadWallpaper(s?.wallpaperPath)
   } catch (e) {
     console.error('加载壁纸设置失败:', e)
@@ -510,6 +611,36 @@ onMounted(async () => {
   window.electronAPI.onPanelAlphaChanged((v) => {
     settingsStore.panelAlpha = typeof v === 'number' ? v : 0.4
   })
+  window.electronAPI.onTileBlurChanged((v) => {
+    applyTileBlur(v)
+  })
+  watch(wallpaperUrl, () => updateBlurMask())
+  watch(
+    () => tilesStore.groups,
+    () => updateBlurMask(),
+    { deep: true }
+  )
+  // 拖拽刚结束时磁贴位置可能还在过渡，连续重建几次
+  watch(
+    () => tilesStore.draggingTileId,
+    (id) => {
+      if (!id) {
+        updateBlurMask()
+        setTimeout(updateBlurMask, 120)
+        setTimeout(updateBlurMask, 300)
+      }
+    }
+  )
+  window.addEventListener('resize', updateBlurMask)
+  onUnmounted(() => {
+    window.removeEventListener('resize', updateBlurMask)
+    if (blurTimer !== undefined) clearTimeout(blurTimer)
+  })
+  // 初始布局与拖拽完成后刷新遮罩
+  nextTick(() => updateBlurMask())
+  setTimeout(updateBlurMask, 400)
+  setTimeout(updateBlurMask, 1200)
+  // onLayoutUpdated 在下方已有统一注册，遮罩刷新交由下方处理
 
   // 监听磁贴桥接服务事件（第三方软件推送内容）
   window.electronAPI.onTileBridgeUpdate((data) => {
@@ -528,6 +659,10 @@ onMounted(async () => {
     isVisible.value = true
     // 默认聚焦搜索框
     window.dispatchEvent(new CustomEvent('start-menu:opened'))
+    // 菜单显示时重建磁贴模糊块（隐藏窗口期间可能未生成）
+    updateBlurMask()
+    setTimeout(updateBlurMask, 150)
+    setTimeout(updateBlurMask, 500)
     // 菜单保持打开 400ms 后才后台惰性重扫（60s 内只扫一次）；
     // 快速闪一下菜单就关闭的话会在 onMenuClose 里取消
     clearTimeout(refreshTimer)
@@ -552,6 +687,7 @@ onMounted(async () => {
 
   // 监听布局更新事件（壁纸窗口保存后通知）
   window.electronAPI.onLayoutUpdated(() => {
+    updateBlurMask()
     tilesStore.loadLayout()
   })
 
@@ -635,6 +771,13 @@ onUnmounted(() => {
 .wallpaper-darken {
   position: absolute;
   inset: 0;
+}
+/* 磁贴覆盖区域的模糊壁纸（SVG） */
+.wallpaper-blur-svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: block;
 }
 /* 内容面板压在壁纸层之上 */
 .start-menu > .side-toolbar,

@@ -411,6 +411,9 @@ struct AppSettings {
     /// 程序列表 / 工具栏背景深度 0.0-1.0，默认 0.4
     #[serde(default = "default_panel_alpha", rename = "panelAlpha")]
     panel_alpha: f32,
+    /// 磁贴覆盖区域的壁纸毛玻璃模糊强度（px），0 表示关闭，默认 20
+    #[serde(default = "default_tile_blur", rename = "tileBlur")]
+    tile_blur: f32,
 }
 
 /// 校验颜色为 #rrggbb
@@ -433,6 +436,10 @@ fn default_panel_alpha() -> f32 {
     0.4
 }
 
+fn default_tile_blur() -> f32 {
+    20.0
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -444,6 +451,7 @@ impl Default for AppSettings {
             wallpaper_path: None,
             wallpaper_darken: 0.5,
             panel_alpha: 0.4,
+            tile_blur: 20.0,
         }
     }
 }
@@ -646,6 +654,22 @@ fn set_panel_alpha(
         save_settings(&s)?;
     }
     let _ = app.emit("panel-alpha-changed", v);
+    Ok(v)
+}
+
+#[tauri::command]
+fn set_tile_blur(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+    v: f32,
+) -> Result<f32, String> {
+    let v = v.clamp(0.0, 100.0);
+    {
+        let mut s = state.0.lock().unwrap();
+        s.tile_blur = v;
+        save_settings(&s)?;
+    }
+    let _ = app.emit("tile-blur-changed", v);
     Ok(v)
 }
 
@@ -1048,7 +1072,7 @@ fn run() {
             open_group_style_window, get_group_style_target, close_group_style_window,
             set_resize_blocked,
             notify_layout_updated,
-            get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color, set_wallpaper, clear_wallpaper, set_wallpaper_darken, set_panel_alpha,
+            get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color, set_wallpaper, clear_wallpaper, set_wallpaper_darken, set_panel_alpha, set_tile_blur,
             get_autostart, set_autostart,
             open_settings_window, close_settings_window
         ])
