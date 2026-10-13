@@ -42,6 +42,9 @@ const props = defineProps<{
   targetRatio: number
   // GIF 等不能用 canvas 裁剪的图：只记录缩放/位移坐标，动画保留
   gifMode?: boolean
+  // 裁剪结果输出的目标逻辑像素（默认正方形 256）；实际会按倍率超采样保证清晰
+  outputWidth?: number
+  outputHeight?: number
 }>()
 
 const emit = defineEmits<{
@@ -59,9 +62,21 @@ const imgHeight = ref(0)
 const offsetX = ref(0)
 const offsetY = ref(0)
 
-// 取景框尺寸（固定）：正方形 280；宽磁贴 2:1 用 320×160
-const viewW = computed(() => (props.targetRatio >= 2 ? 320 : 280))
-const viewH = computed(() => (props.targetRatio >= 2 ? 160 : 280))
+// 取景框尺寸：严格按目标比例计算，保证裁剪框与输出比例一致，不拉伸
+const viewportSize = computed(() => {
+  const ratio = props.targetRatio || 1
+  const maxW = 320
+  const maxH = 220
+  let w = maxW
+  let h = w / ratio
+  if (h > maxH) {
+    h = maxH
+    w = h * ratio
+  }
+  return { w: Math.round(w), h: Math.round(h) }
+})
+const viewW = computed(() => viewportSize.value.w)
+const viewH = computed(() => viewportSize.value.h)
 
 const imageStyle = computed(() => ({
   width: `${imgWidth.value * scale.value}px`,
@@ -167,8 +182,12 @@ function handleConfirm() {
     const cropH = viewH.value / s
 
     const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = Math.round(256 / props.targetRatio)
+    const outW = props.outputWidth || 256
+    const outH = props.outputHeight || Math.round(256 / props.targetRatio)
+    // 超采样：至少 2x，并覆盖屏幕缩放，避免磁贴放大后模糊
+    const factor = Math.max(2, window.devicePixelRatio || 1)
+    canvas.width = Math.round(outW * factor)
+    canvas.height = Math.round(outH * factor)
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 

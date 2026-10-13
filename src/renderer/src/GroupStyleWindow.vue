@@ -55,6 +55,8 @@
       :visible="cropVisible"
       :image-url="cropImageUrl"
       :target-ratio="cropRatio"
+      :output-width="cropOutW"
+      :output-height="cropOutH"
       :gif-mode="cropGifMode"
       @cancel="cropVisible = false"
       @confirm="onCropConfirmed"
@@ -72,6 +74,9 @@ import { useAppsStore } from './stores/useApps'
 import { useSettingsStore } from './stores/useSettings'
 
 const tilesStore = useTilesStore()
+
+// TODO(组背景 BUG 待修复): 组背景设置仍存在问题，修复前勿视为完成。
+// 已知反馈：组背景裁剪后的图片可能模糊/拉伸（单磁贴裁剪已高清化并修正比例，组背景切片仍需复核）。
 const settingsStore = useSettingsStore()
 const appsStore = useAppsStore()
 
@@ -228,6 +233,8 @@ const previewGridStyle = computed(() => {
 const cropVisible = ref(false)
 const cropImageUrl = ref('')
 const cropRatio = ref(1)
+const cropOutW = ref(256)
+const cropOutH = ref(256)
 const cropGifMode = ref(false)
 const cropGifBase64 = ref('')
 
@@ -273,6 +280,8 @@ async function chooseBackground() {
     }
   }
   cropRatio.value = maxCol > 0 && maxRow > 0 ? maxCol / maxRow : 1
+  cropOutW.value = maxCol * 76
+  cropOutH.value = maxRow * 76
   cropImageUrl.value = base64
   cropVisible.value = true
 }

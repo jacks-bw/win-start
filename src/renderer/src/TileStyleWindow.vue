@@ -146,6 +146,8 @@
       :visible="cropVisible"
       :image-url="cropImageUrl"
       :target-ratio="cropRatio"
+      :output-width="cropOutW"
+      :output-height="cropOutH"
       :gif-mode="cropGifMode"
       @cancel="cropVisible = false"
       @confirm="onCropConfirmed"
@@ -271,6 +273,8 @@ const previewStageStyle = computed(() => {
 const cropVisible = ref(false)
 const cropImageUrl = ref('')
 const cropRatio = ref(1)
+const cropOutW = ref(256)
+const cropOutH = ref(256)
 const cropGifMode = ref(false)
 const cropGifBase64 = ref('')
 
@@ -280,8 +284,16 @@ async function chooseBackground() {
   const base64 = await window.electronAPI.readImageBase64(filePath)
   if (!base64) return
   const isGif = filePath.toLowerCase().endsWith('.gif')
-  const ratioMap: Record<string, number> = { small: 1, medium: 1, wide: 2 }
-  cropRatio.value = ratioMap[tile.value?.size || 'medium'] || 1
+  const sizeMap: Record<string, { w: number; h: number }> = {
+    small: { w: 70, h: 70 },
+    medium: { w: 146, h: 146 },
+    wide: { w: 298, h: 146 }
+  }
+  const os = sizeMap[tile.value?.size || 'medium'] || { w: 146, h: 146 }
+  cropOutW.value = os.w
+  cropOutH.value = os.h
+  // 取景框比例与输出尺寸严格一致
+  cropRatio.value = os.w / os.h
   cropGifMode.value = isGif
   cropGifBase64.value = isGif ? base64 : ''
   cropImageUrl.value = base64
