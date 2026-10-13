@@ -626,6 +626,8 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* 以右上角为 (0,0) 锚点：缩放窗口时右侧和顶部内容保持对齐 */
+  object-position: right top;
   display: block;
   -webkit-user-drag: none;
   user-select: none;
