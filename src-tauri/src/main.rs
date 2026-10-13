@@ -402,6 +402,15 @@ struct AppSettings {
     /// 自定义高亮颜色（#rrggbb），None 表示跟随系统
     #[serde(default, rename = "highlightColor")]
     highlight_color: Option<String>,
+    /// 开始菜单壁纸（绝对路径），None 表示未设置
+    #[serde(default, rename = "wallpaperPath")]
+    wallpaper_path: Option<String>,
+    /// 壁纸压暗程度 0.0-1.0，默认 0.5
+    #[serde(default = "default_wallpaper_darken", rename = "wallpaperDarken")]
+    wallpaper_darken: f32,
+    /// 程序列表 / 工具栏背景深度 0.0-1.0，默认 0.4
+    #[serde(default = "default_panel_alpha", rename = "panelAlpha")]
+    panel_alpha: f32,
 }
 
 /// 校验颜色为 #rrggbb
@@ -416,6 +425,14 @@ fn default_true() -> bool {
     true
 }
 
+fn default_wallpaper_darken() -> f32 {
+    0.5
+}
+
+fn default_panel_alpha() -> f32 {
+    0.4
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -424,6 +441,9 @@ impl Default for AppSettings {
             include_wallpaper_opacity: true,
             theme_color: None,
             highlight_color: None,
+            wallpaper_path: None,
+            wallpaper_darken: 0.5,
+            panel_alpha: 0.4,
         }
     }
 }
@@ -536,6 +556,97 @@ fn set_highlight_color(
     }
     let _ = app.emit("highlight-color-changed", color);
     Ok(())
+}
+
+// ===================== 开始菜单壁纸 =====================
+/// 复制用户选择的静态图片到数据目录作为壁纸；仅支持静态图。
+#[tauri::command]
+fn set_wallpaper(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+    path: String,
+) -> Result<String, String> {
+    let src = std::path::Path::new(&path);
+    if !src.exists() {
+        return Err("图片文件不存在".to_string());
+    }
+    let ext = src
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+    if ext == "gif" {
+        return Err("壁纸仅支持静态图片（png/jpg/jpeg/bmp/webp）".to_string());
+    }
+    let ext = match ext.as_str() {
+        "jpg" | "jpeg" | "png" | "bmp" | "webp" => ext,
+        _ => "png".to_string(),
+    };
+    let dir = data_dir()?;
+    // 清理旧壁纸
+    for old_ext in ["png", "jpg", "jpeg", "bmp", "webp"] {
+        let _ = std::fs::remove_file(dir.join(format!("wallpaper.{old_ext}")));
+    }
+    let dest = dir.join(format!("wallpaper.{ext}"));
+    std::fs::copy(src, &dest).map_err(|e| format!("复制壁纸失败：{e}"))?;
+    let dest_str = dest.to_string_lossy().to_string();
+    {
+        let mut s = state.0.lock().unwrap();
+        s.wallpaper_path = Some(dest_str.clone());
+        save_settings(&s)?;
+    }
+    let _ = app.emit("wallpaper-changed", dest_str.clone());
+    Ok(dest_str)
+}
+
+#[tauri::command]
+fn clear_wallpaper(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+) -> Result<(), String> {
+    let old = state.0.lock().unwrap().wallpaper_path.clone();
+    if let Some(p) = old {
+        let _ = std::fs::remove_file(&p);
+    }
+    {
+        let mut s = state.0.lock().unwrap();
+        s.wallpaper_path = None;
+        save_settings(&s)?;
+    }
+    let _ = app.emit("wallpaper-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn set_wallpaper_darken(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+    v: f32,
+) -> Result<f32, String> {
+    let v = v.clamp(0.0, 1.0);
+    {
+        let mut s = state.0.lock().unwrap();
+        s.wallpaper_darken = v;
+        save_settings(&s)?;
+    }
+    let _ = app.emit("wallpaper-darken-changed", v);
+    Ok(v)
+}
+
+#[tauri::command]
+fn set_panel_alpha(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+    v: f32,
+) -> Result<f32, String> {
+    let v = v.clamp(0.0, 1.0);
+    {
+        let mut s = state.0.lock().unwrap();
+        s.panel_alpha = v;
+        save_settings(&s)?;
+    }
+    let _ = app.emit("panel-alpha-changed", v);
+    Ok(v)
 }
 
 // ===================== 系统强调色 =====================
@@ -937,7 +1048,7 @@ fn run() {
             open_group_style_window, get_group_style_target, close_group_style_window,
             set_resize_blocked,
             notify_layout_updated,
-            get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color,
+            get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color, set_wallpaper, clear_wallpaper, set_wallpaper_darken, set_panel_alpha,
             get_autostart, set_autostart,
             open_settings_window, close_settings_window
         ])

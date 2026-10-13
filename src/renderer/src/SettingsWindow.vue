@@ -88,6 +88,46 @@
           <div v-if="colorError" class="tip error">{{ colorError }}</div>
         </div>
 
+        <!-- 菜单壁纸 -->
+        <div v-else-if="active === 'wallpaper'" class="panel">
+          <div class="panel-title">开始菜单壁纸</div>
+          <div class="panel-desc">壁纸显示在毛玻璃背景之上、磁贴与列表内容之下；仅支持静态图片，按等比裁剪填充。</div>
+          <div class="wallpaper-preview" :class="{ empty: !wallpaperPreview }">
+            <img v-if="wallpaperPreview" :src="wallpaperPreview" alt="" />
+            <div v-if="wallpaperPreview" class="wallpaper-preview-mask" :style="{ background: `rgba(0,0,0,${wallpaperDarken})` }"></div>
+            <span v-else class="wallpaper-preview-empty">未设置壁纸</span>
+          </div>
+          <div class="opacity-row">
+            <span class="darken-label">压暗程度</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="wallpaperDarken"
+              @input="onDarkenInput(parseFloat(($event.target as HTMLInputElement).value))"
+            />
+            <span class="opacity-value">{{ Math.round(wallpaperDarken * 100) }}%</span>
+          </div>
+          <div class="opacity-row">
+            <span class="darken-label">列表/工具栏背景</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="panelAlpha"
+              @input="onPanelAlphaInput(parseFloat(($event.target as HTMLInputElement).value))"
+            />
+            <span class="opacity-value">{{ Math.round(panelAlpha * 100) }}%</span>
+          </div>
+          <div v-if="wallpaperError" class="tip error">{{ wallpaperError }}</div>
+          <div class="panel-actions">
+            <button class="action-btn" :disabled="!wallpaperPath" @click="removeWallpaper">移除壁纸</button>
+            <button class="action-btn primary" @click="pickWallpaper">选择图片</button>
+          </div>
+        </div>
+
         <!-- 磁贴透明度 -->
         <div v-else-if="active === 'opacity'" class="panel">
           <div class="panel-title">磁贴透明度</div>
@@ -129,16 +169,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { X, Keyboard, Grid3x3, Power, Palette } from 'lucide-vue-next'
+import { X, Keyboard, Grid3x3, Power, Palette, Image as ImageIcon } from 'lucide-vue-next'
 
 const menus = [
   { key: 'theme', label: '主题色', icon: Palette },
+  { key: 'wallpaper', label: '菜单壁纸', icon: ImageIcon },
   { key: 'shortcut', label: '快捷键设置', icon: Keyboard },
   { key: 'opacity', label: '磁贴透明度', icon: Grid3x3 },
   { key: 'autostart', label: '开机自启', icon: Power }
 ] as const
 
-const active = ref<'theme' | 'shortcut' | 'opacity' | 'autostart'>('theme')
+const active = ref<'theme' | 'wallpaper' | 'shortcut' | 'opacity' | 'autostart'>('theme')
 
 function closeWindow() {
   window.electronAPI.closeSettingsWindow()
@@ -233,6 +274,70 @@ async function onOpacityInput(v: number) {
   }
 }
 
+// ---------- 菜单壁纸 ----------
+const wallpaperPath = ref<string | null>(null)
+const wallpaperPreview = ref('')
+const wallpaperDarken = ref(0.5)
+const panelAlpha = ref(0.4)
+const wallpaperError = ref('')
+
+async function refreshWallpaperPreview(path: string | null) {
+  if (!path) {
+    wallpaperPreview.value = ''
+    return
+  }
+  try {
+    wallpaperPreview.value = await window.electronAPI.readImageBase64(path)
+  } catch (e) {
+    console.error('壁纸预览失败:', e)
+    wallpaperPreview.value = ''
+  }
+}
+
+async function pickWallpaper() {
+  wallpaperError.value = ''
+  try {
+    const p = await window.electronAPI.selectImage()
+    if (!p) return
+    const saved = await window.electronAPI.setWallpaper(p)
+    wallpaperPath.value = saved
+    await refreshWallpaperPreview(saved)
+  } catch (e: any) {
+    wallpaperError.value = String(e?.message || e || '设置失败')
+  }
+}
+
+async function removeWallpaper() {
+  wallpaperError.value = ''
+  try {
+    await window.electronAPI.clearWallpaper()
+    wallpaperPath.value = null
+    wallpaperPreview.value = ''
+  } catch (e: any) {
+    wallpaperError.value = String(e?.message || e || '移除失败')
+  }
+}
+
+async function onDarkenInput(v: number) {
+  wallpaperDarken.value = v
+  try {
+    const saved = await window.electronAPI.setWallpaperDarken(v)
+    if (typeof saved === 'number') wallpaperDarken.value = saved
+  } catch (e) {
+    console.error('设置压暗程度失败', e)
+  }
+}
+
+async function onPanelAlphaInput(v: number) {
+  panelAlpha.value = v
+  try {
+    const saved = await window.electronAPI.setPanelAlpha(v)
+    if (typeof saved === 'number') panelAlpha.value = saved
+  } catch (e) {
+    console.error('设置列表/工具栏背景深度失败', e)
+  }
+}
+
 // ---------- 主题色 ----------
 const themeColor = ref<string | null>(null)
 const highlightColor = ref<string | null>(null)
@@ -309,6 +414,10 @@ onMounted(async () => {
     }
     if (typeof s?.tileOpacity === 'number') opacity.value = s.tileOpacity
     includeWallpaper.value = s?.includeWallpaperOpacity !== false
+    if (s?.wallpaperPath) wallpaperPath.value = s.wallpaperPath
+    wallpaperDarken.value = typeof s?.wallpaperDarken === 'number' ? s.wallpaperDarken : 0.5
+    panelAlpha.value = typeof s?.panelAlpha === 'number' ? s.panelAlpha : 0.4
+    if (wallpaperPath.value) await refreshWallpaperPreview(wallpaperPath.value)
   } catch (e) {
     console.error('加载设置失败', e)
   }
@@ -423,6 +532,21 @@ onMounted(async () => {
 .color-sub { font-size: 12px; color: #999; }
 .color-picker { width: 34px; height: 34px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; overflow: hidden; position: relative; flex-shrink: 0; }
 .color-picker input { position: absolute; inset: -4px; width: 120%; height: 120%; border: none; padding: 0; cursor: pointer; background: transparent; }
+
+.darken-label { font-size: 13px; color: #ddd; }
+.wallpaper-preview {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+}
+.wallpaper-preview.empty { display: flex; align-items: center; justify-content: center; }
+.wallpaper-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wallpaper-preview-mask { position: absolute; inset: 0; }
+.wallpaper-preview-empty { font-size: 13px; color: #888; }
 
 .switch-row {
   display: flex;

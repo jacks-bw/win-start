@@ -48,6 +48,9 @@ interface ElectronAPI {
     includeWallpaperOpacity?: boolean
     themeColor?: string | null
     highlightColor?: string | null
+    wallpaperPath?: string | null
+    wallpaperDarken?: number
+    panelAlpha?: number
   }>
   setHotkey: (hotkey: string) => Promise<void>
   getTileOpacity: () => Promise<number>
@@ -63,6 +66,13 @@ interface ElectronAPI {
   setAutostart: (enable: boolean) => Promise<boolean>
   openSettingsWindow: () => Promise<void>
   closeSettingsWindow: () => Promise<void>
+  setWallpaper: (path: string) => Promise<string>
+  clearWallpaper: () => Promise<void>
+  setWallpaperDarken: (v: number) => Promise<number>
+  onWallpaperChanged: (callback: (path: string | null) => void) => void
+  onWallpaperDarkenChanged: (callback: (v: number) => void) => void
+  setPanelAlpha: (v: number) => Promise<number>
+  onPanelAlphaChanged: (callback: (v: number) => void) => void
 }
 
 interface AppItem {

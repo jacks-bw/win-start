@@ -16,6 +16,12 @@
 
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
+    <!-- 菜单壁纸层：在毛玻璃背景之上、所有内容之下 -->
+    <div v-if="wallpaperUrl" class="wallpaper-layer">
+      <img class="wallpaper-img" :src="wallpaperUrl" alt="" draggable="false" />
+      <div class="wallpaper-darken" :style="{ background: `rgba(0, 0, 0, ${wallpaperDarken})` }"></div>
+    </div>
+
     <!-- 最左侧：纵向工具栏（可自定义功能按钮：文件夹、设置、控制面板等） -->
     <SideToolbar :background="toolbarBg" />
 
@@ -147,6 +153,22 @@ const listPanelBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlph
 // 侧边工具栏背景：比列表区略深一档，形成独立的竖条视觉
 const toolbarBg = computed(() => `rgba(22, 22, 22, ${settingsStore.getListAlpha()})`)
 const tilePanelBg = computed(() => 'transparent')
+
+// 开始菜单壁纸（位于毛玻璃层之上、内容之下）
+const wallpaperUrl = ref('')
+const wallpaperDarken = ref(0.5)
+async function loadWallpaper(path: string | null | undefined) {
+  if (!path) {
+    wallpaperUrl.value = ''
+    return
+  }
+  try {
+    wallpaperUrl.value = await window.electronAPI.readImageBase64(path)
+  } catch (e) {
+    console.error('加载壁纸失败:', e)
+    wallpaperUrl.value = ''
+  }
+}
 
 // 判断是否是壁纸设置窗口（通过 hash 路由）
 
@@ -471,6 +493,24 @@ onMounted(async () => {
     settingsStore.includeWallpaperOpacity = include
   })
 
+  // 开始菜单壁纸
+  try {
+    const s = await window.electronAPI.getSettings()
+    wallpaperDarken.value = typeof s?.wallpaperDarken === 'number' ? s.wallpaperDarken : 0.5
+    await loadWallpaper(s?.wallpaperPath)
+  } catch (e) {
+    console.error('加载壁纸设置失败:', e)
+  }
+  window.electronAPI.onWallpaperChanged((p) => {
+    loadWallpaper(p)
+  })
+  window.electronAPI.onWallpaperDarkenChanged((v) => {
+    wallpaperDarken.value = typeof v === 'number' ? v : 0.5
+  })
+  window.electronAPI.onPanelAlphaChanged((v) => {
+    settingsStore.panelAlpha = typeof v === 'number' ? v : 0.4
+  })
+
   // 监听磁贴桥接服务事件（第三方软件推送内容）
   window.electronAPI.onTileBridgeUpdate((data) => {
     if (data?.appId) {
@@ -572,6 +612,34 @@ onUnmounted(() => {
 .start-menu.visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* 壁纸层：毛玻璃之上、内容之下 */
+.wallpaper-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wallpaper-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.wallpaper-darken {
+  position: absolute;
+  inset: 0;
+}
+/* 内容面板压在壁纸层之上 */
+.start-menu > .side-toolbar,
+.start-menu > .app-list-panel,
+.start-menu > .tile-grid-panel {
+  position: relative;
+  z-index: 1;
 }
 
 .app-list-panel {

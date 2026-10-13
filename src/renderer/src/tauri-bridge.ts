@@ -69,6 +69,19 @@ const real = {
   menuReady: () => invoke('menu_ready'),
   hideStartMenu: () => invoke('hide_start_menu'),
   setResizeBlocked: (blocked: boolean) => invoke('set_resize_blocked', { blocked }),
+  setWallpaper: (path: string) => invoke<string>('set_wallpaper', { path }),
+  clearWallpaper: () => invoke('clear_wallpaper'),
+  setWallpaperDarken: (v: number) => invoke<number>('set_wallpaper_darken', { v }),
+  setPanelAlpha: (v: number) => invoke<number>('set_panel_alpha', { v }),
+  onPanelAlphaChanged: (cb: (v: number) => void) => {
+    listen('panel-alpha-changed', (e) => cb(e.payload as number))
+  },
+  onWallpaperChanged: (cb: (path: string | null) => void) => {
+    listen('wallpaper-changed', (e) => cb((e.payload as string | null | undefined) ?? null))
+  },
+  onWallpaperDarkenChanged: (cb: (v: number) => void) => {
+    listen('wallpaper-darken-changed', (e) => cb(e.payload as number))
+  },
   onAppsChanged: (cb: () => void) => { listen('apps-changed', () => cb()) },
   onMenuOpen: (cb: () => void) => { menuOpenCbs.push(cb) },
   onMenuClose: (cb: () => void) => { menuCloseCbs.push(cb) },

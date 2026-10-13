@@ -6,10 +6,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const tileOpacity = ref(0.9)
   // 透明度是否作用于设置了壁纸的磁贴
   const includeWallpaperOpacity = ref(true)
+  // 程序列表 / 工具栏背景深度（0-1，默认0.4）
+  const panelAlpha = ref(0.4)
 
-  // 固定背景透明度：列表区 0.4，磁贴区 0.2
+  // 列表与工具栏背景深度
   function getListAlpha(): number {
-    return 0.4
+    return panelAlpha.value
   }
 
   function getTileAlpha(): number {
@@ -22,6 +24,7 @@ export const useSettingsStore = defineStore('settings', () => {
       if (s && typeof s.tileOpacity === 'number') {
         tileOpacity.value = s.tileOpacity
         includeWallpaperOpacity.value = s.includeWallpaperOpacity !== false
+        if (typeof s.panelAlpha === 'number') panelAlpha.value = s.panelAlpha
       } else {
         tileOpacity.value = await window.electronAPI.getTileOpacity()
       }
@@ -51,6 +54,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     tileOpacity,
     includeWallpaperOpacity,
+    panelAlpha,
     getListAlpha,
     getTileAlpha,
     loadTileOpacity,
