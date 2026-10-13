@@ -40,12 +40,16 @@ const real = {
         const name: string = (a.name || '').trim()
         if (!name || seen.has(name.toLowerCase())) continue
         seen.add(name.toLowerCase())
+        const isUwp = (a.kind ?? a.type) === 'uwp'
         result.push({
           id: a.id,
           name,
           path: a.path,
           icon: a.icon ? `data:image/png;base64,${a.icon}` : '',
-          type: a.kind,
+          type: a.kind ?? a.type,
+          lnkPath: isUwp ? '' : a.path,
+          uwp: isUwp,
+          uwpAppId: isUwp ? a.path : '',
           pinned: false,
           folderId: null,
           recentlyAdded: false,
@@ -77,6 +81,8 @@ const real = {
   getToolbarItems: () => Promise.resolve(['explorer', 'settings', 'controlPanel', 'recycleBin']),
   setToolbarItems: () => Promise.resolve(null),
   openToolbarItem: (key: string) => invoke('open_toolbar_item', { key }),
+  launchApp: (lnkPath: string) => invoke('launch_app', { path: lnkPath }),
+  launchUwpApp: (appId: string) => invoke('launch_uwp', { appId }),
   powerAction: () => Promise.resolve(null),
   getUserAvatar: async () => {
     const info = await invoke<{path:string, cropX?:number, cropY?:number, scale?:number, imgW?:number, imgH?:number} | null>('get_user_avatar')

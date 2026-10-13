@@ -109,6 +109,56 @@ fn open_toolbar_item(key: String) {
     let _ = cmd.spawn();
 }
 
+fn to_wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+// 用 ShellExecuteW 统一打开 .lnk / exe / UWP / 协议，避免 cmd 引号问题
+fn shell_open(target: &str) -> Result<(), String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let file = to_wide(target);
+    let op = to_wide("open");
+    unsafe {
+        let h = ShellExecuteW(
+            HWND(std::ptr::null_mut()),
+            PCWSTR(op.as_ptr()),
+            PCWSTR(file.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOWNORMAL,
+        );
+        let code = h.0 as isize;
+        // 返回值 > 32 表示成功
+        if code > 32 { Ok(()) } else { Err(format!("ShellExecute failed: {}", code)) }
+    }
+}
+
+#[tauri::command]
+fn launch_app(path: String) -> Result<(), String> {
+    std::process::Command::new("cmd")
+        .args(["/c", "start", "", &path])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn launch_uwp(app_id: String) -> Result<(), String> {
+    // 与 Electron 版一致：协议直开，UWP/商店应用交给 explorer.exe shell:AppsFolder
+    if app_id.contains("://") {
+        return shell_open(&app_id);
+    }
+    let target = format!("shell:AppsFolder\\{}", app_id);
+    std::process::Command::new("explorer.exe")
+        .arg(&target)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[derive(serde::Serialize)]
 struct AvatarInfo {
     path: String,
@@ -253,6 +303,7 @@ fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             scan_apps, show_start_menu, hide_start_menu, menu_ready, open_toolbar_item,
+            launch_app, launch_uwp,
             get_user_avatar, select_user_avatar, set_user_avatar, save_cropped_avatar,
             read_file_base64, get_crop_image, save_gif_avatar
         ])

@@ -202,6 +202,7 @@ export const useAppsStore = defineStore('apps', () => {
 
   async function launchApp(app: AppItem) {
     try {
+      // 先启动（菜单仍在前台，目标可继承前台焦点，避免被 Windows 前台锁卡住）
       if (app.uwp && app.uwpAppId) {
         await window.electronAPI.launchUwpApp(app.uwpAppId)
       } else {
@@ -209,6 +210,9 @@ export const useAppsStore = defineStore('apps', () => {
       }
     } catch (err) {
       console.error('启动应用失败:', err)
+    } finally {
+      // 再关闭开始菜单
+      window.electronAPI.hideStartMenu()
     }
   }
 
