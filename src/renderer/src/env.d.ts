@@ -40,6 +40,28 @@ interface ElectronAPI {
   getToolbarItems: () => Promise<string[]>
   setToolbarItems: (items: string[]) => Promise<string[]>
   openToolbarItem: (key: string) => Promise<void>
+  // 通用设置
+  getSettings: () => Promise<{
+    hotkey?: string
+    tileOpacity?: number
+    includeWallpaperOpacity?: boolean
+    themeColor?: string | null
+    highlightColor?: string | null
+  }>
+  setHotkey: (hotkey: string) => Promise<void>
+  getTileOpacity: () => Promise<number>
+  setTileOpacity: (opacity: number) => Promise<number>
+  setIncludeWallpaperOpacity: (enable: boolean) => Promise<void>
+  onTileOpacityChanged: (callback: (opacity: number) => void) => void
+  onIncludeWallpaperChanged: (callback: (include: boolean) => void) => void
+  setThemeColor: (color: string | null) => Promise<void>
+  setHighlightColor: (color: string | null) => Promise<void>
+  getAccentColor: () => Promise<string>
+  onAccentColorChanged: (callback: (color: string) => void) => void
+  getAutostart: () => Promise<boolean>
+  setAutostart: (enable: boolean) => Promise<boolean>
+  openSettingsWindow: () => Promise<void>
+  closeSettingsWindow: () => Promise<void>
 }
 
 interface AppItem {

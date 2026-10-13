@@ -68,7 +68,7 @@ onUnmounted(() => {
   top: 0;
   height: 100%;
   width: 100%;
-  background: linear-gradient(90deg, rgba(0, 120, 212, 0.25), rgba(0, 120, 212, 0.1));
+  background: linear-gradient(90deg, var(--accent-active-bg), var(--accent-soft));
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform 0.35s ease-out;

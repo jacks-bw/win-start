@@ -121,13 +121,13 @@ function cancelEdit() {
 }
 
 .folder-header:hover {
-  background: linear-gradient(to right, rgba(0, 120, 215, 0.3), rgba(0, 120, 215, 0.15));
+  background: linear-gradient(to right, var(--accent-active-bg), var(--accent-hover-bg));
   border-left: 3px solid var(--accent-color);
   padding-left: 17px;
 }
 
 .folder-header.drag-over {
-  background: rgba(0, 120, 215, 0.4);
+  background: var(--accent-active-bg);
   border: 1px dashed var(--accent-color);
 }
 
@@ -198,7 +198,7 @@ function cancelEdit() {
 }
 
 .folder-app-item:hover {
-  background: rgba(0, 120, 215, 0.2);
+  background: var(--accent-hover-bg);
 }
 
 .app-icon {

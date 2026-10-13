@@ -303,6 +303,6 @@ function handleCancel() {
   color: #e0e0e0;
 }
 .dialog-btn:hover { background: rgba(255, 255, 255, 0.16); }
-.dialog-btn.primary { background: #0078d7; color: #fff; }
+.dialog-btn.primary { background: var(--accent-color); color: #fff; }
 .dialog-btn.primary:hover { background: #106ebe; }
 </style>

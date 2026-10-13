@@ -27,6 +27,7 @@
           :style="{
             background: tileColor,
             backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
+            opacity: backgroundImage && settingsStore.includeWallpaperOpacity ? settingsStore.tileOpacity : 1,
             ...backgroundStyle
           }"
         ></div>
@@ -707,7 +708,7 @@ onUnmounted(() => {
 }
 
 .tile-container.dragging {
-  opacity: 0.4;
+  opacity: 0.9;
   transform: scale(0.95);
   pointer-events: none;
 }
@@ -716,7 +717,6 @@ onUnmounted(() => {
 .tile-container.drag-target {
   outline: 2px solid var(--accent-color);
   outline-offset: 2px;
-  background: rgba(0, 120, 215, 0.15);
   border-radius: 2px;
 }
 

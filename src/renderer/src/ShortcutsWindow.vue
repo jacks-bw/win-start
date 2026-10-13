@@ -228,8 +228,8 @@ function resetShortcut() {
 }
 
 .shortcut-input:focus {
-  border-color: #0078d4;
-  background: rgba(0, 120, 212, 0.1);
+  border-color: var(--accent-color);
+  background: var(--accent-soft);
 }
 
 .record-btn {
@@ -301,8 +301,8 @@ function resetShortcut() {
 }
 
 .btn-primary {
-  background: #0078d4;
-  border-color: #0078d4;
+  background: var(--accent-color);
+  border-color: var(--accent-color);
   color: #fff;
 }
 

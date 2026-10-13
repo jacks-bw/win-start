@@ -11,6 +11,9 @@
   <!-- 分组背景设置窗口（独立窗口） -->
   <GroupStyleWindow v-else-if="isGroupStyleRoute" />
 
+  <!-- 设置窗口（独立窗口） -->
+  <SettingsWindow v-else-if="isSettingsRoute" />
+
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
     <!-- 最左侧：纵向工具栏（可自定义功能按钮：文件夹、设置、控制面板等） -->
@@ -118,6 +121,7 @@ import AppList from './components/AppList/AppList.vue'
 import CropImageDialog from './components/CropImageDialog.vue'
 import TileStyleWindow from './TileStyleWindow.vue'
 import GroupStyleWindow from './GroupStyleWindow.vue'
+import SettingsWindow from './SettingsWindow.vue'
 import TileContextMenu from './components/TileGrid/TileContextMenu.vue'
 import GroupContextMenu from './components/TileGrid/GroupContextMenu.vue'
 import TileGrid from './components/TileGrid/TileGrid.vue'
@@ -150,6 +154,9 @@ const isTileStyleRoute = computed(() => window.location.hash.includes('/tile-sty
 
 // 判断是否是分组背景设置窗口（通过 hash 路由）
 const isGroupStyleRoute = computed(() => window.location.hash.includes('/group-style'))
+
+// 判断是否是设置窗口（通过 hash 路由）
+const isSettingsRoute = computed(() => window.location.hash.includes('/settings'))
 
 const isVisible = ref(false)
 // 样式窗打开期间锁定开始菜单交互
@@ -401,31 +408,6 @@ window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
   appContextMenu.value = { visible: true, x: adjustedX, y: adjustedY, app }
 }
 
-// 应用系统主题色到 CSS 变量
-function applyAccentColor(color: string) {
-  const root = document.documentElement
-  root.style.setProperty('--accent-color', color)
-  // 设置 RGB 分量，方便用 rgba(var(--accent-color-rgb), alpha) 控制透明度
-  const r = parseInt(color.slice(1, 3), 16)
-  const g = parseInt(color.slice(3, 5), 16)
-  const b = parseInt(color.slice(5, 7), 16)
-  root.style.setProperty('--accent-color-rgb', `${r}, ${g}, ${b}`)
-  // 计算 hover 颜色（变暗 15%）
-  const hoverColor = darkenColor(color, 0.15)
-  root.style.setProperty('--accent-hover', hoverColor)
-}
-
-// 颜色变暗工具函数
-function darkenColor(hex: string, amount: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  const dr = Math.round(r * (1 - amount))
-  const dg = Math.round(g * (1 - amount))
-  const db = Math.round(b * (1 - amount))
-  return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
-}
-
 // 清理列表中已不存在的应用对应的死磁贴和死固定（卸载软件后调用）
 function pruneDeadReferences() {
   if (appsStore.apps.length === 0) return
@@ -453,17 +435,14 @@ onMounted(async () => {
   await nextTick()
   window.electronAPI.menuReady?.()
 
-  // 应用系统主题色
-  applyAccentColor(await window.electronAPI.getAccentColor())
-
-  // 监听系统主题色变化
-  window.electronAPI.onAccentColorChanged((color) => {
-    applyAccentColor(color)
-  })
+  // 监听系统主题色变化（主题色/高亮色变更由 utils/theme 统一监听）
 
   // 监听磁贴透明度变化
   window.electronAPI.onTileOpacityChanged((opacity) => {
     settingsStore.tileOpacity = opacity
+  })
+  window.electronAPI.onIncludeWallpaperChanged((include) => {
+    settingsStore.includeWallpaperOpacity = include
   })
 
   // 监听磁贴桥接服务事件（第三方软件推送内容）

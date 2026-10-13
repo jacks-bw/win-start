@@ -13,7 +13,15 @@
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.6);
   --accent-color: #0078d7;
+  --accent-color-rgb: 0, 120, 215;
   --accent-hover: #0063a1;
+  /* 高亮颜色 RGB（默认跟随系统；可在设置中独立于主题色自定义） */
+  --highlight-color-rgb: 0, 120, 215;
+  /* 通用高亮半透明变量（由 --highlight-color-rgb 自动计算，统一改风格只需改透明度） */
+  --accent-soft: rgba(var(--highlight-color-rgb, 0, 120, 215), 0.10);      /* 输入框聚焦等浅底 */
+  --accent-hover-bg: rgba(var(--highlight-color-rgb, 0, 120, 215), 0.22);  /* 列表项悬停 */
+  --accent-active-bg: rgba(var(--highlight-color-rgb, 0, 120, 215), 0.38); /* 按下/激活/拖拽 */
+  --accent-border: rgba(var(--highlight-color-rgb, 0, 120, 215), 0.5);     /* 高亮描边 */
 
   /* 磁贴尺寸 - 以小磁贴为最小网格单位 */
   --tile-small: 70px;

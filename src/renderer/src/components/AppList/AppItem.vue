@@ -77,13 +77,13 @@ onUnmounted(() => {
 }
 
 .app-item:hover {
-  background: linear-gradient(to right, rgba(0, 120, 215, 0.3), rgba(0, 120, 215, 0.15));
+  background: linear-gradient(to right, var(--accent-active-bg), var(--accent-hover-bg));
   border-left: 3px solid var(--accent-color);
   padding-left: 17px;
 }
 
 .app-item:active {
-  background: rgba(0, 120, 215, 0.4);
+  background: var(--accent-active-bg);
 }
 
 .app-icon {

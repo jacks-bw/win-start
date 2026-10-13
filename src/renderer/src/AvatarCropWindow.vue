@@ -301,7 +301,7 @@ function confirmCrop() {
 }
 
 .btn-confirm {
-  background: #0078d4;
+  background: var(--accent-color);
   color: #fff;
 }
 

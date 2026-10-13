@@ -371,7 +371,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0078d4, #005a9e);
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -464,7 +464,7 @@ onUnmounted(() => {
 }
 
 .side-menu-item:hover {
-  background: rgba(0, 120, 212, 0.3);
+  background: var(--accent-active-bg);
 }
 
 .side-menu-empty {

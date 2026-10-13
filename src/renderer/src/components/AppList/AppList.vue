@@ -429,6 +429,7 @@ onUnmounted(() => {
 
 .letter-header:hover {
   color: var(--accent-color);
+  background: var(--accent-soft);
 }
 
 .empty-state {
@@ -450,8 +451,8 @@ onUnmounted(() => {
 }
 
 .all-apps-section.drag-over {
-  background: rgba(0, 120, 215, 0.08);
-  outline: 1px dashed rgba(0, 120, 215, 0.4);
+  background: var(--accent-soft);
+  outline: 1px dashed var(--accent-border);
   outline-offset: -2px;
 }
 
@@ -461,7 +462,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   background: rgba(30, 30, 30, 0.95);
-  border: 1px solid rgba(0, 120, 215, 0.5);
+  border: 1px solid var(--accent-border);
   padding: 5px 12px;
   border-radius: 3px;
   font-size: 12.5px;
@@ -520,7 +521,7 @@ onUnmounted(() => {
 }
 
 .folder-context-menu .menu-item:hover {
-  background: rgba(0, 120, 215, 0.3);
+  background: var(--accent-active-bg);
   color: #fff;
 }
 
@@ -607,13 +608,13 @@ onUnmounted(() => {
 }
 
 .letter-picker-item:hover:not(.disabled) {
-  background: rgba(0, 120, 215, 0.3);
+  background: var(--accent-active-bg);
   border-color: var(--accent-color);
   color: #fff;
 }
 
 .letter-picker-item.active {
-  background: rgba(0, 120, 215, 0.2);
+  background: var(--accent-hover-bg);
   border-color: var(--accent-color);
   color: #fff;
 }

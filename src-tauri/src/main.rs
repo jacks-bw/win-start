@@ -387,6 +387,199 @@ fn data_dir() -> Result<std::path::PathBuf, String> {
     Ok(d)
 }
 
+// ===================== 通用设置（快捷键 / 磁贴透明度） =====================
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct AppSettings {
+    hotkey: String,
+    #[serde(rename = "tileOpacity")]
+    tile_opacity: f32,
+    /// 透明度是否包含设置了壁纸的磁贴
+    #[serde(default = "default_true", rename = "includeWallpaperOpacity")]
+    include_wallpaper_opacity: bool,
+    /// 自定义软件主题色（#rrggbb），None 表示跟随系统
+    #[serde(default, rename = "themeColor")]
+    theme_color: Option<String>,
+    /// 自定义高亮颜色（#rrggbb），None 表示跟随系统
+    #[serde(default, rename = "highlightColor")]
+    highlight_color: Option<String>,
+}
+
+/// 校验颜色为 #rrggbb
+fn valid_hex_color(c: &str) -> bool {
+    let b = c.as_bytes();
+    b.len() == 7
+        && b[0] == b'#'
+        && b[1..].iter().all(|x| x.is_ascii_hexdigit())
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            hotkey: "Alt+W".to_string(),
+            tile_opacity: 0.9,
+            include_wallpaper_opacity: true,
+            theme_color: None,
+            highlight_color: None,
+        }
+    }
+}
+
+struct AppSettingsState(std::sync::Mutex<AppSettings>);
+
+fn load_settings() -> AppSettings {
+    let Some(p) = data_dir().ok().map(|d| d.join("settings.json")) else {
+        return AppSettings::default();
+    };
+    std::fs::read_to_string(&p)
+        .ok()
+        .and_then(|s| serde_json::from_str::<AppSettings>(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_settings(s: &AppSettings) -> Result<(), String> {
+    let p = data_dir()?.join("settings.json");
+    std::fs::write(&p, serde_json::to_string(s).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_settings(state: tauri::State<'_, AppSettingsState>) -> AppSettings {
+    state.0.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn set_hotkey(app: tauri::AppHandle, state: tauri::State<'_, AppSettingsState>, hotkey: String) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let gs = app.global_shortcut();
+    gs.unregister_all().map_err(|e| e.to_string())?;
+    let trimmed = hotkey.trim();
+    if !trimmed.is_empty() {
+        let sc: tauri_plugin_global_shortcut::Shortcut =
+            trimmed.parse().map_err(|e| format!("快捷键无效：{e}"))?;
+        gs.register(sc).map_err(|e| format!("该快捷键已被占用或无效：{e}"))?;
+    }
+    let mut s = state.0.lock().unwrap();
+    s.hotkey = trimmed.to_string();
+    save_settings(&s)
+}
+
+#[tauri::command]
+fn get_tile_opacity(state: tauri::State<'_, AppSettingsState>) -> f32 {
+    state.0.lock().unwrap().tile_opacity
+}
+
+#[tauri::command]
+fn set_tile_opacity(app: tauri::AppHandle, state: tauri::State<'_, AppSettingsState>, opacity: f32) -> Result<f32, String> {
+    let v = opacity.clamp(0.1, 1.0);
+    {
+        let mut s = state.0.lock().unwrap();
+        s.tile_opacity = v;
+        save_settings(&s)?;
+    }
+    let _ = app.emit("tile-opacity-changed", v);
+    Ok(v)
+}
+
+#[tauri::command]
+fn set_include_wallpaper_opacity(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+    enable: bool,
+) -> Result<(), String> {
+    {
+        let mut s = state.0.lock().unwrap();
+        s.include_wallpaper_opacity = enable;
+        save_settings(&s)?;
+    }
+    let _ = app.emit("tile-opacity-include-changed", enable);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_theme_color(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+    color: Option<String>,
+) -> Result<(), String> {
+    if let Some(ref c) = color {
+        if !valid_hex_color(c) {
+            return Err("颜色格式无效，应为 #RRGGBB".to_string());
+        }
+    }
+    {
+        let mut s = state.0.lock().unwrap();
+        s.theme_color = color.clone();
+        save_settings(&s)?;
+    }
+    let _ = app.emit("theme-color-changed", color);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_highlight_color(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
+    color: Option<String>,
+) -> Result<(), String> {
+    if let Some(ref c) = color {
+        if !valid_hex_color(c) {
+            return Err("颜色格式无效，应为 #RRGGBB".to_string());
+        }
+    }
+    {
+        let mut s = state.0.lock().unwrap();
+        s.highlight_color = color.clone();
+        save_settings(&s)?;
+    }
+    let _ = app.emit("highlight-color-changed", color);
+    Ok(())
+}
+
+// ===================== 系统强调色 =====================
+/// 读取注册表中的系统强调色（HKCU\Software\Microsoft\Windows\DWM 的 AccentColor，
+/// 格式为 0xAABBGGRR），返回 #RRGGBB；失败时回退为 Windows 蓝。
+#[tauri::command]
+fn get_accent_color() -> String {
+    if let Ok(out) = std::process::Command::new("reg")
+        .args(["query", r"HKCU\Software\Microsoft\Windows\DWM", "/v", "AccentColor"])
+        .output()
+    {
+        let text = String::from_utf8_lossy(&out.stdout);
+        for line in text.lines() {
+            let Some(pos) = line.find("0x") else { continue };
+            let raw = line[pos..].trim().trim_start_matches("0x");
+            if let Ok(v) = u32::from_str_radix(raw, 16) {
+                let r = (v & 0xff) as u8;
+                let g = ((v >> 8) & 0xff) as u8;
+                let b = ((v >> 16) & 0xff) as u8;
+                return format!("#{:02x}{:02x}{:02x}", r, g, b);
+            }
+        }
+    }
+    "#0078d7".to_string()
+}
+
+// ===================== 开机自启 =====================
+#[tauri::command]
+fn get_autostart(app: tauri::AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_autostart(app: tauri::AppHandle, enable: bool) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let al = app.autolaunch();
+    if enable {
+        al.enable().map_err(|e| e.to_string())
+    } else {
+        al.disable().map_err(|e| e.to_string())
+    }
+}
+
 #[tauri::command]
 fn load_tile_layout() -> Option<serde_json::Value> {
     let p = data_dir().ok()?.join("tile-layout.json");
@@ -609,6 +802,99 @@ fn notify_layout_updated(app: tauri::AppHandle) {
     let _ = app.emit("layout-updated", ());
 }
 
+// ===================== 设置窗口 =====================
+async fn create_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+    if let Some(win) = app.get_webview_window("settings") {
+        let _ = win.set_focus();
+        return Ok(());
+    }
+    let win = WebviewWindowBuilder::new(
+        app,
+        "settings",
+        WebviewUrl::External("http://localhost:5173/#/settings".parse().unwrap()),
+    )
+    .title("设置")
+    .inner_size(640.0, 480.0)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .skip_taskbar(true)
+    .center()
+    .visible(true)
+    .build()
+    .map_err(|e| e.to_string())?;
+    framelize_window(&win);
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    create_settings_window(&app).await
+}
+
+#[tauri::command]
+fn close_settings_window(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("settings") {
+        let _ = win.close();
+    }
+}
+
+// 无边框毛玻璃 + 去强调色边框 + WebView2 透明背景（运行时创建的独立窗口通用）
+fn framelize_window(win: &tauri::WebviewWindow) {
+    let _ = window_vibrancy::apply_acrylic(win, Some((32, 32, 32, 40)));
+    #[cfg(target_os = "windows")]
+    if let Ok(hwnd_t) = win.hwnd() {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::Graphics::Dwm::{
+            DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR,
+            DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
+        };
+        let hwnd = HWND(hwnd_t.0);
+        unsafe {
+            let none: u32 = 0xFFFFFFFE;
+            let _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &none as *const u32 as *const _, 4);
+            let _ = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &none as *const u32 as *const _, 4);
+            let thickness: i32 = 0;
+            let _ = DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
+                &thickness as *const i32 as *const _,
+                4,
+            );
+        }
+    }
+    // 运行时创建的窗口 controller 可能尚未就绪，延迟重试设置透明背景避免白屏
+    let win_for_bg = win.clone();
+    std::thread::spawn(move || {
+        for _ in 0..8 {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let w = win_for_bg.clone();
+            let w2 = w.clone();
+            if w
+                .run_on_main_thread(move || {
+                    let _ = w2.with_webview(|webview| {
+                        use webview2_com::Microsoft::Web::WebView2::Win32::{
+                            ICoreWebView2Controller2, COREWEBVIEW2_COLOR,
+                        };
+                        use windows61::core::Interface;
+                        unsafe {
+                            let ctrl = webview.controller();
+                            if let Ok(c2) = ctrl.cast::<ICoreWebView2Controller2>() {
+                                let mut transparent = COREWEBVIEW2_COLOR { A: 0, R: 0, G: 0, B: 0 };
+                                let _ = c2.DefaultBackgroundColor(&mut transparent);
+                            }
+                        }
+                    });
+                })
+                .is_ok()
+            {
+                break;
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn run() {
     tauri::Builder::default()
@@ -618,6 +904,21 @@ fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Some(win) = app.get_webview_window("main") {
+                            if win.is_visible().unwrap_or(false) {
+                                let _ = win.hide();
+                            } else {
+                                do_show(&win);
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             scan_apps, show_start_menu, hide_start_menu, menu_ready, open_toolbar_item,
             launch_app, launch_uwp,
@@ -628,11 +929,25 @@ fn run() {
             select_image, select_svg, read_image_base64, save_image,
             open_tile_style_window, get_tile_style_target, close_tile_style_window,
             open_group_style_window, get_group_style_target, close_group_style_window,
-            notify_layout_updated
+            notify_layout_updated,
+            get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color,
+            get_autostart, set_autostart,
+            open_settings_window, close_settings_window
         ])
         .setup(|app| {
             app.manage(CropImagePath(Mutex::new(String::new())));
             app.manage(StyleTargets { tile: Mutex::new(String::new()), group: Mutex::new(String::new()) });
+            app.manage(AppSettingsState(std::sync::Mutex::new(load_settings())));
+            // 注册用户配置的全局快捷键
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                let hk = app.state::<AppSettingsState>().0.lock().unwrap().hotkey.clone();
+                if let Ok(sc) = hk.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+                    if let Err(e) = app.global_shortcut().register(sc) {
+                        eprintln!("[Warn] 全局快捷键 {:?} 注册失败: {}", hk, e);
+                    }
+                }
+            }
             let win = app.get_webview_window("main").unwrap();
 
             let _ = apply_acrylic(&win, Some((32, 32, 32, 40)));
@@ -707,12 +1022,12 @@ fn run() {
 
             // 托盘菜单
             let open_item = MenuItem::with_id(app, "open", "打开开始菜单", true, None::<&str>)?;
-            let shortcut_item = MenuItem::with_id(app, "shortcut", "快捷键设置", true, None::<&str>)?;
+            let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(
                 app,
-                &[&open_item, &sep, &shortcut_item, &sep, &quit_item],
+                &[&open_item, &sep, &settings_item, &sep, &quit_item],
             )?;
 
             TrayIconBuilder::with_id("main-tray")
@@ -742,31 +1057,16 @@ fn run() {
                             let _ = win.set_focus();
                         }
                     }
+                    "settings" => {
+                        let app2 = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = create_settings_window(&app2).await;
+                        });
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })
                 .build(app)?;
-
-            // Alt+W（注册失败不阻塞启动）
-            let win_clone = win.clone();
-            let builder = tauri_plugin_global_shortcut::Builder::new().with_shortcut("Alt+W");
-            match builder {
-                Ok(b) => {
-                    let plugin = b
-                        .with_handler(move |_app, _shortcut, event| {
-                            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                                if win_clone.is_visible().unwrap_or(false) {
-                                    let _ = win_clone.hide();
-                                } else {
-                                    do_show(&win_clone);
-                                }
-                            }
-                        })
-                        .build();
-                    let _ = app.handle().plugin(plugin);
-                }
-                Err(e) => eprintln!("[Warn] Alt+W 注册失败: {}", e),
-            }
 
             Ok(())
         })

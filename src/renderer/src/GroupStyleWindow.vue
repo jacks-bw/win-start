@@ -357,7 +357,7 @@ async function onCropConfirmed(dataUrl: string) {
   color: #e0e0e0;
 }
 .footer-btn:hover { background: rgba(255, 255, 255, 0.16); }
-.footer-btn.primary { background: #0078d7; color: #fff; }
+.footer-btn.primary { background: var(--accent-color); color: #fff; }
 .footer-btn.primary:hover { background: #106ebe; }
 
 .preview-area {

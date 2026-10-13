@@ -456,7 +456,7 @@ function setAlign(pos: string) {
   color: #e0e0e0;
 }
 .footer-btn:hover { background: rgba(255, 255, 255, 0.16); }
-.footer-btn.primary { background: #0078d7; color: #fff; }
+.footer-btn.primary { background: var(--accent-color); color: #fff; }
 .footer-btn.primary:hover { background: #106ebe; }
 
 .controls.disabled {
@@ -581,7 +581,7 @@ function setAlign(pos: string) {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #0078d7;
+  background: var(--accent-color);
   cursor: pointer;
 }
 
@@ -603,11 +603,11 @@ function setAlign(pos: string) {
 }
 .align-btn:hover { background: rgba(255, 255, 255, 0.12); }
 .align-btn.active {
-  background: rgba(0, 120, 215, 0.2);
-  border-color: #0078d7;
+  background: var(--accent-active-bg);
+  border-color: var(--accent-color);
 }
 .align-dot { width: 5px; height: 5px; border-radius: 50%; background: #888; }
-.align-btn.active .align-dot { background: #0078d7; }
+.align-btn.active .align-dot { background: var(--accent-color); }
 
 /* 图标选择器 */
 .icon-picker-overlay {
@@ -649,7 +649,7 @@ function setAlign(pos: string) {
   font-size: 12px;
   outline: none;
 }
-.icon-search-input:focus { border-color: #0078d7; }
+.icon-search-input:focus { border-color: var(--accent-color); }
 .icon-picker-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -674,8 +674,8 @@ function setAlign(pos: string) {
 }
 .icon-picker-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .icon-picker-item.active {
-  background: rgba(0, 120, 215, 0.2);
-  border-color: #0078d7;
+  background: var(--accent-active-bg);
+  border-color: var(--accent-color);
   color: #fff;
 }
 </style>

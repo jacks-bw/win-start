@@ -114,7 +114,7 @@ function handleGridDragOver(e: DragEvent) {
     top: `${rect.top + Math.max(0, row) * cellSize}px`,
     width: `${span.cols * cellSize}px`,
     height: `${span.rows * cellSize}px`,
-    background: 'rgba(0, 120, 215, 0.2)',
+    background: 'transparent',
     border: '2px solid var(--accent-color)',
     borderRadius: '2px',
     pointerEvents: 'none',
@@ -312,14 +312,12 @@ onMounted(() => {
   min-height: 200px; /* 空分组也有足够高度接收拖拽 */
 }
 
-/* 拖拽时显示浅网格线（对齐到单元格起点=磁贴左边缘） */
-.tile-grid-inner,
-.tile-grid-inner.dragging {
-  background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 76px 76px;
-  border-radius: 2px;
+/* 拖拽进行中：屏蔽其他磁贴的悬停遮罩 */
+.tile-grid-inner.dragging .tile-container:hover .tile-bg::before {
+  opacity: 0;
+}
+.tile-grid-inner.dragging .tile-container:hover .tile-bg {
+  transform: none;
 }
 
 /* 安卓风格浮动磁贴 */
@@ -333,7 +331,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  background: rgba(35, 55, 80, 0.92);
+  background: rgba(var(--accent-color-rgb), 0.85);
   color: #fff;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.12);
   transition: scale 0.12s ease;
