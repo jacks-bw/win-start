@@ -241,30 +241,6 @@ onMounted(() => {
   height: 0;
 }
 
-.tile-group-section::-webkit-scrollbar {
-  width: 0;
-  transition: width 0.2s ease;
-}
-
-.tile-group-section:hover::-webkit-scrollbar {
-  width: 8px;
-}
-
-.tile-group-section::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 6px 0;
-}
-
-.tile-group-section::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  margin: 0 6px;
-}
-
-.tile-group-section::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-
 .tile-group-section {
   flex-shrink: 0;
   width: 460px; /* 6列磁贴450 + 10边距 */
@@ -272,8 +248,16 @@ onMounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0;
-  scrollbar-gutter: stable;
   margin-bottom: 16px;
+  /* 组内可滚动但不显示滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tile-group-section::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .group-header {

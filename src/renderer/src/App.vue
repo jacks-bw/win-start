@@ -59,8 +59,14 @@
       @close="appContextMenu.visible = false"
     />
 
-    <!-- 右下角 resize 手柄 -->
-    <div class="window-resize-handle"></div>
+    <!-- 窗口边缘/四角缩放热区（无边框窗口自定义 resize） -->
+    <div
+      v-for="g in resizeGrips"
+      :key="g.dir"
+      class="resize-grip"
+      :class="'rg-' + g.dir.toLowerCase()"
+      @mousedown.prevent="startWindowResize(g.dir)"
+    ></div>
 
     <!-- 样式窗打开期间的交互锁定遮罩（透明，吞掉所有点击） -->
     <div v-if="menuBlocked" class="menu-block-overlay"></div>
@@ -115,6 +121,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import AvatarCropWindow from './AvatarCropWindow.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import AppList from './components/AppList/AppList.vue'
@@ -248,6 +255,25 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 // 拖拽调整宽度
+// 窗口缩放：八方热区
+const resizeGrips = [
+  { dir: 'North' },
+  { dir: 'East' },
+  { dir: 'NorthEast' }
+] as const
+
+async function startWindowResize(dir: string) {
+  try {
+    // 缩放系统模态循环会造成短暂失焦，先屏蔽失焦自动关闭
+    await window.electronAPI.setResizeBlocked(true)
+    await getCurrentWindow().startResizeDragging(dir as any)
+  } catch (e) {
+    console.error('窗口缩放失败:', e)
+  } finally {
+    await window.electronAPI.setResizeBlocked(false)
+  }
+}
+
 function startDrag(e: MouseEvent) {
   isDragging.value = true
   const startX = e.clientX
@@ -576,30 +602,24 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* 右下角窗口 resize 手柄 */
-.window-resize-handle {
+/* 无边框窗口缩放热区：顶部/右侧边缘 + 右上角 */
+.resize-grip {
   position: fixed;
-  bottom: 0;
-  right: 0;
-  width: 16px;
-  height: 16px;
-  cursor: nwse-resize;
-  z-index: 9999;
-  /* Electron 系统级拖拽区域 */
+  z-index: 10001;
   -webkit-app-region: no-drag;
 }
-
-.window-resize-handle::after {
+.rg-n { top: 0; left: 16px; right: 16px; height: 8px; cursor: n-resize; }
+.rg-e { right: 0; top: 16px; height: calc(100% - 16px); width: 8px; cursor: e-resize; }
+.rg-northeast { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+.rg-northeast::after {
   content: '';
   position: absolute;
   right: 3px;
-  bottom: 3px;
+  top: 3px;
   width: 8px;
   height: 8px;
-  background: transparent;
-  border-right: 2px solid rgba(255, 255, 255, 0.3);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-  border-bottom-right-radius: 2px;
+  border-right: 2px solid rgba(255, 255, 255, 0.35);
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
 }
 
 /* 样式窗打开期间的交互锁定遮罩：透明，吞掉所有鼠标事件 */

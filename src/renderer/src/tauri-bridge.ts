@@ -68,6 +68,7 @@ const real = {
   showStartMenu: () => invoke('show_start_menu'),
   menuReady: () => invoke('menu_ready'),
   hideStartMenu: () => invoke('hide_start_menu'),
+  setResizeBlocked: (blocked: boolean) => invoke('set_resize_blocked', { blocked }),
   onAppsChanged: (cb: () => void) => { listen('apps-changed', () => cb()) },
   onMenuOpen: (cb: () => void) => { menuOpenCbs.push(cb) },
   onMenuClose: (cb: () => void) => { menuCloseCbs.push(cb) },

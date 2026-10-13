@@ -797,6 +797,12 @@ fn close_group_style_window(app: tauri::AppHandle) {
     let _ = app.emit("layout-updated", ());
 }
 
+// 窗口边缘缩放期间屏蔽失焦自动隐藏（resize 系统模态循环会导致短暂失焦）
+#[tauri::command]
+fn set_resize_blocked(blocked: bool) {
+    MENU_BLOCKED.store(blocked, Ordering::SeqCst);
+}
+
 #[tauri::command]
 fn notify_layout_updated(app: tauri::AppHandle) {
     let _ = app.emit("layout-updated", ());
@@ -929,6 +935,7 @@ fn run() {
             select_image, select_svg, read_image_base64, save_image,
             open_tile_style_window, get_tile_style_target, close_tile_style_window,
             open_group_style_window, get_group_style_target, close_group_style_window,
+            set_resize_blocked,
             notify_layout_updated,
             get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color,
             get_autostart, set_autostart,
@@ -980,6 +987,12 @@ fn run() {
                         &thickness as *const i32 as *const _,
                         std::mem::size_of::<i32>() as u32,
                     );
+                    // 强制保留 WS_THICKFRAME，保证无边框窗口可被 startResize 缩放
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_THICKFRAME,
+                    };
+                    let style = GetWindowLongW(hwnd, GWL_STYLE);
+                    SetWindowLongW(hwnd, GWL_STYLE, style | WS_THICKFRAME.0 as i32);
                 }
             }
 
