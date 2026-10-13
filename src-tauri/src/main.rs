@@ -23,6 +23,8 @@ fn menu_ready() {
 static FIRST_SHOW: AtomicBool = AtomicBool::new(true);
 // 样式设置窗口打开时，主菜单失焦不自动隐藏
 static MENU_BLOCKED: AtomicBool = AtomicBool::new(false);
+// 设置窗口打开前，主菜单是否本就可见（用于设置关闭后恢复）
+static SETTINGS_MENU_WAS_OPEN: AtomicBool = AtomicBool::new(false);
 
 // 首次显示后强制重绘：移动 1 像素再移回，触发合成器刷新首帧
 fn force_first_paint(win: &tauri::WebviewWindow) {
@@ -950,6 +952,24 @@ async fn create_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
         let _ = win.set_focus();
         return Ok(());
     }
+
+    // 个性化设置期间自动打开主菜单做同步预览（不可点击，由 menu-blocked 遮罩控制）
+    let main = app.get_webview_window("main");
+    let was_open = main
+        .as_ref()
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false);
+    SETTINGS_MENU_WAS_OPEN.store(was_open, Ordering::SeqCst);
+    // 先屏蔽失焦自动隐藏，再显示主菜单（不抢焦点，焦点留给设置窗口）
+    MENU_BLOCKED.store(true, Ordering::SeqCst);
+    let _ = app.emit("menu-blocked", true);
+    if let Some(main) = &main {
+        if !was_open {
+            let _ = main.show();
+            let _ = main.emit("menu-open", ());
+        }
+    }
+
     let win = WebviewWindowBuilder::new(
         app,
         "settings",
@@ -966,6 +986,22 @@ async fn create_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
     .build()
     .map_err(|e| e.to_string())?;
     framelize_window(&win);
+    let _ = win.set_focus();
+
+    // 关闭时：解锁主菜单；若菜单是为预览而打开的，则自动收回
+    let app2 = app.clone();
+    win.on_window_event(move |event| {
+        if let tauri::WindowEvent::Destroyed = event {
+            MENU_BLOCKED.store(false, Ordering::SeqCst);
+            let _ = app2.emit("menu-blocked", false);
+            if !SETTINGS_MENU_WAS_OPEN.load(Ordering::SeqCst) {
+                if let Some(main) = app2.get_webview_window("main") {
+                    let _ = main.emit("menu-close", ());
+                    let _ = main.hide();
+                }
+            }
+        }
+    });
     Ok(())
 }
 

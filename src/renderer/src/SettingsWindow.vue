@@ -50,117 +50,127 @@
           </div>
         </div>
 
-        <!-- 主题色 -->
-        <div v-else-if="active === 'theme'" class="panel">
-          <div class="panel-title">主题色</div>
-          <div class="panel-desc">软件整体主题色与高亮颜色相互独立，均可单独恢复为跟随系统。</div>
+        <!-- 个性化设置（主题色 / 菜单壁纸 / 磁贴透明度） -->
+        <div v-if="active === 'personal'" class="panel">
+          <div class="panel-title">个性化设置</div>
+          <div class="panel-desc">主题色、菜单壁纸与磁贴透明度等外观设置。</div>
 
-          <div class="color-row">
-            <div class="color-info">
-              <div class="color-label">软件主题色</div>
-              <div class="color-sub">{{ themeColor ? '自定义颜色' : '跟随系统' }} · 按钮、磁贴底色等实色</div>
+          <!-- 主题色 -->
+          <div class="setting-section">
+            <div class="setting-section-title">主题色</div>
+            <div class="color-row">
+              <div class="color-info">
+                <div class="color-label">软件主题色</div>
+                <div class="color-sub">{{ themeColor ? '自定义颜色' : '跟随系统' }} · 按钮、磁贴底色等实色</div>
+              </div>
+              <label class="color-picker" :style="{ background: themeColor || systemColor }">
+                <input
+                  type="color"
+                  :value="themeColor || systemColor"
+                  @input="onThemeColor(($event.target as HTMLInputElement).value)"
+                />
+              </label>
+              <button class="action-btn" :disabled="!themeColor" @click="resetThemeColor">跟随系统</button>
             </div>
-            <label class="color-picker" :style="{ background: themeColor || systemColor }">
-              <input
-                type="color"
-                :value="themeColor || systemColor"
-                @input="onThemeColor(($event.target as HTMLInputElement).value)"
-              />
-            </label>
-            <button class="action-btn" :disabled="!themeColor" @click="resetThemeColor">跟随系统</button>
-          </div>
 
-          <div class="color-row">
-            <div class="color-info">
-              <div class="color-label">高亮颜色</div>
-              <div class="color-sub">{{ highlightColor ? '自定义颜色' : '跟随系统' }} · 悬停、聚焦、拖拽等半透明高亮</div>
+            <div class="color-row">
+              <div class="color-info">
+                <div class="color-label">高亮颜色</div>
+                <div class="color-sub">{{ highlightColor ? '自定义颜色' : '跟随系统' }} · 悬停、聚焦、拖拽等半透明高亮</div>
+              </div>
+              <label class="color-picker" :style="{ background: highlightColor || systemColor }">
+                <input
+                  type="color"
+                  :value="highlightColor || systemColor"
+                  @input="onHighlightColor(($event.target as HTMLInputElement).value)"
+                />
+              </label>
+              <button class="action-btn" :disabled="!highlightColor" @click="resetHighlightColor">跟随系统</button>
             </div>
-            <label class="color-picker" :style="{ background: highlightColor || systemColor }">
+
+            <div v-if="colorError" class="tip error">{{ colorError }}</div>
+          </div>
+
+          <!-- 开始菜单壁纸 -->
+          <div class="setting-section">
+            <div class="setting-section-title">开始菜单壁纸</div>
+            <div class="panel-desc">壁纸显示在毛玻璃背景之上、磁贴与列表内容之下；仅支持静态图片，按等比裁剪填充。</div>
+            <div
+              class="wallpaper-preview"
+              :class="{ empty: !wallpaperPreview }"
+              :title="wallpaperPreview ? '点击更换壁纸' : '点击选择壁纸'"
+              @click="pickWallpaper"
+            >
+              <div v-if="wallpaperPreview" class="wallpaper-preview-inner">
+                <img :src="wallpaperPreview" alt="" />
+                <div class="wallpaper-preview-mask" :style="{ background: `rgba(0,0,0,${wallpaperDarken})` }"></div>
+              </div>
+              <span v-else class="wallpaper-preview-empty">点击选择壁纸</span>
+            </div>
+            <div class="opacity-row">
+              <span class="darken-label">压暗程度</span>
               <input
-                type="color"
-                :value="highlightColor || systemColor"
-                @input="onHighlightColor(($event.target as HTMLInputElement).value)"
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                :value="wallpaperDarken"
+                @input="onDarkenInput(parseFloat(($event.target as HTMLInputElement).value))"
               />
+              <span class="opacity-value">{{ Math.round(wallpaperDarken * 100) }}%</span>
+            </div>
+            <div class="opacity-row">
+              <span class="darken-label">列表/工具栏背景</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                :value="panelAlpha"
+                @input="onPanelAlphaInput(parseFloat(($event.target as HTMLInputElement).value))"
+              />
+              <span class="opacity-value">{{ Math.round(panelAlpha * 100) }}%</span>
+            </div>
+            <div class="opacity-row">
+              <span class="darken-label">磁贴毛玻璃</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                :value="tileBlurPct"
+                @input="onTileBlurInput(parseFloat(($event.target as HTMLInputElement).value))"
+              />
+              <span class="opacity-value">{{ tileBlurPct }}%</span>
+            </div>
+            <div class="tip">仅模糊磁贴覆盖住的壁纸，磁贴间隙保持清晰；拖到 0% 可关闭。内部按 0–60px 模糊半径换算。</div>
+            <div v-if="wallpaperError" class="tip error">{{ wallpaperError }}</div>
+            <div class="panel-actions">
+              <button class="action-btn" :disabled="!wallpaperPath" @click="removeWallpaper">移除壁纸</button>
+            </div>
+          </div>
+
+          <!-- 磁贴透明度 -->
+          <div class="setting-section">
+            <div class="setting-section-title">磁贴透明度</div>
+            <div class="opacity-row">
+              <span class="darken-label">磁贴背景不透明度</span>
+              <input
+                type="range"
+                min="0.1"
+                max="1"
+                step="0.05"
+                :value="opacity"
+                @input="onOpacityInput(parseFloat(($event.target as HTMLInputElement).value))"
+              />
+              <span class="opacity-value">{{ Math.round(opacity * 100) }}%</span>
+            </div>
+            <label class="check-row">
+              <input type="checkbox" :checked="includeWallpaper" @change="onToggleIncludeWallpaper(($event.target as HTMLInputElement).checked)" />
+              <span>包含有壁纸的磁贴</span>
             </label>
-            <button class="action-btn" :disabled="!highlightColor" @click="resetHighlightColor">跟随系统</button>
+            <div class="tip">未勾选时，透明度仅对没有设置壁纸的磁贴生效；壁纸磁贴保持原图显示。</div>
           </div>
-
-          <div v-if="colorError" class="tip error">{{ colorError }}</div>
-        </div>
-
-        <!-- 菜单壁纸 -->
-        <div v-else-if="active === 'wallpaper'" class="panel">
-          <div class="panel-title">开始菜单壁纸</div>
-          <div class="panel-desc">壁纸显示在毛玻璃背景之上、磁贴与列表内容之下；仅支持静态图片，按等比裁剪填充。</div>
-          <div class="wallpaper-preview" :class="{ empty: !wallpaperPreview }">
-            <img v-if="wallpaperPreview" :src="wallpaperPreview" alt="" />
-            <div v-if="wallpaperPreview" class="wallpaper-preview-mask" :style="{ background: `rgba(0,0,0,${wallpaperDarken})` }"></div>
-            <span v-else class="wallpaper-preview-empty">未设置壁纸</span>
-          </div>
-          <div class="opacity-row">
-            <span class="darken-label">压暗程度</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              :value="wallpaperDarken"
-              @input="onDarkenInput(parseFloat(($event.target as HTMLInputElement).value))"
-            />
-            <span class="opacity-value">{{ Math.round(wallpaperDarken * 100) }}%</span>
-          </div>
-          <div class="opacity-row">
-            <span class="darken-label">列表/工具栏背景</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              :value="panelAlpha"
-              @input="onPanelAlphaInput(parseFloat(($event.target as HTMLInputElement).value))"
-            />
-            <span class="opacity-value">{{ Math.round(panelAlpha * 100) }}%</span>
-          </div>
-          <div class="opacity-row">
-            <span class="darken-label">磁贴毛玻璃</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              :value="tileBlurPct"
-              @input="onTileBlurInput(parseFloat(($event.target as HTMLInputElement).value))"
-            />
-            <span class="opacity-value">{{ tileBlurPct }}%</span>
-          </div>
-          <div class="tip">仅模糊磁贴覆盖住的壁纸，磁贴间隙保持清晰；拖到 0% 可关闭。内部按 0–60px 模糊半径换算。</div>
-          <div v-if="wallpaperError" class="tip error">{{ wallpaperError }}</div>
-          <div class="panel-actions">
-            <button class="action-btn" :disabled="!wallpaperPath" @click="removeWallpaper">移除壁纸</button>
-            <button class="action-btn primary" @click="pickWallpaper">选择图片</button>
-          </div>
-        </div>
-
-        <!-- 磁贴透明度 -->
-        <div v-else-if="active === 'opacity'" class="panel">
-          <div class="panel-title">磁贴透明度</div>
-          <div class="panel-desc">调整磁贴背景颜色的不透明度。</div>
-          <div class="opacity-row">
-            <input
-              type="range"
-              min="0.1"
-              max="1"
-              step="0.05"
-              :value="opacity"
-              @input="onOpacityInput(parseFloat(($event.target as HTMLInputElement).value))"
-            />
-            <span class="opacity-value">{{ Math.round(opacity * 100) }}%</span>
-          </div>
-          <label class="check-row">
-            <input type="checkbox" :checked="includeWallpaper" @change="onToggleIncludeWallpaper(($event.target as HTMLInputElement).checked)" />
-            <span>包含有壁纸的磁贴</span>
-          </label>
-          <div class="tip">未勾选时，透明度仅对没有设置壁纸的磁贴生效；壁纸磁贴保持原图显示。</div>
         </div>
 
         <!-- 开机自启 -->
@@ -182,17 +192,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { X, Keyboard, Grid3x3, Power, Palette, Image as ImageIcon } from 'lucide-vue-next'
+import { X, Keyboard, Power, Palette } from 'lucide-vue-next'
 
 const menus = [
-  { key: 'theme', label: '主题色', icon: Palette },
-  { key: 'wallpaper', label: '菜单壁纸', icon: ImageIcon },
+  { key: 'personal', label: '个性化设置', icon: Palette },
   { key: 'shortcut', label: '快捷键设置', icon: Keyboard },
-  { key: 'opacity', label: '磁贴透明度', icon: Grid3x3 },
   { key: 'autostart', label: '开机自启', icon: Power }
 ] as const
 
-const active = ref<'theme' | 'wallpaper' | 'shortcut' | 'opacity' | 'autostart'>('theme')
+const active = ref<'personal' | 'shortcut' | 'autostart'>('personal')
 
 function closeWindow() {
   window.electronAPI.closeSettingsWindow()
@@ -531,6 +539,19 @@ onMounted(async () => {
 .content-area::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
 
 .panel { display: flex; flex-direction: column; gap: 14px; }
+.setting-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.setting-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
 .panel-title { font-size: 15px; font-weight: 600; color: #fff; }
 .panel-desc { font-size: 12px; color: #999; line-height: 1.6; }
 
@@ -563,16 +584,31 @@ onMounted(async () => {
 
 .darken-label { font-size: 13px; color: #ddd; }
 .wallpaper-preview {
-  position: relative;
   width: 100%;
-  height: 180px;
+  min-height: 120px;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
   background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
-.wallpaper-preview.empty { display: flex; align-items: center; justify-content: center; }
-.wallpaper-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wallpaper-preview:hover { border-color: rgba(255, 255, 255, 0.45); }
+.wallpaper-preview-inner {
+  position: relative;
+  line-height: 0;
+  max-width: 100%;
+  max-height: 240px;
+}
+.wallpaper-preview-inner img {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  width: auto;
+  height: auto;
+}
 .wallpaper-preview-mask { position: absolute; inset: 0; }
 .wallpaper-preview-empty { font-size: 13px; color: #888; }
 
