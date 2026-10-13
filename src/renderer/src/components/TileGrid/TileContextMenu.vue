@@ -25,7 +25,7 @@
       <span class="menu-label">从"开始"屏幕取消固定</span>
     </div>
 
-    <div class="menu-item" @click="handleLiveToggle">
+    <div v-if="tile?.size !== 'small'" class="menu-item" @click="handleLiveToggle">
       <Zap :size="14" class="menu-icon" />
       <span class="menu-label">
         {{ tile?.liveEnabled ? '关闭实时动态磁贴' : '开启实时动态磁贴' }}

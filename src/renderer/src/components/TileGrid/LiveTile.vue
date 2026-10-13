@@ -81,7 +81,7 @@
       <div class="tile-back">
         <div class="tile-bg" :style="{ background: tileColor }"></div>
         <div class="tile-content" :style="contentStyle">
-          <div v-if="showIcon" class="tile-icon" :style="iconContainerStyle">
+          <div v-if="backShowIcon" class="tile-icon" :style="iconContainerStyle">
             <span
               v-if="customIconImageBase64"
               class="icon-img"
@@ -96,7 +96,7 @@
             />
             <span v-else-if="appIcon" class="icon-img" :style="appIconStyle"></span>
           </div>
-          <div v-if="showName && tileSize !== 'small'" class="tile-text">
+          <div v-if="backShowName" class="tile-text">
             <div class="tile-title">{{ nextNotification?.title || tileName }}</div>
             <div v-if="nextNotification?.body" class="tile-body">{{ nextNotification.body }}</div>
           </div>
@@ -123,9 +123,11 @@ const props = defineProps<{
   static?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   click: []
   contextmenu: [e: MouseEvent]
+  // 背景图片加载完成（无背景或加载失败也会触发，避免外层一直禁用）
+  'bg-loaded': []
 }>()
 
 const tilesStore = useTilesStore()
@@ -428,6 +430,7 @@ async function loadBackground() {
   if (!currentBgPath.value) {
     backgroundImage.value = undefined
     bgNaturalSize.value = null
+    emit('bg-loaded')
     return
   }
   const cached = imageCache.get(currentBgPath.value)
@@ -438,6 +441,9 @@ async function loadBackground() {
     if (base64) {
       imageCache.set(currentBgPath.value, base64)
       backgroundImage.value = base64
+    } else {
+      // 读取失败也要放行，避免外层一直禁用
+      emit('bg-loaded')
     }
   }
   // 读取 GIF 原始尺寸用于整组 cover
@@ -445,7 +451,9 @@ async function loadBackground() {
     const img = new Image()
     img.onload = () => {
       bgNaturalSize.value = { w: img.naturalWidth, h: img.naturalHeight }
+      emit('bg-loaded')
     }
+    img.onerror = () => emit('bg-loaded')
     img.src = backgroundImage.value
   }
 }
@@ -582,6 +590,13 @@ const textAlign = computed(() => {
 const notifications = computed(() => tilesStore.getNotifications(props.tile.appId))
 const currentNotification = computed(() => notifications.value[0])
 const nextNotification = computed(() => notifications.value[1])
+
+// 开启实时动态但没有任何实时数据时，背面也要正常显示图标和名称（忽略用户的显示开关）
+const hasLiveData = computed(() => notifications.value.length > 0)
+const backShowIcon = computed(() => showIcon.value || !hasLiveData.value)
+const backShowName = computed(() =>
+  tileSize.value !== 'small' && (showName.value || !hasLiveData.value)
+)
 
 onMounted(() => {
   // 检测标题是否溢出

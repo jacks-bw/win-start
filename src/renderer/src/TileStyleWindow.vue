@@ -12,13 +12,13 @@
     <!-- 上栏：实时预览 -->
     <div class="preview-area">
       <div class="preview-stage" :style="previewStageStyle">
-        <LiveTile v-if="tile" :tile="tile" :group="group" static />
+        <LiveTile v-if="tile" :tile="tile" :group="group" static @bg-loaded="onPreviewReady" />
       </div>
       <div class="preview-hint">实时预览</div>
     </div>
 
-    <!-- 下栏：设置控件（可滚动） -->
-    <div class="controls">
+    <!-- 下栏：设置控件（可滚动）；预览背景未加载完前禁用 -->
+    <div class="controls" :class="{ disabled: !ready }">
       <div class="section-label">背景图片</div>
       <div class="btn-row">
         <button class="action-btn" @click="chooseBackground">
@@ -155,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, markRaw, onMounted, ref } from 'vue'
+import { computed, markRaw, onMounted, ref, watch } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
 import * as LucideIcons from 'lucide-vue-next'
@@ -172,6 +172,14 @@ const appsStore = useAppsStore()
 const pageBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
 
 const tileId = ref('')
+// 预览背景图片加载完成前，禁用控件操作
+const ready = ref(false)
+function onPreviewReady() {
+  ready.value = true
+}
+watch(tileId, () => {
+  ready.value = false
+})
 const tile = computed(() => {
   if (!tileId.value) return null
   for (const g of tilesStore.groups) {
@@ -438,6 +446,11 @@ function setAlign(pos: string) {
 .footer-btn:hover { background: rgba(255, 255, 255, 0.16); }
 .footer-btn.primary { background: #0078d7; color: #fff; }
 .footer-btn.primary:hover { background: #106ebe; }
+
+.controls.disabled {
+  pointer-events: none;
+  opacity: 0.45;
+}
 
 /* 上栏：预览 */
 .preview-area {
