@@ -780,11 +780,15 @@ onUnmounted(() => {
   display: block;
 }
 /* 内容面板压在壁纸层之上 */
-.start-menu > .side-toolbar,
 .start-menu > .app-list-panel,
 .start-menu > .tile-grid-panel {
   position: relative;
   z-index: 1;
+}
+/* 工具栏层级更高：hover 提示与向右浮出的菜单要覆盖列表 */
+.start-menu > .side-toolbar {
+  position: relative;
+  z-index: 2;
 }
 
 .app-list-panel {
