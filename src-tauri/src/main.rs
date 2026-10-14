@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod icon_extract;
+mod launch_button;
 mod scanner;
 
 use tauri::{
@@ -43,7 +44,7 @@ fn force_first_paint(win: &tauri::WebviewWindow) {
 }
 
 // 显示开始菜单：首次需等渲染就绪，避免空白
-fn do_show(win: &tauri::WebviewWindow) {
+pub(crate) fn do_show(win: &tauri::WebviewWindow) {
     if MENU_READY.load(Ordering::SeqCst) {
         let _ = win.show();
         let _ = win.set_focus();
@@ -1376,12 +1377,15 @@ fn run() {
 
             // 托盘菜单
             let open_item = MenuItem::with_id(app, "open", "打开开始菜单", true, None::<&str>)?;
+            let edit_hotzone_item = tauri::menu::CheckMenuItemBuilder::with_id("hotzone_edit", "编辑热区按钮位置")
+                .checked(false)
+                .build(app)?;
             let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(
                 app,
-                &[&open_item, &sep, &settings_item, &sep, &quit_item],
+                &[&open_item, &sep, &edit_hotzone_item, &sep, &settings_item, &sep, &quit_item],
             )?;
 
             TrayIconBuilder::with_id("main-tray")
@@ -1404,7 +1408,7 @@ fn run() {
                         }
                     }
                 })
-                .on_menu_event(|app, event| match event.id.as_ref() {
+                .on_menu_event(move |app, event| match event.id.as_ref() {
                     "open" => {
                         if let Some(win) = app.get_webview_window("main") {
                             let _ = win.show();
@@ -1417,10 +1421,18 @@ fn run() {
                             let _ = create_settings_window(&app2).await;
                         });
                     }
+                    "hotzone_edit" => {
+                        // CheckMenuItem 点击后由运行时自动切换勾选状态
+                        let checked = edit_hotzone_item.is_checked().unwrap_or(false);
+                        launch_button::set_edit_mode(checked);
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })
                 .build(app)?;
+
+            // 启动热区按钮（原生透明窗口，覆盖系统开始按钮）
+            launch_button::start(app.handle().clone());
 
             Ok(())
         })
