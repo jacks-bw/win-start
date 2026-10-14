@@ -88,7 +88,7 @@ npm run tauri:build
 ### 产物位置
 ```
 src-tauri/target/release/bundle/nsis/
-└── win-start_0.1.0_x64-setup.exe    # 安装包
+└── win-start_1.3.0_x64-setup.exe    # 安装包
 ```
 
 ### 残留进程清理

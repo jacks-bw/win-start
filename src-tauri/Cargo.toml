@@ -1,6 +1,6 @@
 [package]
 name = "win-start"
-version = "0.1.0"
+version = "1.3.0"
 description = "Win10 style start menu"
 edition = "2021"
 
