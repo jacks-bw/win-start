@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "default capabilities",
-  "windows": ["main", "avatar-crop", "tile-style", "group-style", "settings"],
+  "windows": ["main", "avatar-crop", "avatar-settings", "tile-style", "group-style", "settings"],
   "permissions": [
     "core:default",
     "opener:default",

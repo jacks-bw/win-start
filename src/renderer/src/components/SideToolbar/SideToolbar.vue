@@ -269,16 +269,9 @@ function powerAction(action: 'shutdown' | 'restart' | 'sleep' | 'lock') {
   window.electronAPI.powerAction?.(action)
 }
 
-// 选择用户头像（打开独立裁剪窗口）
-async function selectAvatar() {
-  const path = await window.electronAPI.selectUserAvatar?.()
-  if (!path) return
-  // GIF 动图：跳过裁剪弹窗（canvas 会丢帧），直接保存原文件
-  if (path.toLowerCase().endsWith('.gif')) {
-    await window.electronAPI.setGifAvatar?.(path)
-    return
-  }
-  window.electronAPI.openAvatarCropWindow?.(path)
+// 点击头像：打开头像设置窗口（选择图片 / 清空头像）
+function selectAvatar() {
+  window.electronAPI.openAvatarSettingsWindow?.()
 }
 
 async function reloadAvatar() {

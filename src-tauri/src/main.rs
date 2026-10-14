@@ -268,52 +268,92 @@ async fn select_user_avatar(app: tauri::AppHandle) -> Result<Option<String>, Str
     let file = app.dialog().file().add_filter("图片", &["png", "jpg", "jpeg", "gif", "bmp"]).blocking_pick_file();
     let path = file.and_then(|f| f.into_path().ok()).map(|p| p.to_string_lossy().to_string());
     if let Some(p) = path {
-        use tauri::WebviewUrl;
-        use tauri::WebviewWindowBuilder;
-        // 存到主进程状态，渲染窗通过 get_crop_image 取
+        // 存到主进程状态，裁剪窗通过 get_crop_image 取
         *app.state::<CropImagePath>().0.lock().unwrap() = p.clone();
-        let win = WebviewWindowBuilder::new(&app, "avatar-crop", WebviewUrl::External("http://localhost:5173/#/avatar-crop".parse().unwrap()))
-            .title("裁剪用户头像")
-            .inner_size(380.0, 480.0)
-            .resizable(false)
-            .decorations(false)
-            .transparent(true)
-            .skip_taskbar(true)
-            .center()
-            .build()
-            .map_err(|e| e.to_string())?;
-        let _ = window_vibrancy::apply_acrylic(&win, Some((32, 32, 32, 40)));
-        // WebView2 透明背景
-        let _ = win.with_webview(|webview| {
-            use webview2_com::Microsoft::Web::WebView2::Win32::{
-                ICoreWebView2Controller2, COREWEBVIEW2_COLOR,
-            };
-            use windows61::core::Interface;
-            unsafe {
-                let ctrl = webview.controller();
-                if let Ok(c2) = ctrl.cast::<ICoreWebView2Controller2>() {
-                    let mut transparent = COREWEBVIEW2_COLOR { A: 0, R: 0, G: 0, B: 0 };
-                    let _ = c2.DefaultBackgroundColor(&mut transparent);
+        // 已存在裁剪窗：更新路径后重新加载页面并置前，避免重复创建失败
+        if let Some(existing) = app.get_webview_window("avatar-crop") {
+            let _ = existing.eval("location.reload()");
+            let _ = existing.show();
+            let _ = existing.set_focus();
+            return Ok(None);
+        }
+        // 等待文件对话框模态循环完全退出，再创建窗口，避免创建被吞
+        let app2 = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(120));
+            match create_avatar_crop_window(&app2) {
+                Ok(win) => {
+                    let _ = win.show();
+                    let _ = win.set_focus();
                 }
+                Err(e) => eprintln!("[avatar] 裁剪窗创建失败: {}", e),
             }
         });
-        // 去强调色边框
-        #[cfg(target_os = "windows")]
-        if let Ok(hwnd_t) = win.hwnd() {
-            use windows::Win32::Foundation::HWND;
-            use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS};
-            let hwnd = HWND(hwnd_t.0);
-            unsafe {
-                let none: u32 = 0xFFFFFFFE;
-                let _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &none as *const u32 as *const _, 4);
-                let _ = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &none as *const u32 as *const _, 4);
-                let thickness: i32 = 0;
-                let _ = DwmSetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS, &thickness as *const i32 as *const _, 4);
-            }
-        }
-        let _ = win;
     }
     Ok(None) // 裁剪完成后由裁剪窗自己调 set_user_avatar
+}
+
+// ===================== 头像设置窗口 =====================
+#[tauri::command]
+async fn open_avatar_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::WebviewUrl;
+    use tauri::WebviewWindowBuilder;
+    if let Some(win) = app.get_webview_window("avatar-settings") {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+    let win = WebviewWindowBuilder::new(&app, "avatar-settings", WebviewUrl::External("http://localhost:5173/#/avatar-settings".parse().unwrap()))
+        .title("用户头像")
+        .inner_size(340.0, 400.0)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .skip_taskbar(true)
+        .center()
+        .visible(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+    framelize_window(&win);
+    let _ = win.set_focus();
+    Ok(())
+}
+
+#[tauri::command]
+fn close_avatar_settings_window(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("avatar-settings") {
+        let _ = win.close();
+    }
+}
+
+// 清空用户头像（删除 png/gif 与裁剪信息）
+#[tauri::command]
+fn clear_user_avatar(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    let _ = std::fs::remove_file(dir.join("user-avatar.png"));
+    let _ = std::fs::remove_file(dir.join("user-avatar.gif"));
+    let _ = std::fs::remove_file(dir.join("avatar-crop.json"));
+    let _ = app.emit("avatar:updated", ());
+    Ok(())
+}
+
+fn create_avatar_crop_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    use tauri::WebviewUrl;
+    use tauri::WebviewWindowBuilder;
+    let win = WebviewWindowBuilder::new(app, "avatar-crop", WebviewUrl::External("http://localhost:5173/#/avatar-crop".parse().unwrap()))
+        .title("裁剪用户头像")
+        .inner_size(380.0, 480.0)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .skip_taskbar(true)
+        .center()
+        .visible(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+    // 与其他独立窗口一致：毛玻璃、去强调色边框、延迟重试透明背景
+    framelize_window(&win);
+    Ok(win)
 }
 
 #[tauri::command]
@@ -379,6 +419,133 @@ fn save_cropped_avatar(app: tauri::AppHandle, base64: String) -> Result<(), Stri
     let bytes = base64::engine::general_purpose::STANDARD.decode(b).map_err(|e| e.to_string())?;
     std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
     let _ = app.emit("avatar:updated", ());
+    Ok(())
+}
+
+// ===================== 头像暂存（头像设置窗点"保存"后才生效） =====================
+fn read_avatar_info(png_name: &str, gif_name: &str, crop_name: &str) -> Option<AvatarInfo> {
+    let dir = dirs::data_dir()?.join("win-start");
+    for (i, name) in [png_name, gif_name].iter().enumerate() {
+        let p = dir.join(name);
+        if p.exists() {
+            let crop_path = dir.join(crop_name);
+            let (mut cx, mut cy, mut sc, mut iw, mut ih, mut cs) = (None, None, None, None, None, None);
+            if let Ok(txt) = std::fs::read_to_string(&crop_path) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
+                    cx = v.get("x").and_then(|x| x.as_f64());
+                    cy = v.get("y").and_then(|x| x.as_f64());
+                    sc = v.get("scale").and_then(|x| x.as_f64());
+                    iw = v.get("imgW").and_then(|x| x.as_f64());
+                    ih = v.get("imgH").and_then(|x| x.as_f64());
+                    cs = v.get("cropSize").and_then(|x| x.as_f64());
+                }
+            }
+            if i == 0 { cx = None; cy = None; sc = None; iw = None; ih = None; cs = None; }
+            return Some(AvatarInfo {
+                path: p.to_string_lossy().to_string(),
+                crop_x: cx, crop_y: cy, scale: sc, img_w: iw, img_h: ih, crop_size: cs,
+            });
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn get_staged_avatar() -> Option<AvatarInfo> {
+    read_avatar_info("avatar-staged.png", "avatar-staged.gif", "avatar-staged-crop.json")
+}
+
+#[tauri::command]
+fn stage_cropped_avatar(app: tauri::AppHandle, base64: String) -> Result<(), String> {
+    use base64::Engine;
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(dir.join("avatar-staged.gif"));
+    let _ = std::fs::remove_file(dir.join("avatar-staged-crop.json"));
+    let dest = dir.join("avatar-staged.png");
+    let b = base64.strip_prefix("data:image/png;base64,").unwrap_or(&base64);
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b).map_err(|e| e.to_string())?;
+    std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    let _ = app.emit("avatar-staged", ());
+    if let Some(w) = app.get_webview_window("avatar-settings") {
+        let _ = w.set_focus();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn stage_gif_avatar(app: tauri::AppHandle, data_url: String, crop: Option<serde_json::Value>) -> Result<(), String> {
+    use base64::Engine;
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(dir.join("avatar-staged.png"));
+    let dest = dir.join("avatar-staged.gif");
+    let b = data_url.strip_prefix("data:image/gif;base64,").unwrap_or(&data_url);
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b).map_err(|e| e.to_string())?;
+    std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    if let Some(c) = crop {
+        let _ = std::fs::write(dir.join("avatar-staged-crop.json"), c.to_string());
+    }
+    let _ = app.emit("avatar-staged", ());
+    if let Some(w) = app.get_webview_window("avatar-settings") {
+        let _ = w.set_focus();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn close_avatar_crop_window(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("avatar-crop") {
+        let _ = win.close();
+    }
+    // 取消裁剪后把焦点交回头像设置窗
+    if let Some(w) = app.get_webview_window("avatar-settings") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+#[tauri::command]
+fn commit_avatar(app: tauri::AppHandle, clear: bool) -> Result<(), String> {
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    let staged_png = dir.join("avatar-staged.png");
+    let staged_gif = dir.join("avatar-staged.gif");
+    let staged_crop = dir.join("avatar-staged-crop.json");
+    let final_png = dir.join("user-avatar.png");
+    let final_gif = dir.join("user-avatar.gif");
+    let final_crop = dir.join("avatar-crop.json");
+    if clear {
+        let _ = std::fs::remove_file(&final_png);
+        let _ = std::fs::remove_file(&final_gif);
+        let _ = std::fs::remove_file(&final_crop);
+    } else if staged_png.exists() {
+        let _ = std::fs::remove_file(&final_png);
+        let _ = std::fs::remove_file(&final_gif);
+        let _ = std::fs::remove_file(&final_crop);
+        std::fs::rename(&staged_png, &final_png).map_err(|e| e.to_string())?;
+    } else if staged_gif.exists() {
+        let _ = std::fs::remove_file(&final_png);
+        let _ = std::fs::remove_file(&final_gif);
+        let _ = std::fs::remove_file(&final_crop);
+        std::fs::rename(&staged_gif, &final_gif).map_err(|e| e.to_string())?;
+        if staged_crop.exists() {
+            let _ = std::fs::rename(&staged_crop, &final_crop);
+        }
+    }
+    // 清理暂存
+    let _ = std::fs::remove_file(&staged_png);
+    let _ = std::fs::remove_file(&staged_gif);
+    let _ = std::fs::remove_file(&staged_crop);
+    let _ = app.emit("avatar:updated", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn discard_staged_avatar() -> Result<(), String> {
+    let dir = dirs::data_dir().ok_or("no data dir")?.join("win-start");
+    let _ = std::fs::remove_file(dir.join("avatar-staged.png"));
+    let _ = std::fs::remove_file(dir.join("avatar-staged.gif"));
+    let _ = std::fs::remove_file(dir.join("avatar-staged-crop.json"));
     Ok(())
 }
 
@@ -1101,6 +1268,9 @@ fn run() {
             launch_app, launch_uwp,
             show_in_folder, uninstall_program,
             get_user_avatar, select_user_avatar, set_user_avatar, save_cropped_avatar,
+            open_avatar_settings_window, close_avatar_settings_window, clear_user_avatar,
+            get_staged_avatar, stage_cropped_avatar, stage_gif_avatar, commit_avatar, discard_staged_avatar,
+            close_avatar_crop_window,
             read_file_base64, get_crop_image, save_gif_avatar,
             load_tile_layout, save_tile_layout,
             select_image, select_svg, read_image_base64, save_image,

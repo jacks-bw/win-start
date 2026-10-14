@@ -7,6 +7,11 @@
     </div>
 
     <div class="settings-body">
+      <!-- 加载遮罩：数据加载完成前不可操作 -->
+      <div v-if="loading" class="loading-mask">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载设置…</div>
+      </div>
       <!-- 左栏：菜单 -->
       <div class="side-menu">
         <button
@@ -193,6 +198,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { X, Keyboard, Power, Palette } from 'lucide-vue-next'
+
+const loading = ref(true)
 
 const menus = [
   { key: 'personal', label: '个性化设置', icon: Palette },
@@ -461,6 +468,8 @@ onMounted(async () => {
     autostart.value = !!(await window.electronAPI.getAutostart())
   } catch (e) {
     console.error('加载自启状态失败', e)
+  } finally {
+    loading.value = false
   }
 })
 </script>
@@ -499,6 +508,36 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   min-height: 0;
+  position: relative;
+}
+
+.loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(32, 32, 32, 0.9);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.loading-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent-color, #0078d7);
+  border-radius: 50%;
+  animation: settings-spin 0.8s linear infinite;
+}
+@keyframes settings-spin {
+  to { transform: rotate(360deg); }
+}
+.loading-text {
+  font-size: 12px;
+  color: #bbb;
 }
 
 .side-menu {

@@ -5,6 +5,9 @@
   <!-- 头像裁剪窗口 -->
   <AvatarCropWindow v-else-if="isAvatarCropRoute" />
 
+  <!-- 头像设置窗口 -->
+  <AvatarSettingsWindow v-else-if="isAvatarSettingsRoute" />
+
   <!-- 磁贴样式设置窗口（独立窗口） -->
   <TileStyleWindow v-else-if="isTileStyleRoute" />
 
@@ -16,6 +19,8 @@
 
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
+    <!-- 锁定预览（设置/样式窗口打开）时的暗色兜底：主窗口失焦后系统亚克力会退化为白 -->
+    <div v-if="menuBlocked" class="menu-blocked-bg"></div>
     <!-- 菜单壁纸层：在毛玻璃背景之上、所有内容之下 -->
     <div v-if="wallpaperUrl" class="wallpaper-layer">
       <img class="wallpaper-img" :src="wallpaperUrl" alt="" draggable="false" />
@@ -44,6 +49,14 @@
           </filter>
         </defs>
         <g clip-path="url(#tile-blur-clip)">
+          <!-- 暗色基底：透明 PNG 区域没有可模糊内容，用它模拟亚克力磨砂面 -->
+          <rect
+            x="0"
+            y="0"
+            :width="vpW"
+            :height="vpH"
+            fill="rgb(32, 32, 32)"
+          />
           <image
             :href="wallpaperUrl"
             x="0"
@@ -171,6 +184,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import AvatarCropWindow from './AvatarCropWindow.vue'
+import AvatarSettingsWindow from './AvatarSettingsWindow.vue'
 import AppContextMenu from './components/AppList/AppContextMenu.vue'
 import AppList from './components/AppList/AppList.vue'
 import CropImageDialog from './components/CropImageDialog.vue'
@@ -277,6 +291,9 @@ const isShortcutsRoute = computed(() => window.location.hash.includes('/shortcut
 
 // 判断是否是头像裁剪窗口（通过 hash 路由）
 const isAvatarCropRoute = computed(() => window.location.hash.includes('/avatar-crop'))
+
+// 判断是否是头像设置窗口（通过 hash 路由）
+const isAvatarSettingsRoute = computed(() => window.location.hash.includes('/avatar-settings'))
 
 // 判断是否是磁贴样式设置窗口（通过 hash 路由）
 const isTileStyleRoute = computed(() => window.location.hash.includes('/tile-style'))
@@ -779,6 +796,15 @@ onUnmounted(() => {
   pointer-events: none;
   display: block;
 }
+/* 锁定预览时替代失焦失效的亚克力，避免白色背景 */
+.menu-blocked-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: rgba(24, 24, 24, 0.97);
+  pointer-events: none;
+}
+
 /* 内容面板压在壁纸层之上 */
 .start-menu > .app-list-panel,
 .start-menu > .tile-grid-panel {

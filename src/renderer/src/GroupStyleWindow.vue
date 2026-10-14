@@ -1,5 +1,10 @@
 <template>
   <div class="group-style-window" :style="{ background: pageBg }">
+    <!-- 加载遮罩：数据加载完成前不可操作 -->
+    <div v-if="loading" class="loading-mask">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">正在加载…</div>
+    </div>
     <!-- 标题栏（无边框窗口自绘，可拖动） -->
     <div class="page-header">
       <div class="header-text">
@@ -83,6 +88,7 @@ const appsStore = useAppsStore()
 const pageBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
 
 const groupId = ref('')
+const loading = ref(true)
 const group = computed(() => tilesStore.groups.find((g) => g.id === groupId.value))
 
 const sizeSpan: Record<string, { rows: number; cols: number }> = {
@@ -126,13 +132,20 @@ async function cancelWindow() {
 }
 
 onMounted(async () => {
-  await settingsStore.loadTileOpacity()
-  await tilesStore.loadLayout()
-  // 独立窗口有独立的 apps store，需自行加载，否则预览显示 appId
-  appsStore.loadApps()
-  const target = await window.electronAPI.getGroupStyleTarget()
-  if (target) groupId.value = target
-  snapshot = JSON.stringify(tilesStore.groups)
+  try {
+    await settingsStore.loadTileOpacity()
+    await tilesStore.loadLayout()
+    // 独立窗口有独立的 apps store，需自行加载，否则预览显示 appId
+    appsStore.loadApps()
+    const target = await window.electronAPI.getGroupStyleTarget()
+    if (target) groupId.value = target
+    snapshot = JSON.stringify(tilesStore.groups)
+    // 给预览图片一点渲染时间
+    setTimeout(() => { loading.value = false }, 300)
+  } finally {
+    // 兜底：加载异常时也不卡住界面
+    setTimeout(() => { loading.value = false }, 1500)
+  }
 })
 
 // ---- 预览尺寸 ----
@@ -315,7 +328,37 @@ async function onCropConfirmed(dataUrl: string) {
   background: rgba(32, 32, 32, 0.62);
   color: #e0e0e0;
   overflow: hidden;
+  position: relative;
 }
+.loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(32, 32, 32, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.loading-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent-color, #0078d7);
+  border-radius: 50%;
+  animation: gstyle-spin 0.8s linear infinite;
+}
+@keyframes gstyle-spin {
+  to { transform: rotate(360deg); }
+}
+.loading-text {
+  font-size: 12px;
+  color: #bbb;
+}
+
 
 .page-header {
   display: flex;

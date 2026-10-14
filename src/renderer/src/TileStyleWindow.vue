@@ -1,5 +1,10 @@
 <template>
   <div class="tile-style-window" :style="{ background: pageBg }">
+    <!-- 加载遮罩：数据与预览就绪前不可操作 -->
+    <div v-if="loading" class="loading-mask">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">正在加载…</div>
+    </div>
     <!-- 标题栏（无边框窗口自绘，可拖动） -->
     <div class="page-header">
       <div class="header-text">
@@ -176,11 +181,16 @@ const pageBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})
 const tileId = ref('')
 // 预览背景图片加载完成前，禁用控件操作
 const ready = ref(false)
+// 加载遮罩：数据与预览都就绪前显示
+const loading = ref(true)
 function onPreviewReady() {
   ready.value = true
 }
 watch(tileId, () => {
   ready.value = false
+})
+watch(ready, (v) => {
+  if (v) loading.value = false
 })
 const tile = computed(() => {
   if (!tileId.value) return null
@@ -245,6 +255,8 @@ onMounted(async () => {
     tileId.value = id
     showIconPicker.value = false
   })
+  // 兜底：预览事件异常时也不卡住界面
+  setTimeout(() => { loading.value = false }, 1500)
 })
 
 // 预览/标题栏显示的软件名（从 apps store 解析）
@@ -413,6 +425,36 @@ function setAlign(pos: string) {
   background: rgba(32, 32, 32, 0.62);
   color: #e0e0e0;
   overflow: hidden;
+  position: relative;
+}
+
+.loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(32, 32, 32, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.loading-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent-color, #0078d7);
+  border-radius: 50%;
+  animation: style-spin 0.8s linear infinite;
+}
+@keyframes style-spin {
+  to { transform: rotate(360deg); }
+}
+.loading-text {
+  font-size: 12px;
+  color: #bbb;
 }
 
 /* 自绘标题栏：可拖动窗口 */

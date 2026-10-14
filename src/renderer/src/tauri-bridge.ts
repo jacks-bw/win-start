@@ -113,6 +113,23 @@ const real = {
     } catch { return info }
   },
   selectUserAvatar: () => invoke<string | null>('select_user_avatar'),
+  openAvatarSettingsWindow: () => invoke('open_avatar_settings_window'),
+  closeAvatarSettings: () => invoke('close_avatar_settings_window'),
+  clearUserAvatar: () => invoke('clear_user_avatar'),
+  getStagedAvatar: async () => {
+    try {
+      const info = await invoke<any>('get_staged_avatar')
+      if (!info) return null
+      const url = await invoke<string>('read_file_base64', { path: info.path })
+      return { ...info, url }
+    } catch { return null }
+  },
+  stageCroppedAvatar: (base64: string) => invoke('stage_cropped_avatar', { base64 }),
+  stageGifAvatar: (dataUrl: string, crop: any) => invoke('stage_gif_avatar', { dataUrl, crop }),
+  commitAvatar: (clear: boolean) => invoke('commit_avatar', { clear }),
+  discardStagedAvatar: () => invoke('discard_staged_avatar'),
+  closeAvatarCropWindow: () => invoke('close_avatar_crop_window'),
+  onAvatarStaged: (cb: () => void) => { listen('avatar-staged', () => cb()) },
   openAvatarCropWindow: () => Promise.resolve(null),
   setGifAvatar: (path: string) => invoke<string | null>('set_user_avatar', { path }),
   onAvatarUpdated: (cb: () => void) => { listen('avatar:updated', () => cb()) },
@@ -128,9 +145,9 @@ const real = {
       return ''
     }
   },
-  cancelCrop: () => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) },
-  confirmCrop: (base64: string) => invoke('save_cropped_avatar', { base64 }).then(() => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) }),
-  saveGifAvatar: (dataUrl: string, crop: any) => invoke('save_gif_avatar', { dataUrl, crop }).then(() => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) }),
+  cancelCrop: () => invoke('close_avatar_crop_window'),
+  confirmCrop: (base64: string) => invoke('stage_cropped_avatar', { base64 }).then(() => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) }),
+  saveGifAvatar: (dataUrl: string, crop: any) => invoke('stage_gif_avatar', { dataUrl, crop }).then(() => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) }),
   getListAlpha: () => Promise.resolve(0.4),
   getTileOpacity: () => invoke<number>('get_tile_opacity'),
   setTileOpacity: (opacity: number) => invoke<number>('set_tile_opacity', { opacity }),
