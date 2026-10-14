@@ -152,7 +152,7 @@ fn launch_app(path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn launch_uwp(app_id: String) -> Result<(), String> {
-    // 与 Electron 版一致：协议直开，UWP/商店应用交给 explorer.exe shell:AppsFolder
+    // 协议直开，UWP/商店应用交给 explorer.exe shell:AppsFolder
     if app_id.contains("://") {
         return shell_open(&app_id);
     }

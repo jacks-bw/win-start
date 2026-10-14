@@ -178,7 +178,7 @@ export const useAppsStore = defineStore('apps', () => {
     if (scanning) return
     scanning = true
     try {
-      const list = await window.electronAPI.getAppList()
+      const list = await window.api.getAppList()
       apps.value = list
       pinnedApps.value = list.filter((a) => a.pinned).map((a) => a.id)
       loadFolders()
@@ -204,20 +204,20 @@ export const useAppsStore = defineStore('apps', () => {
     try {
       // 先启动（菜单仍在前台，目标可继承前台焦点，避免被 Windows 前台锁卡住）
       if (app.uwp && app.uwpAppId) {
-        await window.electronAPI.launchUwpApp(app.uwpAppId)
+        await window.api.launchUwpApp(app.uwpAppId)
       } else {
-        await window.electronAPI.launchApp(app.lnkPath)
+        await window.api.launchApp(app.lnkPath)
       }
     } catch (err) {
       console.error('启动应用失败:', err)
     } finally {
       // 再关闭开始菜单
-      window.electronAPI.hideStartMenu()
+      window.api.hideStartMenu()
     }
   }
 
   async function togglePin(appId: string) {
-    pinnedApps.value = await window.electronAPI.togglePin(appId)
+    pinnedApps.value = await window.api.togglePin(appId)
     // 更新 apps 数组中的 pinned 状态
     const app = apps.value.find((a) => a.id === appId)
     if (app) {

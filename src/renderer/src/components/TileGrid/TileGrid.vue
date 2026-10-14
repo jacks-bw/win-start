@@ -183,7 +183,7 @@ async function handleTileClick(tile: TileItem) {
   const target = builtinMap[tile.appId]
   if (target) {
     try {
-      await window.electronAPI.launchApp(target)
+      await window.api.launchApp(target)
     } catch (err) {
       console.error('启动内置程序失败:', err)
     }

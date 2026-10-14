@@ -66,7 +66,7 @@ const hasChanges = computed(() => currentShortcut.value !== originalShortcut.val
 
 onMounted(async () => {
   try {
-    const saved = await window.electronAPI.getShortcut?.()
+    const saved = await window.api.getShortcut?.()
     if (saved) {
       originalShortcut.value = saved
       currentShortcut.value = saved
@@ -143,7 +143,7 @@ function onKeyDown(e: KeyboardEvent) {
 
 async function saveShortcut() {
   try {
-    const success = await window.electronAPI.setShortcut?.(currentShortcut.value)
+    const success = await window.api.setShortcut?.(currentShortcut.value)
     if (success) {
       originalShortcut.value = currentShortcut.value
       saveError.value = ''

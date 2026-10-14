@@ -186,7 +186,7 @@ const availableItems = computed(() =>
 
 async function loadItems() {
   try {
-    items.value = await window.electronAPI.getToolbarItems()
+    items.value = await window.api.getToolbarItems()
   } catch (e) {
     console.error('加载工具栏配置失败:', e)
     items.value = ['explorer', 'settings', 'controlPanel']
@@ -194,11 +194,11 @@ async function loadItems() {
 }
 
 async function persistItems() {
-  await window.electronAPI.setToolbarItems(items.value)
+  await window.api.setToolbarItems(items.value)
 }
 
 function handleClick(key: string) {
-  window.electronAPI.openToolbarItem(key)
+  window.api.openToolbarItem(key)
 }
 
 function closeAllMenus() {
@@ -266,16 +266,16 @@ function createFolder() {
 // 电源操作
 function powerAction(action: 'shutdown' | 'restart' | 'sleep' | 'lock') {
   powerMenuVisible.value = false
-  window.electronAPI.powerAction?.(action)
+  window.api.powerAction?.(action)
 }
 
 // 点击头像：打开头像设置窗口（选择图片 / 清空头像）
 function selectAvatar() {
-  window.electronAPI.openAvatarSettingsWindow?.()
+  window.api.openAvatarSettingsWindow?.()
 }
 
 async function reloadAvatar() {
-  const saved = await window.electronAPI.getUserAvatar?.()
+  const saved = await window.api.getUserAvatar?.()
   if (saved) {
     avatarInfo.value = saved as AvatarData
   }
@@ -295,7 +295,7 @@ onMounted(() => {
   reloadAvatar()
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('start-menu:closing', handleMenuClosing)
-  window.electronAPI.onAvatarUpdated?.(() => {
+  window.api.onAvatarUpdated?.(() => {
     reloadAvatar()
   })
 })

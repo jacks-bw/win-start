@@ -115,8 +115,8 @@ function pushUpdate() {
 
 async function confirmWindow() {
   await tilesStore.saveLayout()
-  await window.electronAPI.notifyLayoutUpdated()
-  window.electronAPI.closeGroupStyleWindow()
+  await window.api.notifyLayoutUpdated()
+  window.api.closeGroupStyleWindow()
 }
 
 async function cancelWindow() {
@@ -128,7 +128,7 @@ async function cancelWindow() {
   } catch (e) {
     console.error('回滚失败', e)
   }
-  window.electronAPI.closeGroupStyleWindow()
+  window.api.closeGroupStyleWindow()
 }
 
 onMounted(async () => {
@@ -137,7 +137,7 @@ onMounted(async () => {
     await tilesStore.loadLayout()
     // 独立窗口有独立的 apps store，需自行加载，否则预览显示 appId
     appsStore.loadApps()
-    const target = await window.electronAPI.getGroupStyleTarget()
+    const target = await window.api.getGroupStyleTarget()
     if (target) groupId.value = target
     snapshot = JSON.stringify(tilesStore.groups)
     // 给预览图片一点渲染时间
@@ -269,16 +269,16 @@ watch(
       bgImage.value = ''
       return
     }
-    const b64 = await window.electronAPI.readImageBase64(path)
+    const b64 = await window.api.readImageBase64(path)
     bgImage.value = b64 || ''
   },
   { immediate: true }
 )
 
 async function chooseBackground() {
-  const filePath = await window.electronAPI.selectImage()
+  const filePath = await window.api.selectImage()
   if (!filePath) return
-  const base64 = await window.electronAPI.readImageBase64(filePath)
+  const base64 = await window.api.readImageBase64(filePath)
   if (!base64) return
   const isGif = filePath.toLowerCase().endsWith('.gif')
   cropGifMode.value = isGif
@@ -303,7 +303,7 @@ async function onCropTransform(meta: { rw: number; rh: number; px: number; py: n
   cropVisible.value = false
   const base64 = cropGifBase64.value
   if (!base64) return
-  const saved = await window.electronAPI.saveImage(base64, `group-${groupId.value}-${Date.now()}`)
+  const saved = await window.api.saveImage(base64, `group-${groupId.value}-${Date.now()}`)
   if (saved) {
     tilesStore.setGroupBackground(groupId.value, saved, undefined, meta)
     pushUpdate()
@@ -312,7 +312,7 @@ async function onCropTransform(meta: { rw: number; rh: number; px: number; py: n
 
 async function onCropConfirmed(dataUrl: string) {
   cropVisible.value = false
-  const saved = await window.electronAPI.saveImage(dataUrl, `group-${groupId.value}-${Date.now()}`)
+  const saved = await window.api.saveImage(dataUrl, `group-${groupId.value}-${Date.now()}`)
   if (saved) {
     tilesStore.setGroupBackground(groupId.value, saved)
     pushUpdate()

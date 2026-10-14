@@ -32,34 +32,32 @@
 
 | 层级 | 技术 |
 |------|------|
-| 应用框架 | Electron 28 |
+| 应用框架 | Tauri 2（Rust 后端 + WebView2） |
 | 前端框架 | Vue 3 + Vite |
 | 状态管理 | Pinia |
-| 持久化 | electron-store |
-| 打包 | electron-builder |
-| 语言 | TypeScript |
+| 持久化 | 本地 JSON（`%APPDATA%\win-start\`） |
+| 打包 | tauri build（NSIS 安装包） |
+| 语言 | Rust + TypeScript |
 
 ## 项目结构
 
 ```
 win-start/
-├── src/main/              # Electron 主进程
-│   ├── index.ts          # 入口
-│   ├── window-manager.ts  # 窗口管理
-│   ├── tray.ts           # 系统托盘
-│   ├── scanner.ts        # 扫描开始菜单快捷方式
-│   ├── launcher.ts       # 启动程序
-│   ├── store.ts         # 数据持久化
-│   ├── ipc.ts           # IPC 通信
-│   ├── acrylic.ts       # Acrylic 毛玻璃效果
-│   ├── tile-bridge.ts   # 磁贴桥接服务（第三方接入）
-│   └── launch-button-manager.ts  # 悬浮启动按钮管理
-├── src/preload/          # 预加载脚本（安全桥接）
-└── src/renderer/src/     # Vue 渲染进程
+├── src-tauri/             # Rust 后端
+│   ├── src/
+│   │   ├── main.rs            # 入口：托盘、窗口、设置、热键、自启
+│   │   ├── scanner.rs         # 扫描开始菜单快捷方式/UWP
+│   │   ├── icon_extract.rs    # 图标提取
+│   │   └── launch_button.rs   # 悬浮启动按钮（原生透明窗口）
+│   ├── capabilities/          # Tauri 权限配置
+│   └── tauri.conf.json        # 窗口与打包配置
+└── src/renderer/src/     # Vue 前端
     ├── App.vue           # 根组件
+    ├── tauri-bridge.ts   # 前端调用 Rust 命令的桥接层（window.api）
     ├── components/
     │   ├── AppList/      # 左侧程序列表
-    │   └── TileGrid/     # 右侧磁贴区
+    │   ├── TileGrid/     # 右侧磁贴区
+    │   └── SideToolbar/  # 左侧工具栏
     ├── stores/           # Pinia 状态
     └── styles/           # 样式
 ```
@@ -68,7 +66,8 @@ win-start/
 
 ### 环境要求
 - Node.js 18+
-- Windows 10/11（部分系统功能依赖 Windows API）
+- Rust stable（首次构建 Tauri 会自动安装所需工具链，另需 Microsoft C++ Build Tools 与 WebView2，Windows 10/11 通常已自带 WebView2）
+- Windows 10/11（系统功能依赖 Windows API）
 
 ### 安装依赖
 ```bash
@@ -77,35 +76,25 @@ npm install
 
 ### 开发模式
 ```bash
-npm run dev
+npm run tauri:dev
 ```
 
 ### 打包构建
 ```bash
-# 生成 NSIS 安装包 + 便携版 exe
-npm run build
-
-# 仅输出免安装目录
-npm run build:dir
-
-# 仅生成便携版单文件 exe
-npm run build:portable
+# 生成 NSIS 安装包
+npm run tauri:build
 ```
-
-> **国内网络注意**：如果打包时下载 `winCodeSign` 等依赖超时，先设置 electron-builder 二进制镜像再打包：
-> ```bash
-> # 设置 electron-builder 二进制镜像
-> set ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
->
-> # 重新打包
-> npm run build
-> ```
 
 ### 产物位置
 ```
-dist/
-├── Win10StartMenu Setup 1.0.0.exe    # 标准安装包
-└── Win10StartMenu-1.0.0-portable.exe # 便携版
+src-tauri/target/release/bundle/nsis/
+└── win-start_0.1.0_x64-setup.exe    # 安装包
+```
+
+### 残留进程清理
+```bash
+# 开发时若 exe 被占用导致重新编译失败
+npm run tauri:kill
 ```
 
 ## 开发计划

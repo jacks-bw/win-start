@@ -6,7 +6,7 @@ declare module '*.vue' {
   export default component
 }
 
-interface ElectronAPI {
+interface Api {
   getAppList: () => Promise<AppItem[]>
   launchApp: (lnkPath: string, args?: string) => Promise<{ success: boolean; error?: string }>
   launchUwpApp: (appId: string) => Promise<{ success: boolean; error?: string }>
@@ -134,7 +134,7 @@ interface TileItem {
 }
 
 interface Window {
-  electronAPI: ElectronAPI
+  api: Api
   openTileContextMenu: (x: number, y: number, tileId: string) => void
   openAppContextMenu: (x: number, y: number, app: AppItem) => void
   openGroupContextMenu: (x: number, y: number, groupId: string) => void

@@ -44,7 +44,7 @@ export function applyHighlightColor(custom: string | null) {
 /** 窗口启动时：读取系统色 + 已保存的自定义颜色并应用 */
 export async function initTheme() {
   try {
-    const c = await window.electronAPI.getAccentColor()
+    const c = await window.api.getAccentColor()
     if (c && /^#[0-9a-fA-F]{6}$/.test(c)) systemAccent = c
   } catch (e) {
     console.warn('读取系统强调色失败:', e)
@@ -53,7 +53,7 @@ export async function initTheme() {
   applyThemeColor(null)
   applyHighlightColor(null)
   try {
-    const s = await window.electronAPI.getSettings()
+    const s = await window.api.getSettings()
     applyThemeColor(s?.themeColor ?? null)
     applyHighlightColor(s?.highlightColor ?? null)
   } catch (e) {

@@ -438,7 +438,7 @@ async function loadBackground() {
   if (cached) {
     backgroundImage.value = cached
   } else {
-    const base64 = await window.electronAPI.readImageBase64(currentBgPath.value)
+    const base64 = await window.api.readImageBase64(currentBgPath.value)
     if (base64) {
       imageCache.set(currentBgPath.value, base64)
       backgroundImage.value = base64
@@ -473,7 +473,7 @@ async function loadCustomIconImage() {
     customIconImageBase64.value = cached
     return
   }
-  const base64 = await window.electronAPI.readImageBase64(props.tile.customIconImage)
+  const base64 = await window.api.readImageBase64(props.tile.customIconImage)
   if (base64) {
     imageCache.set(props.tile.customIconImage, base64)
     customIconImageBase64.value = base64

@@ -90,7 +90,7 @@ function handleClearGroup() {
 async function handleSetBackground() {
   emit('close')
   // 打开独立的分组背景设置窗口（仿磁贴样式窗，开始菜单期间被锁定）
-  await window.electronAPI.openGroupStyleWindow(props.groupId)
+  await window.api.openGroupStyleWindow(props.groupId)
 }
 
 function handleRename() {

@@ -210,7 +210,7 @@ const menus = [
 const active = ref<'personal' | 'shortcut' | 'autostart'>('personal')
 
 function closeWindow() {
-  window.electronAPI.closeSettingsWindow()
+  window.api.closeSettingsWindow()
 }
 
 // ---------- 快捷键 ----------
@@ -251,7 +251,7 @@ function onKeyDown(e: KeyboardEvent) {
 
 async function saveShortcut() {
   try {
-    await window.electronAPI.setHotkey(shortcut.value)
+    await window.api.setHotkey(shortcut.value)
     originalShortcut.value = shortcut.value
     hotkeyError.value = ''
     hotkeyOk.value = true
@@ -266,7 +266,7 @@ async function resetShortcut() {
   recording.value = false
   shortcutInput.value?.blur()
   try {
-    await window.electronAPI.setHotkey(DEFAULT_HOTKEY)
+    await window.api.setHotkey(DEFAULT_HOTKEY)
     shortcut.value = DEFAULT_HOTKEY
     originalShortcut.value = DEFAULT_HOTKEY
     hotkeyError.value = ''
@@ -286,7 +286,7 @@ const includeWallpaper = ref(true)
 async function onToggleIncludeWallpaper(enable: boolean) {
   includeWallpaper.value = enable
   try {
-    await window.electronAPI.setIncludeWallpaperOpacity(enable)
+    await window.api.setIncludeWallpaperOpacity(enable)
   } catch (e: any) {
     includeWallpaper.value = !enable
     alert('设置失败：' + String(e?.message || e))
@@ -295,7 +295,7 @@ async function onToggleIncludeWallpaper(enable: boolean) {
 async function onOpacityInput(v: number) {
   opacity.value = v
   try {
-    const saved = await window.electronAPI.setTileOpacity(v)
+    const saved = await window.api.setTileOpacity(v)
     if (typeof saved === 'number') opacity.value = saved
   } catch (e) {
     console.error('设置透明度失败', e)
@@ -317,7 +317,7 @@ async function refreshWallpaperPreview(path: string | null) {
     return
   }
   try {
-    wallpaperPreview.value = await window.electronAPI.readImageBase64(path)
+    wallpaperPreview.value = await window.api.readImageBase64(path)
   } catch (e) {
     console.error('壁纸预览失败:', e)
     wallpaperPreview.value = ''
@@ -327,9 +327,9 @@ async function refreshWallpaperPreview(path: string | null) {
 async function pickWallpaper() {
   wallpaperError.value = ''
   try {
-    const p = await window.electronAPI.selectImage()
+    const p = await window.api.selectImage()
     if (!p) return
-    const saved = await window.electronAPI.setWallpaper(p)
+    const saved = await window.api.setWallpaper(p)
     wallpaperPath.value = saved
     await refreshWallpaperPreview(saved)
   } catch (e: any) {
@@ -340,7 +340,7 @@ async function pickWallpaper() {
 async function removeWallpaper() {
   wallpaperError.value = ''
   try {
-    await window.electronAPI.clearWallpaper()
+    await window.api.clearWallpaper()
     wallpaperPath.value = null
     wallpaperPreview.value = ''
   } catch (e: any) {
@@ -351,7 +351,7 @@ async function removeWallpaper() {
 async function onDarkenInput(v: number) {
   wallpaperDarken.value = v
   try {
-    const saved = await window.electronAPI.setWallpaperDarken(v)
+    const saved = await window.api.setWallpaperDarken(v)
     if (typeof saved === 'number') wallpaperDarken.value = saved
   } catch (e) {
     console.error('设置压暗程度失败', e)
@@ -361,7 +361,7 @@ async function onDarkenInput(v: number) {
 async function onPanelAlphaInput(v: number) {
   panelAlpha.value = v
   try {
-    const saved = await window.electronAPI.setPanelAlpha(v)
+    const saved = await window.api.setPanelAlpha(v)
     if (typeof saved === 'number') panelAlpha.value = saved
   } catch (e) {
     console.error('设置列表/工具栏背景深度失败', e)
@@ -372,7 +372,7 @@ async function onTileBlurInput(pct: number) {
   tileBlurPct.value = pct
   try {
     const px = (pct / 100) * MAX_TILE_BLUR_PX
-    const saved = await window.electronAPI.setTileBlur(px)
+    const saved = await window.api.setTileBlur(px)
     const finalPx = typeof saved === 'number' ? saved : px
     tileBlurPct.value = Math.round((finalPx / MAX_TILE_BLUR_PX) * 100)
   } catch (e) {
@@ -390,7 +390,7 @@ async function onThemeColor(v: string) {
   themeColor.value = v
   colorError.value = ''
   try {
-    await window.electronAPI.setThemeColor(v)
+    await window.api.setThemeColor(v)
   } catch (e: any) {
     colorError.value = '主题色设置失败：' + String(e?.message || e)
   }
@@ -398,7 +398,7 @@ async function onThemeColor(v: string) {
 
 async function resetThemeColor() {
   try {
-    await window.electronAPI.setThemeColor(null)
+    await window.api.setThemeColor(null)
     themeColor.value = null
     colorError.value = ''
   } catch (e: any) {
@@ -410,7 +410,7 @@ async function onHighlightColor(v: string) {
   highlightColor.value = v
   colorError.value = ''
   try {
-    await window.electronAPI.setHighlightColor(v)
+    await window.api.setHighlightColor(v)
   } catch (e: any) {
     colorError.value = '高亮颜色设置失败：' + String(e?.message || e)
   }
@@ -418,7 +418,7 @@ async function onHighlightColor(v: string) {
 
 async function resetHighlightColor() {
   try {
-    await window.electronAPI.setHighlightColor(null)
+    await window.api.setHighlightColor(null)
     highlightColor.value = null
     colorError.value = ''
   } catch (e: any) {
@@ -432,7 +432,7 @@ const autostartError = ref('')
 async function toggleAutostart() {
   const next = !autostart.value
   try {
-    await window.electronAPI.setAutostart(next)
+    await window.api.setAutostart(next)
     autostart.value = next
     autostartError.value = ''
   } catch (e: any) {
@@ -442,12 +442,12 @@ async function toggleAutostart() {
 
 onMounted(async () => {
   try {
-    systemColor.value = (await window.electronAPI.getAccentColor()) || '#0078d7'
+    systemColor.value = (await window.api.getAccentColor()) || '#0078d7'
   } catch (e) {
     console.error('加载系统颜色失败', e)
   }
   try {
-    const s = await window.electronAPI.getSettings()
+    const s = await window.api.getSettings()
     if (s?.themeColor) themeColor.value = s.themeColor
     if (s?.highlightColor) highlightColor.value = s.highlightColor
     if (s?.hotkey) {
@@ -465,7 +465,7 @@ onMounted(async () => {
     console.error('加载设置失败', e)
   }
   try {
-    autostart.value = !!(await window.electronAPI.getAutostart())
+    autostart.value = !!(await window.api.getAutostart())
   } catch (e) {
     console.error('加载自启状态失败', e)
   } finally {

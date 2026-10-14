@@ -108,18 +108,18 @@ const displayedImgStyle = computed(() => {
 })
 
 async function loadCurrent() {
-  const saved = await window.electronAPI.getUserAvatar?.()
+  const saved = await window.api.getUserAvatar?.()
   current.value = saved ? (saved as AvatarData) : {}
 }
 async function loadStaged() {
-  const s = await window.electronAPI.getStagedAvatar?.()
+  const s = await window.api.getStagedAvatar?.()
   staged.value = s ? (s as AvatarData) : null
 }
 
 // 选择图片：Rust 端打开文件选择器并接着打开裁剪窗，裁剪结果只暂存
 async function chooseImage() {
   try {
-    await window.electronAPI.selectUserAvatar?.()
+    await window.api.selectUserAvatar?.()
   } catch (e) {
     console.error('打开图片选择失败', e)
   }
@@ -140,13 +140,13 @@ function markClear() {
 
 async function save() {
   if (!dirty.value) return
-  await window.electronAPI.commitAvatar?.(stagedClear.value)
-  window.electronAPI.closeAvatarSettings?.()
+  await window.api.commitAvatar?.(stagedClear.value)
+  window.api.closeAvatarSettings?.()
 }
 
 async function discardAndClose() {
-  await window.electronAPI.discardStagedAvatar?.()
-  window.electronAPI.closeAvatarSettings?.()
+  await window.api.discardStagedAvatar?.()
+  window.api.closeAvatarSettings?.()
 }
 
 function onAvatarStaged() {
@@ -158,7 +158,7 @@ onMounted(async () => {
   try {
     await loadCurrent()
     await loadStaged()
-    window.electronAPI.onAvatarStaged?.(onAvatarStaged)
+    window.api.onAvatarStaged?.(onAvatarStaged)
   } finally {
     loading.value = false
   }

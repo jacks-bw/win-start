@@ -81,7 +81,7 @@ const imageStyle = computed(() => {
 
 onMounted(async () => {
   // 从主进程获取要裁剪的图片路径
-  const path = await window.electronAPI.getCropImage?.()
+  const path = await window.api.getCropImage?.()
   if (!path) return
   imagePath.value = path
 
@@ -144,7 +144,7 @@ onUnmounted(() => {
 })
 
 function onCancel() {
-  window.electronAPI.cancelCrop?.()
+  window.api.cancelCrop?.()
 }
 
 function confirmCrop() {
@@ -159,7 +159,7 @@ function confirmCrop() {
       imgH: imgHeight.value,
       cropSize: CROP_SIZE
     }
-    window.electronAPI.saveGifAvatar?.(imagePath.value, crop)
+    window.api.saveGifAvatar?.(imagePath.value, crop)
     return
   }
 
@@ -181,7 +181,7 @@ function confirmCrop() {
   img.onload = () => {
     ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, size, size)
     const base64 = canvas.toDataURL('image/png')
-    window.electronAPI.confirmCrop?.(base64)
+    window.api.confirmCrop?.(base64)
   }
   img.src = imageUrl.value
 }

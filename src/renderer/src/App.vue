@@ -277,7 +277,7 @@ async function loadWallpaper(path: string | null | undefined) {
     return
   }
   try {
-    wallpaperUrl.value = await window.electronAPI.readImageBase64(path)
+    wallpaperUrl.value = await window.api.readImageBase64(path)
   } catch (e) {
     console.error('加载壁纸失败:', e)
     wallpaperUrl.value = ''
@@ -385,7 +385,7 @@ const handleKeydown = (e: KeyboardEvent) => {
       appContextMenu.value.visible = false
       return
     }
-    window.electronAPI.hideMenu()
+    window.api.hideMenu()
   }
   // Enter 确认对话框主操作
   if (e.key === 'Enter' && confirmDialog.value.visible) {
@@ -404,12 +404,12 @@ const resizeGrips = [
 async function startWindowResize(dir: string) {
   try {
     // 缩放系统模态循环会造成短暂失焦，先屏蔽失焦自动关闭
-    await window.electronAPI.setResizeBlocked(true)
+    await window.api.setResizeBlocked(true)
     await getCurrentWindow().startResizeDragging(dir as any)
   } catch (e) {
     console.error('窗口缩放失败:', e)
   } finally {
-    await window.electronAPI.setResizeBlocked(false)
+    await window.api.setResizeBlocked(false)
   }
 }
 
@@ -510,7 +510,7 @@ function openImageCropDialog(
   callback: (dataUrl: string) => void
 ) {
   // 忙碌锁：裁剪期间开始菜单不因点外部而关闭
-  window.electronAPI.setMenuBusy(true)
+  window.api.setMenuBusy(true)
   cropDialog.value = {
     visible: true,
     imageUrl,
@@ -523,7 +523,7 @@ function closeCropDialog() {
   cropDialog.value.visible = false
   cropDialog.value.callback = null
   // 裁剪流程结束，解除忙碌锁，菜单可正常关闭
-  window.electronAPI.setMenuBusy(false)
+  window.api.setMenuBusy(false)
 }
 
 function confirmCropDialog(dataUrl: string) {
@@ -598,37 +598,37 @@ onMounted(async () => {
   pruneDeadReferences()
   // 数据就绪后通知主进程（窗口隐藏时 rAF 不触发，不能用 rAF）
   await nextTick()
-  window.electronAPI.menuReady?.()
+  window.api.menuReady?.()
 
   // 监听系统主题色变化（主题色/高亮色变更由 utils/theme 统一监听）
 
   // 监听磁贴透明度变化
-  window.electronAPI.onTileOpacityChanged((opacity) => {
+  window.api.onTileOpacityChanged((opacity) => {
     settingsStore.tileOpacity = opacity
   })
-  window.electronAPI.onIncludeWallpaperChanged((include) => {
+  window.api.onIncludeWallpaperChanged((include) => {
     settingsStore.includeWallpaperOpacity = include
   })
 
   // 开始菜单壁纸
   try {
-    const s = await window.electronAPI.getSettings()
+    const s = await window.api.getSettings()
     wallpaperDarken.value = typeof s?.wallpaperDarken === 'number' ? s.wallpaperDarken : 0.5
     applyTileBlur(typeof s?.tileBlur === 'number' ? s.tileBlur : 20)
     await loadWallpaper(s?.wallpaperPath)
   } catch (e) {
     console.error('加载壁纸设置失败:', e)
   }
-  window.electronAPI.onWallpaperChanged((p) => {
+  window.api.onWallpaperChanged((p) => {
     loadWallpaper(p)
   })
-  window.electronAPI.onWallpaperDarkenChanged((v) => {
+  window.api.onWallpaperDarkenChanged((v) => {
     wallpaperDarken.value = typeof v === 'number' ? v : 0.5
   })
-  window.electronAPI.onPanelAlphaChanged((v) => {
+  window.api.onPanelAlphaChanged((v) => {
     settingsStore.panelAlpha = typeof v === 'number' ? v : 0.4
   })
-  window.electronAPI.onTileBlurChanged((v) => {
+  window.api.onTileBlurChanged((v) => {
     applyTileBlur(v)
   })
   watch(wallpaperUrl, () => updateBlurMask())
@@ -660,19 +660,19 @@ onMounted(async () => {
   // onLayoutUpdated 在下方已有统一注册，遮罩刷新交由下方处理
 
   // 监听磁贴桥接服务事件（第三方软件推送内容）
-  window.electronAPI.onTileBridgeUpdate((data) => {
+  window.api.onTileBridgeUpdate((data) => {
     if (data?.appId) {
       tilesStore.setExternalTileData(data.appId, data)
     }
   })
-  window.electronAPI.onTileBridgeClear((data) => {
+  window.api.onTileBridgeClear((data) => {
     if (data?.appId) {
       tilesStore.clearExternalTileData(data.appId)
     }
   })
 
   // 监听菜单打开/关闭事件
-  window.electronAPI.onMenuOpen(() => {
+  window.api.onMenuOpen(() => {
     isVisible.value = true
     // 默认聚焦搜索框
     window.dispatchEvent(new CustomEvent('start-menu:opened'))
@@ -688,7 +688,7 @@ onMounted(async () => {
     }, 400)
   })
 
-  window.electronAPI.onMenuClose(() => {
+  window.api.onMenuClose(() => {
     isVisible.value = false
     // 取消尚未发起的后台重扫
     clearTimeout(refreshTimer)
@@ -703,18 +703,18 @@ onMounted(async () => {
   })
 
   // 监听布局更新事件（壁纸窗口保存后通知）
-  window.electronAPI.onLayoutUpdated(() => {
+  window.api.onLayoutUpdated(() => {
     updateBlurMask()
     tilesStore.loadLayout()
   })
 
   // 样式窗打开/关闭时锁定/解锁开始菜单交互
-  window.electronAPI.onMenuBlocked((blocked) => {
+  window.api.onMenuBlocked((blocked) => {
     menuBlocked.value = blocked
   })
 
   // 监听开始菜单应用列表变化（安装/卸载软件后自动刷新）
-  window.electronAPI.onAppsChanged(async () => {
+  window.api.onAppsChanged(async () => {
     await appsStore.loadApps()
     // 刷新后清理死磁贴和死固定
     pruneDeadReferences()

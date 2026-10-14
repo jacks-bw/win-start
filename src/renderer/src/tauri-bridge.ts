@@ -184,7 +184,7 @@ const real = {
   setMenuBusy: (_b: boolean) => {},
 }
 
-const electronAPI = new Proxy(real as any, {
+const api = new Proxy(real as any, {
   get(target, prop: string) {
     if (prop in target) return (target as any)[prop]
     return (..._args: any[]) => Promise.resolve(null)
@@ -192,7 +192,7 @@ const electronAPI = new Proxy(real as any, {
 })
 
 // @ts-expect-error
-window.electronAPI = electronAPI
+window.api = api
 
 // Rust 显式事件（可靠）
 listen('menu-open', () => menuOpenCbs.forEach(cb => cb()))

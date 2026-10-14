@@ -105,7 +105,7 @@ function handlePinToStart() {
 
 function handlePinTaskbar() {
   // 调用 IPC 固定到任务栏
-  window.electronAPI.pinToTaskbar(props.app.lnkPath)
+  window.api.pinToTaskbar(props.app.lnkPath)
   emit('close')
 }
 
@@ -120,12 +120,12 @@ function handleMoveToFolder(folderId: string) {
 }
 
 function handleOpenLocation() {
-  window.electronAPI.showInFolder(props.app.lnkPath)
+  window.api.showInFolder(props.app.lnkPath)
   emit('close')
 }
 
 function handleUninstall() {
-  window.electronAPI.uninstallProgram()
+  window.api.uninstallProgram()
   emit('close')
 }
 </script>

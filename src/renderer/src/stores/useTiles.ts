@@ -42,7 +42,7 @@ export const useTilesStore = defineStore('tiles', () => {
 
   async function loadLayout() {
     try {
-      const layout = await window.electronAPI.loadTileLayout()
+      const layout = await window.api.loadTileLayout()
       if (layout && layout.groups) {
         groups.value = layout.groups
         // 旧数据兼容：把已移除的 large 尺寸转换为 wide
@@ -130,7 +130,7 @@ export const useTilesStore = defineStore('tiles', () => {
     try {
       // 序列化为纯对象，避免 Vue 响应式 Proxy 导致 IPC 克隆失败
       const plainGroups = JSON.parse(JSON.stringify(groups.value))
-      await window.electronAPI.saveTileLayout({ groups: plainGroups })
+      await window.api.saveTileLayout({ groups: plainGroups })
     } catch (err) {
       console.error('保存磁贴布局失败:', err)
     }

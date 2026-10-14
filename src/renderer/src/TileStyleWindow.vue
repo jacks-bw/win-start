@@ -226,8 +226,8 @@ function pushUpdate() {
 // 确定：保存并通知主窗口刷新，然后关闭
 async function confirmWindow() {
   await tilesStore.saveLayout()
-  await window.electronAPI.notifyLayoutUpdated()
-  window.electronAPI.closeTileStyleWindow()
+  await window.api.notifyLayoutUpdated()
+  window.api.closeTileStyleWindow()
 }
 
 // 取消：把布局回滚到打开时的快照，不通知主窗口，直接关闭
@@ -240,7 +240,7 @@ async function cancelWindow() {
   } catch (e) {
     console.error('回滚失败', e)
   }
-  window.electronAPI.closeTileStyleWindow()
+  window.api.closeTileStyleWindow()
 }
 
 onMounted(async () => {
@@ -248,10 +248,10 @@ onMounted(async () => {
   // 独立窗口有独立 store，需自行加载磁贴布局与程序列表
   await tilesStore.loadLayout()
   appsStore.loadApps()
-  const target = await window.electronAPI.getTileStyleTarget()
+  const target = await window.api.getTileStyleTarget()
   if (target) tileId.value = target
   snapshot = JSON.stringify(tilesStore.groups)
-  window.electronAPI.onTileStyleSelect((id) => {
+  window.api.onTileStyleSelect((id) => {
     tileId.value = id
     showIconPicker.value = false
   })
@@ -291,9 +291,9 @@ const cropGifMode = ref(false)
 const cropGifBase64 = ref('')
 
 async function chooseBackground() {
-  const filePath = await window.electronAPI.selectImage()
+  const filePath = await window.api.selectImage()
   if (!filePath) return
-  const base64 = await window.electronAPI.readImageBase64(filePath)
+  const base64 = await window.api.readImageBase64(filePath)
   if (!base64) return
   const isGif = filePath.toLowerCase().endsWith('.gif')
   const sizeMap: Record<string, { w: number; h: number }> = {
@@ -317,7 +317,7 @@ async function onCropTransform(meta: { rw: number; rh: number; px: number; py: n
   cropVisible.value = false
   const base64 = cropGifBase64.value
   if (!base64) return
-  const saved = await window.electronAPI.saveImage(base64, `tile-${tileId.value}-${Date.now()}`)
+  const saved = await window.api.saveImage(base64, `tile-${tileId.value}-${Date.now()}`)
   if (saved) {
     tilesStore.setTileBackground(tileId.value, saved, meta)
     pushUpdate()
@@ -326,7 +326,7 @@ async function onCropTransform(meta: { rw: number; rh: number; px: number; py: n
 
 async function onCropConfirmed(dataUrl: string) {
   cropVisible.value = false
-  const saved = await window.electronAPI.saveImage(dataUrl, `tile-${tileId.value}-${Date.now()}`)
+  const saved = await window.api.saveImage(dataUrl, `tile-${tileId.value}-${Date.now()}`)
   if (saved) {
     tilesStore.setTileBackground(tileId.value, saved)
     pushUpdate()
@@ -385,7 +385,7 @@ function selectIcon(name: string) {
 }
 
 async function importIcon() {
-  const filePath = await window.electronAPI.selectSvg()
+  const filePath = await window.api.selectSvg()
   if (filePath) {
     tilesStore.setTileCustomIconImage(tileId.value, filePath)
     pushUpdate()
