@@ -231,11 +231,14 @@ const vpH = ref(window.innerHeight)
 let blurTimer: ReturnType<typeof setTimeout> | undefined
 function collectTileRects(): BlurRect[] {
   const list: BlurRect[] = []
+  const vw = window.innerWidth
+  const vh = window.innerHeight
   document.querySelectorAll('.tile-grid-inner .tile-container').forEach((el) => {
     const r = el.getBoundingClientRect()
-    if (r.width > 4 && r.height > 4) {
-      list.push({ x: r.x, y: r.y, w: r.width, h: r.height })
-    }
+    // 尺寸过小或已完全滚出视口的磁贴跳过，减少无效 SVG 块
+    if (r.width <= 4 || r.height <= 4) return
+    if (r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh) return
+    list.push({ x: r.x, y: r.y, w: r.width, h: r.height })
   })
   return list
 }
@@ -270,6 +273,17 @@ function updateBlurMask() {
     blurTimer = undefined
     buildBlurPieces()
   }, 16)
+}
+// 滚动时模糊层必须实时跟随磁贴视口坐标：用 rAF 节流，每帧最多重算一次。
+// scroll 事件不冒泡，需要在捕获阶段监听，才能覆盖 .tile-grid / .tile-group-section
+// 等内部滚动容器。
+let blurScrollRaf = 0
+function handleBlurScroll() {
+  if (blurScrollRaf) return
+  blurScrollRaf = requestAnimationFrame(() => {
+    blurScrollRaf = 0
+    buildBlurPieces()
+  })
 }
 async function loadWallpaper(path: string | null | undefined) {
   if (!path) {
@@ -649,8 +663,12 @@ onMounted(async () => {
     }
   )
   window.addEventListener('resize', updateBlurMask)
+  // 磁贴区滚动（含分组内部滚动）时实时重算模糊裁剪块
+  document.addEventListener('scroll', handleBlurScroll, true)
   onUnmounted(() => {
     window.removeEventListener('resize', updateBlurMask)
+    document.removeEventListener('scroll', handleBlurScroll, true)
+    if (blurScrollRaf) cancelAnimationFrame(blurScrollRaf)
     if (blurTimer !== undefined) clearTimeout(blurTimer)
   })
   // 初始布局与拖拽完成后刷新遮罩
