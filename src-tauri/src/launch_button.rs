@@ -19,23 +19,27 @@ use windows::Win32::Graphics::Gdi::{
     PAINTSTRUCT, PS_DASH, PS_SOLID, SelectObject,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, SetActiveWindow, SetFocus, VK_DOWN, VK_ESCAPE, VK_LEFT, VK_RIGHT, VK_SHIFT,
     VK_UP,
 };
+use windows::Win32::UI::Shell::{QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-    GetWindowLongPtrW, GetWindowRect, GWL_EXSTYLE, IsIconic, IsWindowVisible, KillTimer,
-    LWA_ALPHA, LoadCursorW, MINMAXINFO, PostMessageW, RegisterClassW, SW_RESTORE,
-    SW_SHOWNOACTIVATE, SetCursor, SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW,
-    SetWindowPos, ShowWindow, TranslateMessage, WNDCLASSW, WINDOWPOS, HMENU, HWND_MESSAGE,
-    HWND_TOPMOST, HTCLIENT, IDC_HAND, MSG, SC_MINIMIZE, SWP_HIDEWINDOW, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_APP, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ERASEBKGND, WM_EXITSIZEMOVE,
-    WM_GETMINMAXINFO, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONUP, WM_NCHITTEST, WM_NCLBUTTONDOWN,
-    WM_PAINT, WM_SETCURSOR, WM_SYSCOMMAND, WM_TIMER, WM_WINDOWPOSCHANGING, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
+    GetMessageW, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, GWL_EXSTYLE,
+    GWL_STYLE, IsIconic, IsWindowVisible, KillTimer, LWA_ALPHA, LoadCursorW, MINMAXINFO,
+    PostMessageW, RegisterClassW, SW_RESTORE, SW_SHOWNOACTIVATE, SetCursor,
+    SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    TranslateMessage, WNDCLASSW, WINDOWPOS, HMENU, HWND_MESSAGE, HWND_TOPMOST, HTCLIENT,
+    IDC_HAND, MSG, SC_MINIMIZE, SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, SWP_SHOWWINDOW, WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DESTROY,
+    WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ERASEBKGND, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
+    WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONUP, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_PAINT,
+    WM_SETCURSOR, WM_SYSCOMMAND, WM_TIMER, WM_WINDOWPOSCHANGING, WS_CAPTION, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    WS_THICKFRAME,
 };
 
 const CLASS_BTN: PCWSTR = w!("WinStartHotZone");
@@ -68,7 +72,9 @@ struct BtnRect {
 
 struct MonInfo {
     name: String,
+    mon: HMONITOR,
     work: RECT,
+    screen: RECT,
     dpi: u32,
 }
 
@@ -224,7 +230,9 @@ unsafe extern "system" fn enum_proc(
             .to_string();
         out.push(MonInfo {
             name,
+            mon,
             work: mi.monitorInfo.rcWork,
+            screen: mi.monitorInfo.rcMonitor,
             dpi: dpi_x,
         });
     }
@@ -390,12 +398,21 @@ unsafe fn heal_one(hwnd: HWND) {
     }
 }
 
-/// 全部按钮自愈（进入编辑模式等场景）
-unsafe fn heal_buttons() {
-    let keys: Vec<isize> = map().lock().unwrap().keys().copied().collect();
-    for key in keys {
-        heal_one(HWND(key as *mut _));
+/// 设置按钮是否鼠标点击穿透（增删 WS_EX_TRANSPARENT，配合已有的 WS_EX_LAYERED）。
+/// 全屏屏的热区本身视觉上透明（alpha=1/255），再加穿透让点击落到下层全屏程序，
+/// 不真正隐藏窗口，因此不与 WM_WINDOWPOSCHANGING 的"禁止隐藏"逻辑冲突。
+unsafe fn set_click_through(hwnd: HWND, enable: bool) {
+    let cur = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+    let has = cur & WS_EX_TRANSPARENT.0 != 0;
+    if enable == has {
+        return;
     }
+    let new = if enable {
+        cur | WS_EX_TRANSPARENT.0
+    } else {
+        cur & !WS_EX_TRANSPARENT.0
+    };
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, WINDOW_EX_STYLE(new).0 as isize);
 }
 
 unsafe fn apply_edit_mode() {
@@ -450,11 +467,78 @@ unsafe fn button_alpha(hwnd: HWND, edit: bool) -> u8 {
     }
 }
 
-/// 定时刷新：同步显示器，并对所有按钮做一次自愈（恢复显示/置顶）。
-/// 对齐 Electron 版策略：热区按钮永远可见、永远置顶，不做全屏检测隐藏。
+/// 定时刷新：同步显示器，按各显示器全屏状态设置点击穿透，并对按钮做自愈。
+/// 普通应用（含最大化）下热区常驻可点；只有无边框全屏程序（游戏/视频/F11）
+/// 所在屏幕的热区才被设为鼠标穿透（视觉上仍透明，点不到）。
 unsafe fn tick_buttons() {
     reconcile_buttons();
-    heal_buttons();
+    // 编辑模式下所有按钮都要可点、可拖拽，不做任何穿透
+    let fullscreen: HashSet<String> = if EDIT_MODE.load(Ordering::SeqCst) {
+        HashSet::new()
+    } else {
+        fullscreen_devices()
+    };
+
+    let entries: Vec<(isize, String)> = map()
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(h, e)| (*h, e.device.clone()))
+        .collect();
+    for (key, device) in entries {
+        let hwnd = HWND(key as *mut _);
+        set_click_through(hwnd, fullscreen.contains(&device));
+        heal_one(hwnd);
+    }
+}
+
+// ===================== 全屏检测（按显示器） =====================
+
+/// 返回当前处于"真全屏"状态的显示器设备名集合。
+/// 判据：前台窗口属于别的进程、未最小化、几何完全覆盖该屏、且为无边框窗口
+/// （无 WS_CAPTION 标题栏、无 WS_THICKFRAME 可调边框）。
+/// 普通最大化窗口即使几何铺满（副屏无任务栏时 rcWork=rcMonitor），也仍带
+/// WS_CAPTION|WS_THICKFRAME，因此不会被误判；游戏独占全屏、视频/浏览器 F11
+/// 都是无边框 popup，能正确识别。D3D 独占全屏（几何可能拿不到）用 Shell 信号
+/// 兜底定位到前台窗口所在屏。
+unsafe fn fullscreen_devices() -> HashSet<String> {
+    let mut result = HashSet::new();
+    let fg = GetForegroundWindow();
+    if fg.0.is_null() {
+        return result;
+    }
+    // 本软件自己的窗口不算全屏（开始菜单、设置窗等）
+    let mut pid = 0u32;
+    GetWindowThreadProcessId(fg, Some(&mut pid));
+    if pid == GetCurrentProcessId() {
+        return result;
+    }
+    // 最小化窗口不算
+    if IsIconic(fg).as_bool() {
+        return result;
+    }
+
+    let mut wr = RECT::default();
+    let _ = GetWindowRect(fg, &mut wr);
+    let fg_mon = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
+    let d3d_fs = SHQueryUserNotificationState()
+        .map(|s| s.0 == QUNS_RUNNING_D3D_FULL_SCREEN.0)
+        .unwrap_or(false);
+
+    let style = GetWindowLongPtrW(fg, GWL_STYLE) as u32;
+    let borderless = (style & WS_CAPTION.0 == 0) && (style & WS_THICKFRAME.0 == 0);
+
+    for m in &enumerate_monitors() {
+        // 几何完全覆盖该屏（允许窗口略大于屏幕，部分游戏会多占几像素）
+        let covers = wr.left <= m.screen.left
+            && wr.top <= m.screen.top
+            && wr.right >= m.screen.right
+            && wr.bottom >= m.screen.bottom;
+        if (covers && borderless) || (d3d_fs && m.mon == fg_mon) {
+            result.insert(m.name.clone());
+        }
+    }
+    result
 }
 
 // ===================== 点击行为 =====================
@@ -729,8 +813,13 @@ unsafe extern "system" fn btn_proc(
             if (pos.flags & SWP_HIDEWINDOW).0 != 0 {
                 pos.flags = (pos.flags & !SWP_HIDEWINDOW) | SWP_SHOWWINDOW;
             }
-            // 2) 非编辑模式下禁止被挤出 topmost 层级（编辑模式允许系统拖拽改序）
+            // 2) 非编辑模式且未处于全屏穿透状态时，禁止被挤出 topmost 层级。
+            //    全屏穿透的按钮允许被全屏程序压到下层（给独占游戏让路）；
+            //    退出全屏后由 heal_one 重新置顶。
+            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+            let click_through = ex & WS_EX_TRANSPARENT.0 != 0;
             if !EDIT_MODE.load(Ordering::SeqCst)
+                && !click_through
                 && (pos.flags & SWP_NOZORDER).0 == 0
                 && pos.hwndInsertAfter != HWND_TOPMOST
             {
@@ -763,8 +852,8 @@ unsafe extern "system" fn ctl_proc(
         }
         WM_TOGGLE_EDIT => {
             apply_edit_mode();
-            reconcile_buttons();
-            heal_buttons();
+            // tick 内部统一做屏幕同步、点击穿透（编辑模式全部可点）与自愈
+            tick_buttons();
             LRESULT(0)
         }
         WM_REFRESH => {
