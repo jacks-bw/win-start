@@ -73,8 +73,12 @@ pub(crate) fn do_show(win: &tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-fn scan_apps() -> Vec<scanner::AppEntry> {
-    scanner::scan_all()
+async fn scan_apps() -> Vec<scanner::AppEntry> {
+    // 扫描含 PowerShell 调用与大量图标提取（CPU 密集），丢到阻塞线程池，
+    // 避免同步 command 卡死 webview 主线程，导致设置等子窗口的 loading 不结束。
+    tauri::async_runtime::spawn_blocking(scanner::scan_all)
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -90,7 +94,6 @@ fn hide_start_menu(window: tauri::WebviewWindow) {
 
 #[tauri::command]
 fn open_toolbar_item(key: String) {
-    use std::process::Command;
     let (program, arg): (&str, Option<&str>) = match key.as_str() {
         "explorer" => ("explorer.exe", None),
         "settings" => ("cmd", Some("/c start ms-settings:")),
@@ -102,7 +105,7 @@ fn open_toolbar_item(key: String) {
         "taskManager" => ("taskmgr.exe", None),
         _ => return,
     };
-    let mut cmd = Command::new(program);
+    let mut cmd = hidden_command(program);
     if let Some(a) = arg { cmd.arg(a); }
     if key == "documents" {
         cmd.arg(dirs::document_dir().unwrap().to_string_lossy().as_ref());
@@ -112,6 +115,16 @@ fn open_toolbar_item(key: String) {
         cmd.arg(dl.to_string_lossy().as_ref());
     }
     let _ = cmd.spawn();
+}
+
+// 构造一个隐藏控制台窗口的子进程：release 构建是 GUI 子系统，直接 spawn
+// cmd / powershell / control 等控制台程序会强制弹一个黑窗，统一加 CREATE_NO_WINDOW。
+fn hidden_command(program: &str) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let mut cmd = std::process::Command::new(program);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
 }
 
 fn to_wide(s: &str) -> Vec<u16> {
@@ -143,7 +156,7 @@ fn shell_open(target: &str) -> Result<(), String> {
 
 #[tauri::command]
 fn launch_app(path: String) -> Result<(), String> {
-    std::process::Command::new("cmd")
+    hidden_command("cmd")
         .args(["/c", "start", "", &path])
         .spawn()
         .map(|_| ())
@@ -157,7 +170,7 @@ fn launch_uwp(app_id: String) -> Result<(), String> {
         return shell_open(&app_id);
     }
     let target = format!("shell:AppsFolder\\{}", app_id);
-    std::process::Command::new("explorer.exe")
+    hidden_command("explorer.exe")
         .arg(&target)
         .spawn()
         .map(|_| ())
@@ -203,7 +216,7 @@ fn show_in_folder(path: String) -> Result<(), String> {
     } else {
         path
     };
-    std::process::Command::new("explorer.exe")
+    hidden_command("explorer.exe")
         .arg(format!("/select,{}", target))
         .spawn()
         .map(|_| ())
@@ -212,7 +225,7 @@ fn show_in_folder(path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn uninstall_program() -> Result<(), String> {
-    std::process::Command::new("cmd")
+    hidden_command("cmd")
         .args(["/c", "start", "control", "appwiz.cpl"])
         .spawn()
         .map(|_| ())
@@ -304,7 +317,7 @@ async fn open_avatar_settings_window(app: tauri::AppHandle) -> Result<(), String
         let _ = win.set_focus();
         return Ok(());
     }
-    let win = WebviewWindowBuilder::new(&app, "avatar-settings", WebviewUrl::External("http://localhost:5173/#/avatar-settings".parse().unwrap()))
+    let win = WebviewWindowBuilder::new(&app, "avatar-settings", WebviewUrl::App("index.html#/avatar-settings".into()))
         .title("用户头像")
         .inner_size(340.0, 400.0)
         .resizable(false)
@@ -341,7 +354,7 @@ fn clear_user_avatar(app: tauri::AppHandle) -> Result<(), String> {
 fn create_avatar_crop_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
     use tauri::WebviewUrl;
     use tauri::WebviewWindowBuilder;
-    let win = WebviewWindowBuilder::new(app, "avatar-crop", WebviewUrl::External("http://localhost:5173/#/avatar-crop".parse().unwrap()))
+    let win = WebviewWindowBuilder::new(app, "avatar-crop", WebviewUrl::App("index.html#/avatar-crop".into()))
         .title("裁剪用户头像")
         .inner_size(380.0, 480.0)
         .resizable(false)
@@ -846,25 +859,37 @@ fn set_tile_blur(
 // ===================== 系统强调色 =====================
 /// 读取注册表中的系统强调色（HKCU\Software\Microsoft\Windows\DWM 的 AccentColor，
 /// 格式为 0xAABBGGRR），返回 #RRGGBB；失败时回退为 Windows 蓝。
+/// 直接用 RegGetValueW，避免 spawn reg.exe 子进程导致控制台窗口闪现。
 #[tauri::command]
 fn get_accent_color() -> String {
-    if let Ok(out) = std::process::Command::new("reg")
-        .args(["query", r"HKCU\Software\Microsoft\Windows\DWM", "/v", "AccentColor"])
-        .output()
-    {
-        let text = String::from_utf8_lossy(&out.stdout);
-        for line in text.lines() {
-            let Some(pos) = line.find("0x") else { continue };
-            let raw = line[pos..].trim().trim_start_matches("0x");
-            if let Ok(v) = u32::from_str_radix(raw, 16) {
-                let r = (v & 0xff) as u8;
-                let g = ((v >> 8) & 0xff) as u8;
-                let b = ((v >> 16) & 0xff) as u8;
-                return format!("#{:02x}{:02x}{:02x}", r, g, b);
-            }
-        }
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
+
+    let subkey: Vec<u16> = "Software\\Microsoft\\Windows\\DWM".encode_utf16().chain(std::iter::once(0)).collect();
+    let value: Vec<u16> = "AccentColor".encode_utf16().chain(std::iter::once(0)).collect();
+
+    let mut data: u32 = 0;
+    let mut size: u32 = std::mem::size_of::<u32>() as u32;
+    let ok = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(subkey.as_ptr()),
+            PCWSTR(value.as_ptr()),
+            RRF_RT_REG_DWORD,
+            None,
+            Some(&mut data as *mut u32 as *mut _),
+            Some(&mut size),
+        )
     }
-    "#0078d7".to_string()
+    .is_ok();
+
+    if !ok || data == 0 {
+        return "#0078d7".to_string();
+    }
+    let r = (data & 0xff) as u8;
+    let g = ((data >> 8) & 0xff) as u8;
+    let b = ((data >> 16) & 0xff) as u8;
+    format!("#{:02x}{:02x}{:02x}", r, g, b)
 }
 
 // ===================== 开机自启 =====================
@@ -985,8 +1010,8 @@ fn open_style_window(
         let _ = win.emit(select_event, target);
         return Ok(());
     }
-    let url = format!("http://localhost:5173/#{}", hash);
-    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url.parse().unwrap()))
+    let url = format!("index.html#{}", hash);
+    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .title(if label == "tile-style" { "磁贴样式" } else { "分组背景" })
         .inner_size(560.0, 640.0)
         .resizable(false)
@@ -1141,7 +1166,7 @@ async fn create_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
     let win = WebviewWindowBuilder::new(
         app,
         "settings",
-        WebviewUrl::External("http://localhost:5173/#/settings".parse().unwrap()),
+        WebviewUrl::App("index.html#/settings".into()),
     )
     .title("设置")
     .inner_size(640.0, 480.0)

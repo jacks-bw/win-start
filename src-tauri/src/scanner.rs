@@ -3,8 +3,13 @@
 use crate::icon_extract::extract_icon_png;
 use serde::Serialize;
 use std::fs;
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+// 控制台子进程不弹黑窗：release 构建为 GUI 子系统，spawn powershell 会
+// 强制创建新控制台窗口，加此标志彻底隐藏。
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AppEntry {
@@ -58,6 +63,7 @@ fn scan_uwp() -> Vec<AppEntry> {
             "-Command",
             "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-StartApps | ConvertTo-Json"
         ])
+        .creation_flags(CREATE_NO_WINDOW)
         .stdout(std::process::Stdio::piped())
         .output();
     let Ok(output) = output else { return vec![] };
