@@ -19,25 +19,23 @@ use windows::Win32::Graphics::Gdi::{
     PAINTSTRUCT, PS_DASH, PS_SOLID, SelectObject,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, SetActiveWindow, SetFocus, VK_DOWN, VK_ESCAPE, VK_LEFT, VK_RIGHT, VK_SHIFT,
     VK_UP,
 };
-use windows::Win32::UI::Shell::{QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
-    GetMessageW, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, GWL_EXSTYLE,
-    IsIconic, IsWindowVisible, KillTimer, LWA_ALPHA, LoadCursorW, MINMAXINFO,
-    PostMessageW, RegisterClassW, SW_HIDE, SW_RESTORE, SW_SHOWNOACTIVATE, SetCursor,
-    SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-    TranslateMessage, WNDCLASSW, HMENU, HWND_MESSAGE, HWND_TOPMOST, HTCLIENT, IDC_HAND,
-    MSG, SC_MINIMIZE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED,
-    WM_ERASEBKGND, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_KEYDOWN, WM_KILLFOCUS,
-    WM_LBUTTONUP, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_PAINT, WM_SETCURSOR, WM_SYSCOMMAND,
-    WM_TIMER, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+    GetWindowLongPtrW, GetWindowRect, GWL_EXSTYLE, IsIconic, IsWindowVisible, KillTimer,
+    LWA_ALPHA, LoadCursorW, MINMAXINFO, PostMessageW, RegisterClassW, SW_RESTORE,
+    SW_SHOWNOACTIVATE, SetCursor, SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW,
+    SetWindowPos, ShowWindow, TranslateMessage, WNDCLASSW, WINDOWPOS, HMENU, HWND_MESSAGE,
+    HWND_TOPMOST, HTCLIENT, IDC_HAND, MSG, SC_MINIMIZE, SWP_HIDEWINDOW, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, WINDOW_EX_STYLE, WINDOW_STYLE,
+    WM_APP, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ERASEBKGND, WM_EXITSIZEMOVE,
+    WM_GETMINMAXINFO, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONUP, WM_NCHITTEST, WM_NCLBUTTONDOWN,
+    WM_PAINT, WM_SETCURSOR, WM_SYSCOMMAND, WM_TIMER, WM_WINDOWPOSCHANGING, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
 
 const CLASS_BTN: PCWSTR = w!("WinStartHotZone");
@@ -49,7 +47,8 @@ use windows::core::PCWSTR;
 
 const DEFAULT_SIZE_LOGICAL: i32 = 48;
 const MIN_SIZE_LOGICAL: i32 = 24;
-const HEAL_INTERVAL_MS: u32 = 2000;
+// 自愈周期（对齐 Electron 版 1 秒）：定时恢复被隐藏/降层的热区按钮
+const HEAL_INTERVAL_MS: u32 = 1000;
 
 // 按钮在正常模式下近乎全透明（1/255），但仍接收鼠标事件；编辑模式下提高透明度
 const ALPHA_NORMAL: u8 = 1;
@@ -69,9 +68,7 @@ struct BtnRect {
 
 struct MonInfo {
     name: String,
-    mon: HMONITOR,
     work: RECT,
-    screen: RECT,
     dpi: u32,
 }
 
@@ -198,7 +195,7 @@ unsafe fn run_ui_thread() {
         SetTimer(h, 1, HEAL_INTERVAL_MS, None);
     }
 
-    reconcile_buttons(&HashSet::new());
+    reconcile_buttons();
 
     let mut msg = MSG::default();
     while GetMessageW(&mut msg, None, 0, 0).as_bool() {
@@ -227,9 +224,7 @@ unsafe extern "system" fn enum_proc(
             .to_string();
         out.push(MonInfo {
             name,
-            mon,
             work: mi.monitorInfo.rcWork,
-            screen: mi.monitorInfo.rcMonitor,
             dpi: dpi_x,
         });
     }
@@ -262,7 +257,7 @@ unsafe fn default_rect(work: &RECT, dpi: u32) -> BtnRect {
     }
 }
 
-unsafe fn create_button(m: &MonInfo, cfg: Option<BtnRect>, show: bool) -> Option<HWND> {
+unsafe fn create_button(m: &MonInfo, cfg: Option<BtnRect>) -> Option<HWND> {
     let scale = m.dpi as f32 / 96.0;
     let min = (MIN_SIZE_LOGICAL as f32 * scale).round() as i32;
     let r = cfg
@@ -301,15 +296,13 @@ unsafe fn create_button(m: &MonInfo, cfg: Option<BtnRect>, show: bool) -> Option
         },
         LWA_ALPHA,
     );
-    if show {
-        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-    }
+    // 热区按钮创建即显示，不做任何全屏隐藏
+    let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     Some(hwnd)
 }
 
-/// 枚举显示器，新增缺失的、移除已断开的。
-/// hidden 中的设备（有全屏程序在前台）其新按钮保持隐藏。
-unsafe fn reconcile_buttons(hidden: &HashSet<String>) {
+/// 枚举显示器，新增缺失的、移除已断开的。新按钮一律显示。
+unsafe fn reconcile_buttons() {
     let mons = enumerate_monitors();
     let configs = load_all_configs();
     let present: HashSet<String> = mons.iter().map(|m| m.name.clone()).collect();
@@ -348,8 +341,7 @@ unsafe fn reconcile_buttons(hidden: &HashSet<String>) {
                 if let Some(key) = hwnd_key {
                     let _ = DestroyWindow(HWND(key as *mut _));
                     map().lock().unwrap().remove(&key);
-                    let show = !hidden.contains(&m.name);
-                    if let Some(hwnd) = create_button(m, None, show) {
+                    if let Some(hwnd) = create_button(m, None) {
                         map().lock().unwrap().insert(
                             hwnd.0 as isize,
                             BtnEntry {
@@ -362,8 +354,7 @@ unsafe fn reconcile_buttons(hidden: &HashSet<String>) {
             }
             Some(_) => {}
             None => {
-                let show = !hidden.contains(&m.name);
-                if let Some(hwnd) = create_button(m, configs.get(&m.name).copied(), show) {
+                if let Some(hwnd) = create_button(m, configs.get(&m.name).copied()) {
                     map().lock().unwrap().insert(
                         hwnd.0 as isize,
                         BtnEntry {
@@ -377,7 +368,7 @@ unsafe fn reconcile_buttons(hidden: &HashSet<String>) {
     }
 }
 
-/// 单个按钮自愈：恢复显示/置顶（仅用于非全屏的显示器）
+/// 单个按钮自愈：恢复显示并强制置顶（对齐 Electron 版：按钮永远可点）
 unsafe fn heal_one(hwnd: HWND) {
     let edit = EDIT_MODE.load(Ordering::SeqCst);
     if IsIconic(hwnd).as_bool() {
@@ -459,72 +450,11 @@ unsafe fn button_alpha(hwnd: HWND, edit: bool) -> u8 {
     }
 }
 
-/// 定时刷新：同步显示器，按各显示器的全屏状态分别显示/隐藏
+/// 定时刷新：同步显示器，并对所有按钮做一次自愈（恢复显示/置顶）。
+/// 对齐 Electron 版策略：热区按钮永远可见、永远置顶，不做全屏检测隐藏。
 unsafe fn tick_buttons() {
-    // 编辑模式始终显示，方便用户拖拽
-    let hidden: HashSet<String> = if EDIT_MODE.load(Ordering::SeqCst) {
-        HashSet::new()
-    } else {
-        fullscreen_devices()
-    };
-    reconcile_buttons(&hidden);
-
-    // 每个按钮按所在显示器决定：全屏屏隐藏，其余屏幕正常显示/自愈
-    let entries: Vec<(isize, String)> = map()
-        .lock()
-        .unwrap()
-        .iter()
-        .map(|(h, e)| (*h, e.device.clone()))
-        .collect();
-    for (key, device) in entries {
-        let hwnd = HWND(key as *mut _);
-        if hidden.contains(&device) {
-            if IsWindowVisible(hwnd).as_bool() {
-                let _ = ShowWindow(hwnd, SW_HIDE);
-            }
-        } else {
-            heal_one(hwnd);
-        }
-    }
-}
-
-// ===================== 全屏检测（按显示器） =====================
-
-/// 返回当前有全屏程序在前台运行的显示器设备名集合：
-/// 1. 前台窗口几何上完整覆盖的显示器（无边框全屏 / 独占全屏 / 浏览器 F11）；
-/// 2. Shell 报告 D3D 独占全屏时，前台窗口所在的显示器兜底。
-unsafe fn fullscreen_devices() -> HashSet<String> {
-    let mut result = HashSet::new();
-    let fg = GetForegroundWindow();
-    if fg.0.is_null() {
-        return result;
-    }
-    // 本软件自己的窗口不算全屏（设置窗、开始菜单等）
-    let mut pid = 0u32;
-    GetWindowThreadProcessId(fg, Some(&mut pid));
-    if pid == GetCurrentProcessId() {
-        return result;
-    }
-
-    let mut wr = RECT::default();
-    let _ = GetWindowRect(fg, &mut wr);
-    let fg_mon = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
-    let d3d_fs = SHQueryUserNotificationState()
-        .map(|s| s.0 == QUNS_RUNNING_D3D_FULL_SCREEN.0)
-        .unwrap_or(false);
-
-    for m in &enumerate_monitors() {
-        // 几何覆盖判定（允许窗口略大于屏幕，部分游戏会多占几像素）
-        let covers = wr.left <= m.screen.left
-            && wr.top <= m.screen.top
-            && wr.right >= m.screen.right
-            && wr.bottom >= m.screen.bottom;
-        // 几何拿不到（独占模式）时，D3D 全屏信号定位到前台窗口所在屏
-        if covers || (d3d_fs && m.mon == fg_mon) {
-            result.insert(m.name.clone());
-        }
-    }
-    result
+    reconcile_buttons();
+    heal_buttons();
 }
 
 // ===================== 点击行为 =====================
@@ -537,9 +467,22 @@ unsafe fn toggle_menu(button: HWND) {
         return;
     };
 
+    // 被点击热区所在屏幕，与菜单窗口当前所在屏幕
+    let btn_mon = MonitorFromWindow(button, MONITOR_DEFAULTTONEAREST);
+    // tauri 的 hwnd 与本 crate 的 windows 版本可能不同，用裸指针重建本 crate HWND
+    let win_mon = win
+        .hwnd()
+        .ok()
+        .map(|h| MonitorFromWindow(HWND(h.0), MONITOR_DEFAULTTONEAREST))
+        .unwrap_or(btn_mon);
+
     if win.is_visible().unwrap_or(false) {
-        let _ = win.hide();
-        return;
+        if btn_mon == win_mon {
+            // 同一屏幕：正常切换关闭
+            let _ = win.hide();
+            return;
+        }
+        // 菜单在另一屏显示着：不关闭，直接移动到当前屏显示（继续走下方定位逻辑）
     }
 
     // 在热区按钮上方定位菜单（以该按钮所在屏幕的工作区为准）
@@ -779,6 +722,22 @@ unsafe extern "system" fn btn_proc(
                 DefWindowProcW(hwnd, msg, wp, lp)
             }
         }
+        WM_WINDOWPOSCHANGING => {
+            // 事件级自愈（对齐 Electron 版 hide/minimize/blur 立即拦截）：
+            let pos = &mut *(lp.0 as *mut WINDOWPOS);
+            // 1) 任何试图隐藏本按钮的操作（显示桌面、其他程序、系统）都改成保持显示
+            if (pos.flags & SWP_HIDEWINDOW).0 != 0 {
+                pos.flags = (pos.flags & !SWP_HIDEWINDOW) | SWP_SHOWWINDOW;
+            }
+            // 2) 非编辑模式下禁止被挤出 topmost 层级（编辑模式允许系统拖拽改序）
+            if !EDIT_MODE.load(Ordering::SeqCst)
+                && (pos.flags & SWP_NOZORDER).0 == 0
+                && pos.hwndInsertAfter != HWND_TOPMOST
+            {
+                pos.hwndInsertAfter = HWND_TOPMOST;
+            }
+            DefWindowProcW(hwnd, msg, wp, lp)
+        }
         WM_DISPLAYCHANGE | WM_DPICHANGED => {
             let ctl = CONTROLLER_HWND.load(Ordering::SeqCst);
             if ctl != 0 {
@@ -804,13 +763,8 @@ unsafe extern "system" fn ctl_proc(
         }
         WM_TOGGLE_EDIT => {
             apply_edit_mode();
-            // 进入编辑模式时强制显示（退出编辑模式时按全屏状态决定）
-            if EDIT_MODE.load(Ordering::SeqCst) {
-                reconcile_buttons(&HashSet::new());
-                heal_buttons();
-            } else {
-                tick_buttons();
-            }
+            reconcile_buttons();
+            heal_buttons();
             LRESULT(0)
         }
         WM_REFRESH => {
