@@ -1,9 +1,9 @@
 <template>
   <div class="tile-style-window" :style="{ background: pageBg }">
     <!-- 加载遮罩：数据与预览就绪前不可操作 -->
-    <div v-if="loading" class="loading-mask">
+    <div v-if="loading || saving" class="loading-mask">
       <div class="loading-spinner"></div>
-      <div class="loading-text">正在加载…</div>
+      <div class="loading-text">{{ saving ? '正在保存…' : '正在加载…' }}</div>
     </div>
     <!-- 标题栏（无边框窗口自绘，可拖动） -->
     <div class="page-header">
@@ -117,9 +117,10 @@
     </div>
 
     <!-- 底部确定 / 取消 -->
+    <div v-if="tilesStore.layoutError" class="layout-error" role="alert">{{ tilesStore.layoutError }}</div>
     <div class="page-footer">
       <button class="footer-btn" @click="cancelWindow">取消</button>
-      <button class="footer-btn primary" @click="confirmWindow">确定</button>
+      <button class="footer-btn primary" :disabled="!tilesStore.loaded || saving" @click="confirmWindow">确定</button>
     </div>
 
     <!-- 图标选择器 -->
@@ -162,6 +163,8 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from './utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { computed, markRaw, onMounted, ref, watch } from 'vue'
 import { useTilesStore } from './stores/useTiles'
 import { useAppsStore } from './stores/useApps'
@@ -172,6 +175,8 @@ import CropImageDialog from './components/CropImageDialog.vue'
 import { useSettingsStore } from './stores/useSettings'
 
 const tilesStore = useTilesStore()
+tilesStore.beginDraft()
+const saving = ref(false)
 const settingsStore = useSettingsStore()
 const appsStore = useAppsStore()
 
@@ -209,54 +214,40 @@ const group = computed(() => {
   return undefined
 })
 
-// ---- 布局/刷新同步（编辑期间不通知主窗口，点确定才保存） ----
-let updateTimer: ReturnType<typeof setTimeout> | null = null
-// 打开时的布局快照，用于点取消时回滚
-let snapshot = ''
-
-function closeWindow() {
-  cancelWindow()
-}
-
-// 编辑过程中不主动通知主窗口（主菜单已锁定，确定时统一刷新）
-function pushUpdate() {
-  if (updateTimer) clearTimeout(updateTimer)
-}
-
-// 确定：保存并通知主窗口刷新，然后关闭
+// All controls update only this window's draft. Cancel/close never writes.
+function closeWindow() { cancelWindow() }
+function pushUpdate() {}
 async function confirmWindow() {
-  await tilesStore.saveLayout()
-  await window.api.notifyLayoutUpdated()
-  window.api.closeTileStyleWindow()
-}
-
-// 取消：把布局回滚到打开时的快照，不通知主窗口，直接关闭
-async function cancelWindow() {
+  if (saving.value || !tilesStore.loaded) return
+  saving.value = true
   try {
-    if (snapshot) {
-      tilesStore.groups = JSON.parse(snapshot)
-      await tilesStore.saveLayout()
-    }
-  } catch (e) {
-    console.error('回滚失败', e)
-  }
-  window.api.closeTileStyleWindow()
+    if (await tilesStore.commitDraft()) await window.api.closeTileStyleWindow()
+  } catch (error) {
+    tilesStore.layoutError = String(error)
+  } finally { saving.value = false }
+}
+function cancelWindow() {
+  if (!saving.value) window.api.closeTileStyleWindow()
 }
 
 onMounted(async () => {
-  await settingsStore.loadTileOpacity()
-  // 独立窗口有独立 store，需自行加载磁贴布局与程序列表
-  await tilesStore.loadLayout()
-  appsStore.loadApps()
-  const target = await window.api.getTileStyleTarget()
-  if (target) tileId.value = target
-  snapshot = JSON.stringify(tilesStore.groups)
-  window.api.onTileStyleSelect((id) => {
-    tileId.value = id
-    showIconPicker.value = false
-  })
-  // 兜底：预览事件异常时也不卡住界面
-  setTimeout(() => { loading.value = false }, 1500)
+  try {
+    await settingsStore.loadTileOpacity()
+    if (!await tilesStore.loadLayout()) return
+    if (lifetime.disposed) return
+    appsStore.loadApps()
+    const target = await window.api.getTileStyleTarget()
+    if (lifetime.disposed) return
+    if (target) tileId.value = target
+    lifetime.add(window.api.onTileStyleSelect((id) => {
+      tileId.value = id
+      showIconPicker.value = false
+    }))
+  } catch (error) {
+    tilesStore.layoutError = String(error)
+  } finally {
+    loading.value = false
+  }
 })
 
 // 预览/标题栏显示的软件名（从 apps store 解析）
@@ -417,6 +408,8 @@ function setAlign(pos: string) {
 </script>
 
 <style scoped>
+.layout-error { color: #ffd3c7; background: #542d26; padding: 10px 16px; font-size: 12px; flex-shrink: 0; }
+.footer-btn:disabled { opacity: 0.5; cursor: default; }
 .tile-style-window {
   height: 100vh;
   display: flex;

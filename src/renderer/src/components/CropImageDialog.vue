@@ -33,6 +33,8 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from '../utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { ref, computed, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 
@@ -88,6 +90,7 @@ function setupImage() {
   if (!props.imageUrl) return
   const img = new Image()
   img.onload = () => {
+    if (lifetime.disposed || !props.visible) return
     imgWidth.value = img.naturalWidth
     imgHeight.value = img.naturalHeight
     // 初始缩放：让图片完全覆盖取景框
@@ -116,7 +119,8 @@ function clampOffset() {
 watch(
   () => props.visible,
   (v) => {
-    if (v) requestAnimationFrame(setupImage)
+    if (v) requestAnimationFrame(() => { if (!lifetime.disposed && props.visible) setupImage() })
+    else stopDrag()
   }
 )
 
@@ -159,11 +163,14 @@ function stopDrag() {
   window.removeEventListener('mouseup', stopDrag)
 }
 
+lifetime.add(stopDrag)
+
 // ---- 确认 ----
 function handleConfirm() {
   if (!props.imageUrl || !imgWidth.value) return
   const img = new Image()
   img.onload = () => {
+    if (lifetime.disposed || !props.visible) return
     const s = scale.value
 
     // GIF 模式：只记录裁剪比例，不做 canvas 截图（保留动图）

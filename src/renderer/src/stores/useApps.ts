@@ -1,9 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { mergeScannedApps } from '../utils/app-scan'
+import { selectRecentApps } from '../utils/recent-apps'
+import { appLaunchTarget } from '../utils/app-actions'
 
 export const useAppsStore = defineStore('apps', () => {
   const apps = ref<AppItem[]>([])
   const searchQuery = ref('')
+  const scanWarning = ref('')
+  const launchError = ref('')
+  const recentCheckedAt = ref(Date.now())
   const pinnedApps = ref<string[]>([])
   const folders = ref<AppFolder[]>([])
   const expandedFolders = ref<Set<string>>(new Set())
@@ -166,7 +172,7 @@ export const useAppsStore = defineStore('apps', () => {
 
   // 最近添加的应用（前5个，排除已在文件夹里的）
   const recentApps = computed(() => {
-    return apps.value.filter((a) => a.recentlyAdded && !a.folderId).slice(0, 5)
+    return selectRecentApps(apps.value, recentCheckedAt.value)
   })
 
   // 已固定的应用（排除已在文件夹里的）
@@ -178,13 +184,24 @@ export const useAppsStore = defineStore('apps', () => {
     if (scanning) return
     scanning = true
     try {
-      const list = await window.api.getAppList()
-      apps.value = list
-      pinnedApps.value = list.filter((a) => a.pinned).map((a) => a.id)
+      const scan = await window.api.getAppScan()
+      recentCheckedAt.value = Date.now()
+      apps.value = mergeScannedApps(apps.value, scan.apps, scan.complete)
       loadFolders()
-      lastScanAt = Date.now()
+      // Restore user metadata rather than trusting scanner defaults.
+      for (const app of apps.value) {
+        app.pinned = pinnedApps.value.includes(app.id)
+        app.folderId = folders.value.find(folder => folder.appIds.includes(app.id))?.id
+      }
+      scanWarning.value = scan.complete ? '' : '应用列表暂未完整刷新，现有磁贴已保留。'
+      if (scan.warnings.length) {
+        scanWarning.value = [scanWarning.value, ...scan.warnings].filter(Boolean).join('\n')
+        console.warn('应用扫描提示:', scan.warnings)
+      }
+      if (scan.complete) lastScanAt = Date.now()
     } catch (err) {
       console.error('加载应用列表失败:', err)
+      scanWarning.value = '应用列表刷新失败，已保留上次结果和现有磁贴。'
     } finally {
       scanning = false
     }
@@ -195,33 +212,22 @@ export const useAppsStore = defineStore('apps', () => {
    * 在途扫描未结束时跳过，避免快速开关菜单发起多次 PowerShell。
    */
   function maybeRefreshApps() {
+    recentCheckedAt.value = Date.now()
     if (scanning) return Promise.resolve()
     if (Date.now() - lastScanAt < REFRESH_INTERVAL_MS) return Promise.resolve()
     return loadApps()
   }
 
   async function launchApp(app: AppItem) {
+    launchError.value = ''
     try {
-      // 先启动（菜单仍在前台，目标可继承前台焦点，避免被 Windows 前台锁卡住）
-      if (app.uwp && app.uwpAppId) {
-        await window.api.launchUwpApp(app.uwpAppId)
-      } else {
-        await window.api.launchApp(app.lnkPath)
-      }
+      const target = appLaunchTarget(app)
+      if (target.kind === 'shell') await window.api.launchShellApp(target.value)
+      else await window.api.launchApp(target.value)
+      await window.api.hideStartMenu()
     } catch (err) {
+      launchError.value = `启动失败：${String(err instanceof Error ? err.message : err)}`
       console.error('启动应用失败:', err)
-    } finally {
-      // 再关闭开始菜单
-      window.api.hideStartMenu()
-    }
-  }
-
-  async function togglePin(appId: string) {
-    pinnedApps.value = await window.api.togglePin(appId)
-    // 更新 apps 数组中的 pinned 状态
-    const app = apps.value.find((a) => a.id === appId)
-    if (app) {
-      app.pinned = pinnedApps.value.includes(appId)
     }
   }
 
@@ -232,6 +238,8 @@ export const useAppsStore = defineStore('apps', () => {
   return {
     apps,
     searchQuery,
+    scanWarning,
+    launchError,
     pinnedApps,
     folders,
     expandedFolders,
@@ -242,7 +250,6 @@ export const useAppsStore = defineStore('apps', () => {
     loadApps,
     launchApp,
     maybeRefreshApps,
-    togglePin,
     setSearchQuery,
     createFolder,
     renameFolder,

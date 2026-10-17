@@ -1,5 +1,7 @@
 # 程序发现方案改进计划：补齐 UWP / Microsoft Store 应用
 
+> 历史设计记录：下文描述旧 Electron 扫描器及当时采样数据，不代表当前实现。当前使用 src-tauri/src/scanner.rs 扫描快捷方式和 Get-StartApps；类型区分 win32/packaged/shell，并保留历史入口 ID，详见 [daily-actions.md](daily-actions.md) 和 [recent-apps.md](recent-apps.md)。
+
 ## 背景与现状
 
 当前程序列表的发现逻辑在 `src/main/scanner.ts`：

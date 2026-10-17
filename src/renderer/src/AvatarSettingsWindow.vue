@@ -47,6 +47,7 @@
       </div>
     </div>
 
+    <div v-if="operationError" class="operation-error" role="alert">{{ operationError }}</div>
     <!-- 底部保存（关闭即丢弃未保存改动） -->
     <div class="page-footer">
       <button class="footer-btn primary" :disabled="!dirty" @click="save">保存</button>
@@ -55,6 +56,8 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from './utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { X, ImagePlus, Trash2, User } from 'lucide-vue-next'
 import { useSettingsStore } from './stores/useSettings'
@@ -63,6 +66,7 @@ const settingsStore = useSettingsStore()
 const pageBg = computed(() => `rgba(32, 32, 32, ${settingsStore.getListAlpha()})`)
 
 const loading = ref(true)
+const operationError = ref('')
 const confirmClear = ref(false)
 let confirmTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -108,19 +112,20 @@ const displayedImgStyle = computed(() => {
 })
 
 async function loadCurrent() {
-  const saved = await window.api.getUserAvatar?.()
+  const saved = await window.api.getUserAvatar()
   current.value = saved ? (saved as AvatarData) : {}
 }
 async function loadStaged() {
-  const s = await window.api.getStagedAvatar?.()
+  const s = await window.api.getStagedAvatar()
   staged.value = s ? (s as AvatarData) : null
 }
 
 // 选择图片：Rust 端打开文件选择器并接着打开裁剪窗，裁剪结果只暂存
 async function chooseImage() {
   try {
-    await window.api.selectUserAvatar?.()
+    await window.api.selectUserAvatar()
   } catch (e) {
+    operationError.value = String(e)
     console.error('打开图片选择失败', e)
   }
 }
@@ -140,25 +145,33 @@ function markClear() {
 
 async function save() {
   if (!dirty.value) return
-  await window.api.commitAvatar?.(stagedClear.value)
-  window.api.closeAvatarSettings?.()
+  try {
+    await window.api.commitAvatar(stagedClear.value)
+    await window.api.closeAvatarSettings()
+  } catch (error) { operationError.value = String(error) }
 }
 
 async function discardAndClose() {
-  await window.api.discardStagedAvatar?.()
-  window.api.closeAvatarSettings?.()
+  try {
+    await window.api.discardStagedAvatar()
+    await window.api.closeAvatarSettings()
+  } catch (error) { operationError.value = String(error) }
 }
 
 function onAvatarStaged() {
-  loadStaged()
+  loadStaged().catch(error => { operationError.value = String(error) })
   stagedClear.value = false
 }
 
 onMounted(async () => {
   try {
     await loadCurrent()
+    if (lifetime.disposed) return
     await loadStaged()
-    window.api.onAvatarStaged?.(onAvatarStaged)
+    if (lifetime.disposed) return
+    lifetime.add(window.api.onAvatarStaged(onAvatarStaged))
+  } catch (error) {
+    operationError.value = String(error)
   } finally {
     loading.value = false
   }
@@ -170,6 +183,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.operation-error { padding: 10px 16px; color: #ffd3c7; font-size: 12px; }
 .avatar-settings-window {
   height: 100vh;
   display: flex;

@@ -5,12 +5,13 @@
     @click.stop
     @contextmenu.prevent
   >
+    <div v-if="operationError" class="operation-error" role="alert">{{ operationError }}</div>
     <div class="menu-item" @click="handlePinToStart">
       <span class="menu-label">{{ isPinnedToStart ? '从磁贴取消固定' : '固定到磁贴' }}</span>
     </div>
 
-    <div v-if="!app.uwp" class="menu-item" @click="handlePinTaskbar">
-      <span class="menu-label">固定到任务栏</span>
+    <div class="menu-item" title="打开系统位置后，请右键程序选择固定到任务栏；此操作不会自动固定" @click="handleTaskbarGuide">
+      <span class="menu-label">在系统中固定到任务栏…</span>
     </div>
 
     <div v-if="isInFolder" class="menu-item" @click="handleRemoveFromFolder">
@@ -32,17 +33,15 @@
       </div>
     </div>
 
-    <div v-if="!app.uwp" class="menu-divider"></div>
+    <div class="menu-divider"></div>
 
-    <template v-if="!app.uwp">
-      <div class="menu-item" @click="handleOpenLocation">
+      <div v-if="actions.showLocation" class="menu-item" @click="handleOpenLocation">
         <span class="menu-label">打开文件位置</span>
       </div>
 
       <div class="menu-item" @click="handleUninstall">
-        <span class="menu-label">卸载</span>
+        <span class="menu-label">管理已安装的应用…</span>
       </div>
-    </template>
   </div>
 </template>
 
@@ -50,6 +49,7 @@
 import { computed, ref } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
+import { appActions } from '../../utils/app-actions'
 
 const props = defineProps<{
   x: number
@@ -63,6 +63,8 @@ const emit = defineEmits<{
 
 const tilesStore = useTilesStore()
 const appsStore = useAppsStore()
+const actions = computed(() => appActions(props.app))
+const operationError = ref('')
 
 // 检查应用是否在文件夹里
 const isInFolder = computed(() => !!props.app.folderId)
@@ -103,10 +105,9 @@ function handlePinToStart() {
   emit('close')
 }
 
-function handlePinTaskbar() {
-  // 调用 IPC 固定到任务栏
-  window.api.pinToTaskbar(props.app.lnkPath)
-  emit('close')
+async function handleTaskbarGuide() {
+  try { await window.api.openTaskbarPinningGuide(actions.value.showLocation ? props.app.lnkPath : null); emit('close') }
+  catch (error) { operationError.value = String(error) }
 }
 
 function handleRemoveFromFolder() {
@@ -119,18 +120,20 @@ function handleMoveToFolder(folderId: string) {
   emit('close')
 }
 
-function handleOpenLocation() {
-  window.api.showInFolder(props.app.lnkPath)
-  emit('close')
+async function handleOpenLocation() {
+  try { await window.api.showInFolder(props.app.lnkPath); emit('close') }
+  catch (error) { operationError.value = String(error) }
 }
 
-function handleUninstall() {
-  window.api.uninstallProgram()
-  emit('close')
+async function handleUninstall() {
+  try { await window.api.uninstallProgram(); emit('close') }
+  catch (error) { operationError.value = String(error) }
 }
 </script>
 
 <style scoped>
+.unavailable { opacity: 0.45; cursor: not-allowed; }
+.operation-error { padding: 8px 12px; color: #ffd3c7; font-size: 12px; max-width: 240px; }
 .app-context-menu {
   position: fixed;
   min-width: 200px;

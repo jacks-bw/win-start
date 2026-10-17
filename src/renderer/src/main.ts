@@ -4,11 +4,10 @@ import App from './App.vue'
 import './styles/variables.css'
 import './styles/animations.css'
 import './tauri-bridge'
-import { initTheme, bindThemeEvents } from './utils/theme'
+import { initTheme } from './utils/theme'
 
 // 所有窗口（含独立窗口）启动时统一应用系统主题色/自定义颜色
 initTheme()
-bindThemeEvents()
 
 const app = createApp(App)
 const pinia = createPinia()

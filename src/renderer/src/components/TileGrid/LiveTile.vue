@@ -19,6 +19,7 @@
     @mousemove="handleTiltMove"
     @mouseleave="handleTiltLeave"
   >
+    <span v-if="currentNotification?.count" class="tile-badge">{{ currentNotification.count > 99 ? '99+' : currentNotification.count }}</span>
     <div class="tile-inner">
       <!-- 正面 -->
       <div class="tile-front">
@@ -84,7 +85,12 @@
         <div class="tile-content" :style="contentStyle">
           <div v-if="backShowIcon" class="tile-icon" :style="iconContainerStyle">
             <span
-              v-if="customIconImageBase64"
+              v-if="nextNotification?.image"
+              class="icon-img"
+              :style="{ backgroundImage: `url(${nextNotification.image})`, width: `${iconSize}px`, height: `${iconSize}px` }"
+            ></span>
+            <span
+              v-else-if="customIconImageBase64"
               class="icon-img"
               :style="{ backgroundImage: `url(${customIconImageBase64})`, width: `${iconSize}px`, height: `${iconSize}px` }"
             ></span>
@@ -108,6 +114,8 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from '../../utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { computed, ref, onMounted, onUnmounted, watch, markRaw } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
@@ -221,13 +229,16 @@ function handleMouseDown(e: MouseEvent) {
     }
   }
   function onUp() {
-    window.removeEventListener('mousemove', onMove)
-    window.removeEventListener('mouseup', onUp)
+    releaseDrag()
     if (started) {
       isDragging.value = false
       tilesStore.setDraggingTile(null)
     }
   }
+  const releaseDrag = lifetime.add(() => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+  })
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onUp)
 }
@@ -588,9 +599,9 @@ const textAlign = computed(() => {
 })
 
 // 通知队列
-const notifications = computed(() => tilesStore.getNotifications(props.tile.appId))
+const notifications = computed(() => props.tile.liveEnabled ? tilesStore.getNotifications(props.tile.appId) : [])
 const currentNotification = computed(() => notifications.value[0])
-const nextNotification = computed(() => notifications.value[1])
+const nextNotification = computed(() => notifications.value[1] || notifications.value[0])
 
 // 开启实时动态但没有任何实时数据时，背面也要正常显示图标和名称（忽略用户的显示开关）
 const hasLiveData = computed(() => notifications.value.length > 0)
@@ -655,6 +666,7 @@ watch(
 )
 
 onUnmounted(() => {
+  if (tilesStore.draggingTileId === props.tile.id) tilesStore.setDraggingTile(null)
   if (flipInterval) {
     clearInterval(flipInterval)
   }
@@ -668,6 +680,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.tile-badge { position: absolute; right: 6px; top: 6px; z-index: 2; background: #b52b39; color: white; border-radius: 12px; min-width: 18px; padding: 1px 5px; text-align: center; font-size: 12px; pointer-events: none; }
 .tile-container {
   position: relative;
   cursor: pointer;

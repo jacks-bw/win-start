@@ -38,6 +38,7 @@
               type="text"
               class="shortcut-input"
               :value="shortcut"
+              :disabled="hotkeySaving"
               :placeholder="recording ? '请按下快捷键组合…' : '点击此处后按下快捷键'"
               readonly
               @keydown="onKeyDown"
@@ -50,8 +51,8 @@
           <div v-else-if="resetOk" class="tip ok">已重置为默认快捷键 Alt+W</div>
           <div v-else-if="hotkeyOk" class="tip ok">快捷键已保存并生效</div>
           <div class="panel-actions">
-            <button class="action-btn" @mousedown.prevent="shortcutInput?.blur()" @click="resetShortcut">重置</button>
-            <button class="action-btn primary" @mousedown.prevent="shortcutInput?.blur()" @click="saveShortcut">保存</button>
+            <button class="action-btn" :disabled="hotkeySaving" @mousedown.prevent="shortcutInput?.blur()" @click="resetShortcut">重置</button>
+            <button class="action-btn primary" :disabled="hotkeySaving" @mousedown.prevent="shortcutInput?.blur()" @click="saveShortcut">保存</button>
           </div>
         </div>
 
@@ -178,6 +179,19 @@
           </div>
         </div>
 
+        <div v-if="active === 'bridge'" class="panel">
+          <div class="panel-title">磁贴桥接</div>
+          <div class="panel-desc">接收本机脚本推送的通知内容。磁贴需开启“实时动态磁贴”。</div>
+          <div class="switch-row">
+            <span>启动时启用本地服务</span>
+            <button class="switch" :class="{ on: bridgeStatus?.enabled }" :disabled="bridgeSaving || !bridgeStatus" @click="changeBridge(!bridgeStatus?.enabled)"><span class="knob"></span></button>
+          </div>
+          <div class="tip">{{ bridgeStatus?.running ? '运行中：' + bridgeStatus.address : '服务未运行' }}</div>
+          <div class="tip">POST /api/tile/update · POST /api/tile/clear；使用磁贴的 appId。推送内容仅保留到退出程序或关闭服务。</div>
+          <div v-if="bridgeError || bridgeStatus?.error" class="tip error">{{ bridgeError || bridgeStatus?.error }}</div>
+          <button v-if="!bridgeStatus || (bridgeStatus.enabled && !bridgeStatus.running)" class="action-btn" :disabled="bridgeSaving" @click="bridgeStatus ? changeBridge(true) : loadBridge()">重试</button>
+        </div>
+
         <!-- 开机自启 -->
         <div v-else-if="active === 'autostart'" class="panel">
           <div class="panel-title">开机自启</div>
@@ -196,18 +210,45 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from './utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { ref, onMounted } from 'vue'
-import { X, Keyboard, Power, Palette } from 'lucide-vue-next'
+import { X, Keyboard, Power, Palette, Radio } from 'lucide-vue-next'
 
 const loading = ref(true)
 
 const menus = [
   { key: 'personal', label: '个性化设置', icon: Palette },
   { key: 'shortcut', label: '快捷键设置', icon: Keyboard },
-  { key: 'autostart', label: '开机自启', icon: Power }
+  { key: 'autostart', label: '开机自启', icon: Power },
+  { key: 'bridge', label: '磁贴桥接', icon: Radio }
 ] as const
 
-const active = ref<'personal' | 'shortcut' | 'autostart'>('personal')
+const active = ref<'personal' | 'shortcut' | 'autostart' | 'bridge'>('personal')
+
+const bridgeStatus = ref<TileBridgeStatus | null>(null)
+const bridgeSaving = ref(false)
+const bridgeError = ref('')
+let bridgeVersion = 0
+lifetime.add(window.api.onTileBridgeStatus(status => { bridgeVersion++; bridgeStatus.value = status }))
+async function loadBridge() {
+  const version = ++bridgeVersion
+  try {
+    const status = await window.api.getTileBridgeStatus()
+    if (version === bridgeVersion) { bridgeStatus.value = status; bridgeError.value = '' }
+  } catch (error) { if (version === bridgeVersion) bridgeError.value = String(error) }
+}
+async function changeBridge(enabled: boolean) {
+  if (bridgeSaving.value) return
+  bridgeSaving.value = true
+  bridgeError.value = ''
+  const version = ++bridgeVersion
+  try {
+    const status = await window.api.setTileBridgeEnabled(enabled)
+    if (version === bridgeVersion) bridgeStatus.value = status
+  } catch (error) { bridgeError.value = String(error) }
+  finally { bridgeSaving.value = false }
+}
 
 function closeWindow() {
   window.api.closeSettingsWindow()
@@ -220,6 +261,7 @@ const shortcut = ref(DEFAULT_HOTKEY)
 const originalShortcut = ref(DEFAULT_HOTKEY)
 const recording = ref(false)
 const hotkeyError = ref('')
+const hotkeySaving = ref(false)
 const hotkeyOk = ref(false)
 const resetOk = ref(false)
 
@@ -250,19 +292,29 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 async function saveShortcut() {
+  if (hotkeySaving.value) return
+  hotkeySaving.value = true
+  resetOk.value = false
+  hotkeyOk.value = false
+  const requested = shortcut.value.trim()
   try {
-    await window.api.setHotkey(shortcut.value)
-    originalShortcut.value = shortcut.value
+    await window.api.setHotkey(requested)
+    shortcut.value = requested
+    originalShortcut.value = requested
     hotkeyError.value = ''
     hotkeyOk.value = true
-    setTimeout(() => (hotkeyOk.value = false), 2500)
+    lifetime.delay(() => (hotkeyOk.value = false), 2500)
   } catch (e: any) {
     hotkeyError.value = String(e?.message || e || '保存失败')
     hotkeyOk.value = false
-  }
+  } finally { hotkeySaving.value = false }
 }
 
 async function resetShortcut() {
+  if (hotkeySaving.value) return
+  hotkeySaving.value = true
+  hotkeyOk.value = false
+  resetOk.value = false
   recording.value = false
   shortcutInput.value?.blur()
   try {
@@ -272,11 +324,11 @@ async function resetShortcut() {
     hotkeyError.value = ''
     hotkeyOk.value = false
     resetOk.value = true
-    setTimeout(() => (resetOk.value = false), 2500)
+    lifetime.delay(() => (resetOk.value = false), 2500)
   } catch (e: any) {
     resetOk.value = false
     hotkeyError.value = String(e?.message || e || '重置失败')
-  }
+  } finally { hotkeySaving.value = false }
 }
 
 // ---------- 磁贴透明度 ----------
@@ -441,6 +493,7 @@ async function toggleAutostart() {
 }
 
 onMounted(async () => {
+  await loadBridge()
   try {
     systemColor.value = (await window.api.getAccentColor()) || '#0078d7'
   } catch (e) {

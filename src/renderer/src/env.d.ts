@@ -6,76 +6,70 @@ declare module '*.vue' {
   export default component
 }
 
-interface Api {
-  getAppList: () => Promise<AppItem[]>
-  launchApp: (lnkPath: string, args?: string) => Promise<{ success: boolean; error?: string }>
-  launchUwpApp: (appId: string) => Promise<{ success: boolean; error?: string }>
-  showInFolder: (fullPath: string) => void
-  uninstallProgram: () => void
-  togglePin: (appId: string) => Promise<string[]>
-  pinToTaskbar: (lnkPath: string) => Promise<{ success: boolean; error?: string }>
-  saveTileLayout: (layout: unknown) => Promise<void>
-  loadTileLayout: () => Promise<TileLayout>
-  hideMenu: () => void
-  setResizeBlocked: (blocked: boolean) => Promise<void>
-  setMenuBusy: (busy: boolean) => void
-  getTheme: () => Promise<'light' | 'dark'>
-  setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>
-  selectImage: () => Promise<string | null>
-  selectSvg: () => Promise<string | null>
-  readImageBase64: (filePath: string) => Promise<string | null>
-  saveImage: (base64Data: string, fileName: string) => Promise<string | null>
-  openTileStyleWindow: (tileId: string) => Promise<void>
-  getTileStyleTarget: () => Promise<string | null>
-  onTileStyleSelect: (callback: (tileId: string) => void) => void
-  onMenuBlocked: (callback: (blocked: boolean) => void) => void
-  closeTileStyleWindow: () => Promise<void>
-  openGroupStyleWindow: (groupId: string) => Promise<void>
-  getGroupStyleTarget: () => Promise<string | null>
-  closeGroupStyleWindow: () => Promise<void>
-  notifyLayoutUpdated: () => Promise<void>
-  onMenuOpen: (callback: () => void) => void
-  onMenuClose: (callback: () => void) => void
-  onLayoutUpdated: (callback: () => void) => void
-  onAppsChanged: (callback: () => void) => void
-  getToolbarItems: () => Promise<string[]>
-  setToolbarItems: (items: string[]) => Promise<string[]>
-  openToolbarItem: (key: string) => Promise<void>
-  // 通用设置
-  getSettings: () => Promise<{
-    hotkey?: string
-    tileOpacity?: number
-    includeWallpaperOpacity?: boolean
-    themeColor?: string | null
-    highlightColor?: string | null
-    wallpaperPath?: string | null
-    wallpaperDarken?: number
-    panelAlpha?: number
-    tileBlur?: number
-  }>
-  setHotkey: (hotkey: string) => Promise<void>
-  getTileOpacity: () => Promise<number>
-  setTileOpacity: (opacity: number) => Promise<number>
-  setIncludeWallpaperOpacity: (enable: boolean) => Promise<void>
-  onTileOpacityChanged: (callback: (opacity: number) => void) => void
-  onIncludeWallpaperChanged: (callback: (include: boolean) => void) => void
-  setThemeColor: (color: string | null) => Promise<void>
-  setHighlightColor: (color: string | null) => Promise<void>
-  getAccentColor: () => Promise<string>
-  onAccentColorChanged: (callback: (color: string) => void) => void
-  getAutostart: () => Promise<boolean>
-  setAutostart: (enable: boolean) => Promise<boolean>
-  openSettingsWindow: () => Promise<void>
-  closeSettingsWindow: () => Promise<void>
-  setWallpaper: (path: string) => Promise<string>
-  clearWallpaper: () => Promise<void>
-  setWallpaperDarken: (v: number) => Promise<number>
-  onWallpaperChanged: (callback: (path: string | null) => void) => void
-  onWallpaperDarkenChanged: (callback: (v: number) => void) => void
-  setPanelAlpha: (v: number) => Promise<number>
-  onPanelAlphaChanged: (callback: (v: number) => void) => void
-  setTileBlur: (v: number) => Promise<number>
-  onTileBlurChanged: (callback: (v: number) => void) => void
+type Api = typeof import('./tauri-bridge').desktopApi
+
+interface ScannedApp {
+  firstSeenAt?: number | null
+  id: string
+  name: string
+  path: string
+  type: 'win32' | 'packaged' | 'shell'
+  icon: string
+}
+interface AppSettings {
+  tileBridgeEnabled: boolean
+  toolbarItems: string[]
+  hotkey: string
+  tileOpacity: number
+  includeWallpaperOpacity: boolean
+  themeColor: string | null
+  highlightColor: string | null
+  wallpaperPath: string | null
+  wallpaperDarken: number
+  panelAlpha: number
+  tileBlur: number
+}
+interface AvatarCrop {
+  x: number
+  y: number
+  scale: number
+  imgW: number
+  imgH: number
+  cropSize: number
+}
+interface AvatarInfo {
+  path: string
+  url?: string
+  cropX?: number | null
+  cropY?: number | null
+  scale?: number | null
+  imgW?: number | null
+  imgH?: number | null
+  cropSize?: number | null
+}
+interface TileBridgeStatus {
+  enabled: boolean
+  running: boolean
+  address: string
+  error: string | null
+}
+interface TileBridgeSnapshot {
+  revision: number
+  entries: Record<string, TileBridgeData>
+}
+interface TileBridgeData {
+  appId: string
+  title?: string | null
+  body?: string | null
+  icon?: string | null
+  count?: number | null
+  timestamp?: number
+}
+
+interface AppScanResult {
+  apps: AppItem[]
+  complete: boolean
+  warnings: string[]
 }
 
 interface AppItem {
@@ -84,13 +78,17 @@ interface AppItem {
   lnkPath: string
   targetPath: string
   icon: string
+  path?: string
+  type?: 'win32' | 'packaged' | 'shell'
+  pinyin?: string
+  pinyinInitials?: string
   args?: string
   group: string
   pinned: boolean
+  firstSeenAt?: number | null
   recentlyAdded: boolean
   folderId?: string // 所属文件夹ID
-  uwp?: boolean
-  uwpAppId?: string
+  launchTarget?: { kind: 'path' | 'shell'; value: string }
 }
 
 interface AppFolder {
@@ -114,6 +112,7 @@ interface TileGroup {
 
 interface TileItem {
   id: string
+  groupId?: string // Derived by allTiles; not part of a tile's stored identity.
   appId: string
   size: 'small' | 'medium' | 'wide'
   liveEnabled: boolean

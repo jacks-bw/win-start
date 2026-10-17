@@ -1,203 +1,187 @@
-// Tauri 渲染层 IPC 适配
-
+// One concrete, typed desktop API. Unknown methods are undefined rather than
+// silently succeeding; env.d.ts derives Window.api from this implementation.
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import pinyin from 'pinyin'
+import { isRecentlyDiscovered } from './utils/recent-apps'
 
-function groupOf(name: string): string {
-  const ch = name.trim().charAt(0)
-  if (/[A-Za-z]/.test(ch)) return ch.toUpperCase()
-  // 中文取拼音首字母
-  if (/[\u4e00-\u9fa5]/.test(ch)) {
-    const py = pinyin(ch, { style: pinyin.STYLE_FIRST_LETTER })
-    const first = py?.[0]?.[0]?.toUpperCase()
-    if (first && /[A-Z]/.test(first)) return first
+export type Unsubscribe = () => void
+interface Transport {
+  invoke: typeof invoke
+  listen: typeof listen
+  closeCurrentWindow: () => Promise<void>
+}
+const native: Transport = { invoke, listen, closeCurrentWindow: () => getCurrentWindow().close() }
+
+function errorOf(error: unknown): Error {
+  return error instanceof Error ? error : new Error((typeof error === 'string' ? error : JSON.stringify(error)) || '桌面操作失败')
+}
+
+export function createDesktopApi(transport: Transport = native) {
+  const errors = new Set<(error: Error) => void>()
+  function report(error: unknown) {
+    const normalized = errorOf(error)
+    console.error('[desktop-api]', normalized)
+    errors.forEach(callback => callback(normalized))
   }
-  return '#'
-}
-
-function fullPinyin(name: string): string {
-  const py = pinyin(name, { style: pinyin.STYLE_NORMAL, heteronym: false })
-  return (py || []).map((p: string[]) => (p[0] || '').toLowerCase()).join(' ')
-}
-
-function initialsPinyin(name: string): string {
-  const py = pinyin(name, { style: pinyin.STYLE_FIRST_LETTER })
-  return (py || []).map((p: string[]) => (p[0] || '').toLowerCase()).join('')
-}
-
-const menuOpenCbs: Array<() => void> = []
-const menuCloseCbs: Array<() => void> = []
-
-const real = {
-  // 应用列表：返回空数组，字段对齐 AppItem
-  getAppList: async () => {
-    try {
-      const apps = await invoke<any[]>('scan_apps')
-      const seen = new Set<string>()
-      const result: any[] = []
-      for (const a of apps) {
-        const name: string = (a.name || '').trim()
-        if (!name || seen.has(name.toLowerCase())) continue
-        seen.add(name.toLowerCase())
-        const isUwp = (a.kind ?? a.type) === 'uwp'
-        result.push({
-          id: a.id,
-          name,
-          path: a.path,
-          icon: a.icon ? `data:image/png;base64,${a.icon}` : '',
-          type: a.kind ?? a.type,
-          lnkPath: isUwp ? '' : a.path,
-          uwp: isUwp,
-          uwpAppId: isUwp ? a.path : '',
-          pinned: false,
-          folderId: null,
-          recentlyAdded: false,
-          group: groupOf(name),
-          pinyin: fullPinyin(name),
-          pinyinInitials: initialsPinyin(name)
-        })
-      }
-      return result
-    } catch (e) {
-      console.error('scan_apps failed', e)
-      return []
+  async function command<T = void>(name: string, args?: Record<string, unknown>): Promise<T> {
+    try { return await transport.invoke<T>(name, args) }
+    catch (error) { throw errorOf(error) }
+  }
+  function subscribe<T>(name: string, callback: (payload: T) => void, initial?: () => Promise<T>): Unsubscribe {
+    let disposed = false
+    let unlisten: Unsubscribe | undefined
+    transport.listen<T>(name, event => { if (!disposed) callback(event.payload) })
+      .then(async stop => {
+        if (disposed) { stop(); return }
+        unlisten = stop
+        if (initial) {
+          const payload = await initial()
+          if (!disposed) callback(payload)
+        }
+      })
+      .catch(report)
+    return () => { disposed = true; unlisten?.(); unlisten = undefined }
+  }
+  function unsupported(feature: string): Promise<never> {
+    return Promise.reject(new Error(`${feature}尚未支持`))
+  }
+  async function getAppScan(): Promise<AppScanResult> {
+    const scan = await command<{ apps: ScannedApp[]; complete: boolean; warnings: string[] }>('scan_apps')
+    const seen = new Set<string>()
+    const apps: AppItem[] = []
+    for (const entry of scan.apps) {
+      const name = entry.name.trim()
+      if (!name || seen.has(name.toLowerCase())) continue
+      seen.add(name.toLowerCase())
+      const isShortcut = entry.type === 'win32'
+      const syllables = pinyin(name, { style: pinyin.STYLE_NORMAL, heteronym: false })
+      const initials = pinyin(name, { style: pinyin.STYLE_FIRST_LETTER })
+        .map(part => (part[0] || '').toLowerCase()).join('')
+      const first = name.charAt(0)
+      const group = /[a-z]/i.test(first) ? first.toUpperCase()
+        : /[\u4e00-\u9fa5]/.test(first) && /^[a-z]/i.test(initials) ? initials[0].toUpperCase() : '#'
+      apps.push({
+        firstSeenAt: entry.firstSeenAt ?? null,
+        id: entry.id, name, path: entry.path, type: entry.type,
+        icon: entry.icon ? `data:image/png;base64,${entry.icon}` : '',
+        lnkPath: isShortcut ? entry.path : '', targetPath: '',
+        launchTarget: { kind: isShortcut ? 'path' : 'shell', value: entry.path },
+        pinned: false, recentlyAdded: isRecentlyDiscovered(entry.firstSeenAt, Date.now()), group,
+        pinyin: syllables.map(part => (part[0] || '').toLowerCase()).join(' '),
+        pinyinInitials: initials
+      })
     }
-  },
-  scanApps: () => invoke('scan_apps'),
-  showStartMenu: () => invoke('show_start_menu'),
-  menuReady: () => invoke('menu_ready'),
-  hideStartMenu: () => invoke('hide_start_menu'),
-  setResizeBlocked: (blocked: boolean) => invoke('set_resize_blocked', { blocked }),
-  setWallpaper: (path: string) => invoke<string>('set_wallpaper', { path }),
-  clearWallpaper: () => invoke('clear_wallpaper'),
-  setWallpaperDarken: (v: number) => invoke<number>('set_wallpaper_darken', { v }),
-  setPanelAlpha: (v: number) => invoke<number>('set_panel_alpha', { v }),
-  setTileBlur: (v: number) => invoke<number>('set_tile_blur', { v }),
-  onTileBlurChanged: (cb: (v: number) => void) => {
-    listen('tile-blur-changed', (e) => cb(e.payload as number))
-  },
-  onPanelAlphaChanged: (cb: (v: number) => void) => {
-    listen('panel-alpha-changed', (e) => cb(e.payload as number))
-  },
-  onWallpaperChanged: (cb: (path: string | null) => void) => {
-    listen('wallpaper-changed', (e) => cb((e.payload as string | null | undefined) ?? null))
-  },
-  onWallpaperDarkenChanged: (cb: (v: number) => void) => {
-    listen('wallpaper-darken-changed', (e) => cb(e.payload as number))
-  },
-  onAppsChanged: (cb: () => void) => { listen('apps-changed', () => cb()) },
-  onMenuOpen: (cb: () => void) => { menuOpenCbs.push(cb) },
-  onMenuClose: (cb: () => void) => { menuCloseCbs.push(cb) },
-  onAccentColorChanged: (_cb: (c: string) => void) => {},
-  onTileOpacityChanged: (cb: (o: number) => void) => { listen('tile-opacity-changed', (e: any) => cb(e.payload)) },
-  onTileBridgeUpdate: (_cb: (d: unknown) => void) => {},
-  onTileBridgeClear: (_cb: (d: unknown) => void) => {},
-  onLayoutUpdated: (cb: () => void) => { listen('layout-updated', () => cb()) },
-  onMenuBlocked: (cb: (b: boolean) => void) => { listen('menu-blocked', (e: any) => cb(!!e.payload)) },
-  getAccentColor: () => invoke<string>('get_accent_color'),
-  getToolbarItems: () => Promise.resolve(['explorer', 'settings', 'controlPanel', 'recycleBin']),
-  setToolbarItems: () => Promise.resolve(null),
-  openToolbarItem: (key: string) => invoke('open_toolbar_item', { key }),
-  launchApp: (lnkPath: string) => invoke('launch_app', { path: lnkPath }),
-  launchUwpApp: (appId: string) => invoke('launch_uwp', { appId }),
-  showInFolder: (path: string) => invoke('show_in_folder', { path }),
-  uninstallProgram: () => invoke('uninstall_program'),
-  powerAction: () => Promise.resolve(null),
-  getUserAvatar: async () => {
-    const info = await invoke<{path:string, cropX?:number, cropY?:number, scale?:number, imgW?:number, imgH?:number} | null>('get_user_avatar')
+    return { apps, complete: scan.complete, warnings: scan.warnings }
+  }
+  async function readAvatar(name: string): Promise<AvatarInfo | null> {
+    const info = await command<AvatarInfo | null>(name)
     if (!info) return null
-    try {
-      const url = await invoke<string>('read_file_base64', { path: info.path })
-      return { ...info, url }
-    } catch { return info }
-  },
-  selectUserAvatar: () => invoke<string | null>('select_user_avatar'),
-  openAvatarSettingsWindow: () => invoke('open_avatar_settings_window'),
-  closeAvatarSettings: () => invoke('close_avatar_settings_window'),
-  clearUserAvatar: () => invoke('clear_user_avatar'),
-  getStagedAvatar: async () => {
-    try {
-      const info = await invoke<any>('get_staged_avatar')
-      if (!info) return null
-      const url = await invoke<string>('read_file_base64', { path: info.path })
-      return { ...info, url }
-    } catch { return null }
-  },
-  stageCroppedAvatar: (base64: string) => invoke('stage_cropped_avatar', { base64 }),
-  stageGifAvatar: (dataUrl: string, crop: any) => invoke('stage_gif_avatar', { dataUrl, crop }),
-  commitAvatar: (clear: boolean) => invoke('commit_avatar', { clear }),
-  discardStagedAvatar: () => invoke('discard_staged_avatar'),
-  closeAvatarCropWindow: () => invoke('close_avatar_crop_window'),
-  onAvatarStaged: (cb: () => void) => { listen('avatar-staged', () => cb()) },
-  openAvatarCropWindow: () => Promise.resolve(null),
-  setGifAvatar: (path: string) => invoke<string | null>('set_user_avatar', { path }),
-  onAvatarUpdated: (cb: () => void) => { listen('avatar:updated', () => cb()) },
-  getCropImage: async () => {
-    try {
-      const path = await invoke<string>('get_crop_image')
-      console.log('[crop] path:', path)
-      if (!path) return ''
-      const data = await invoke<string>('read_file_base64', { path })
-      return data
-    } catch (e) {
-      console.error('[crop] failed:', e)
-      return ''
-    }
-  },
-  cancelCrop: () => invoke('close_avatar_crop_window'),
-  confirmCrop: (base64: string) => invoke('stage_cropped_avatar', { base64 }).then(() => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) }),
-  saveGifAvatar: (dataUrl: string, crop: any) => invoke('stage_gif_avatar', { dataUrl, crop }).then(() => { import('@tauri-apps/api/window').then(m => m.getCurrentWindow().close()) }),
-  getListAlpha: () => Promise.resolve(0.4),
-  getTileOpacity: () => invoke<number>('get_tile_opacity'),
-  setTileOpacity: (opacity: number) => invoke<number>('set_tile_opacity', { opacity }),
-  setIncludeWallpaperOpacity: (enable: boolean) => invoke('set_include_wallpaper_opacity', { enable }),
-  setThemeColor: (color: string | null) => invoke('set_theme_color', { color }),
-  setHighlightColor: (color: string | null) => invoke('set_highlight_color', { color }),
-  onIncludeWallpaperChanged: (cb: (v: boolean) => void) => { listen('tile-opacity-include-changed', (e: any) => cb(!!e.payload)) },
-  // 通用设置
-  getSettings: () => invoke<any>('get_settings'),
-  setHotkey: (hotkey: string) => invoke('set_hotkey', { hotkey }),
-  getAutostart: () => invoke<boolean>('get_autostart'),
-  setAutostart: (enable: boolean) => invoke('set_autostart', { enable }),
-  openSettingsWindow: () => invoke('open_settings_window'),
-  closeSettingsWindow: () => invoke('close_settings_window'),
-  // 磁贴布局持久化
-  loadTileLayout: () => invoke('load_tile_layout'),
-  saveTileLayout: (layout: unknown) => invoke('save_tile_layout', { layout }),
-  // 背景图片
-  selectImage: () => invoke<string | null>('select_image'),
-  selectSvg: () => invoke<string | null>('select_svg'),
-  readImageBase64: (path: string) => invoke<string>('read_image_base64', { path }),
-  saveImage: (base64: string, fileName: string) => invoke<string>('save_image', { base64, fileName }),
-  // 磁贴样式窗口
-  openTileStyleWindow: (tileId: string) => invoke('open_tile_style_window', { tileId }),
-  getTileStyleTarget: () => invoke<string>('get_tile_style_target'),
-  closeTileStyleWindow: () => invoke('close_tile_style_window'),
-  onTileStyleSelect: (cb: (id: string) => void) => { listen('tile-style:select', (e: any) => cb(e.payload)) },
-  // 分组背景窗口
-  openGroupStyleWindow: (groupId: string) => invoke('open_group_style_window', { groupId }),
-  getGroupStyleTarget: () => invoke<string>('get_group_style_target'),
-  closeGroupStyleWindow: () => invoke('close_group_style_window'),
-  notifyLayoutUpdated: () => invoke('notify_layout_updated'),
-  hideMenu: () => invoke('hide_start_menu'),
-  setMenuBusy: (_b: boolean) => {},
+    return { ...info, url: await command<string>('read_file_base64', { path: info.path }) }
+  }
+  async function saveCrop(name: string, args: Record<string, unknown>) {
+    await command(name, args)
+    // The returned promise includes window closure, so failure is observable.
+    await transport.closeCurrentWindow()
+  }
+  return Object.freeze({
+    capabilities: Object.freeze({ toolbarCustomization: true, taskbarPinning: false, taskbarPinningGuide: true, powerActions: true, tileBridge: true }),
+    onBridgeError: (callback: (error: Error) => void): Unsubscribe => {
+      errors.add(callback)
+      return () => { errors.delete(callback) }
+    },
+    getAppScan,
+    getAppList: async () => (await getAppScan()).apps,
+    showStartMenu: () => command('show_start_menu'),
+    menuReady: () => command('menu_ready'),
+    hideStartMenu: () => command('hide_start_menu'),
+    hideMenu: () => command('hide_start_menu'),
+    setResizeBlocked: (blocked: boolean) => command('set_resize_blocked', { blocked }),
+    setMenuBusy: (busy: boolean) => command('set_menu_busy', { busy }),
+    setWallpaper: (path: string) => command<string>('set_wallpaper', { path }),
+    clearWallpaper: () => command('clear_wallpaper'),
+    setWallpaperDarken: (v: number) => command<number>('set_wallpaper_darken', { v }),
+    setPanelAlpha: (v: number) => command<number>('set_panel_alpha', { v }),
+    setTileBlur: (v: number) => command<number>('set_tile_blur', { v }),
+    onTileBlurChanged: (cb: (v: number) => void) => subscribe('tile-blur-changed', cb),
+    onPanelAlphaChanged: (cb: (v: number) => void) => subscribe('panel-alpha-changed', cb),
+    onWallpaperChanged: (cb: (path: string | null) => void) => subscribe('wallpaper-changed', cb),
+    onWallpaperDarkenChanged: (cb: (v: number) => void) => subscribe('wallpaper-darken-changed', cb),
+    onAppsChanged: (cb: () => void) => subscribe('apps-changed', cb),
+    onMenuOpen: (cb: () => void): Unsubscribe => {
+      const stopOpen = subscribe('menu-open', cb)
+      const stopFocus = subscribe('tauri://focus', cb)
+      return () => { stopOpen(); stopFocus() }
+    },
+    onMenuClose: (cb: () => void) => subscribe('menu-close', cb),
+    onTileOpacityChanged: (cb: (v: number) => void) => subscribe('tile-opacity-changed', cb),
+    getTileBridgeStatus: () => command<TileBridgeStatus>('get_tile_bridge_status'),
+    getTileBridgeSnapshot: () => command<TileBridgeSnapshot>('get_tile_bridge_snapshot'),
+    setTileBridgeEnabled: (enabled: boolean) => command<TileBridgeStatus>('set_tile_bridge_enabled', { enabled }),
+    onTileBridgeSnapshot: (cb: (snapshot: TileBridgeSnapshot) => void) => subscribe('tile-bridge-snapshot', cb, () => command<TileBridgeSnapshot>('get_tile_bridge_snapshot')),
+    onTileBridgeStatus: (cb: (status: TileBridgeStatus) => void) => subscribe('tile-bridge-status', cb),
+    onLayoutUpdated: (cb: () => void) => subscribe('layout-updated', cb),
+    onMenuBlocked: (cb: (blocked: boolean) => void) => subscribe('menu-blocked', cb),
+    getAccentColor: () => command<string>('get_accent_color'),
+    getToolbarItems: () => command<string[]>('get_toolbar_items'),
+    setToolbarItems: (items: string[]) => command<string[]>('set_toolbar_items', { items }),
+    onToolbarItemsChanged: (cb: (items: string[]) => void) => subscribe('toolbar-items-changed', cb),
+    openTaskbarPinningGuide: (path: string | null) => command('open_taskbar_pinning_guide', { path }),
+    pinToTaskbar: (_path: string) => unsupported('固定到任务栏'),
+    powerAction: (action: 'shutdown' | 'restart' | 'sleep' | 'lock') => command('power_action', { action }),
+    openToolbarItem: (key: string) => command('open_toolbar_item', { key }),
+    launchApp: (path: string) => command('launch_app', { path }),
+    launchShellApp: (appId: string) => command('launch_shell_app', { appId }),
+    showInFolder: (path: string) => command('show_in_folder', { path }),
+    uninstallProgram: () => command('uninstall_program'),
+    getUserAvatar: () => readAvatar('get_user_avatar'),
+    getStagedAvatar: () => readAvatar('get_staged_avatar'),
+    selectUserAvatar: () => command<string | null>('select_user_avatar'),
+    openAvatarSettingsWindow: () => command('open_avatar_settings_window'),
+    closeAvatarSettings: () => command('close_avatar_settings_window'),
+    commitAvatar: (clear: boolean) => command('commit_avatar', { clear }),
+    discardStagedAvatar: () => command('discard_staged_avatar'),
+    onAvatarStaged: (cb: () => void) => subscribe('avatar-staged', cb),
+    onAvatarUpdated: (cb: () => void) => subscribe('avatar:updated', cb),
+    getCropImage: async () => {
+      const path = await command<string>('get_crop_image')
+      return path ? command<string>('read_file_base64', { path }) : ''
+    },
+    cancelCrop: () => command('close_avatar_crop_window'),
+    confirmCrop: (base64: string) => saveCrop('stage_cropped_avatar', { base64 }),
+    saveGifAvatar: (dataUrl: string, crop: AvatarCrop) => saveCrop('stage_gif_avatar', { dataUrl, crop }),
+    getTileOpacity: () => command<number>('get_tile_opacity'),
+    setTileOpacity: (opacity: number) => command<number>('set_tile_opacity', { opacity }),
+    setIncludeWallpaperOpacity: (enable: boolean) => command('set_include_wallpaper_opacity', { enable }),
+    onThemeColorChanged: (cb: (color: string | null) => void) => subscribe('theme-color-changed', cb),
+    onHighlightColorChanged: (cb: (color: string | null) => void) => subscribe('highlight-color-changed', cb),
+    setThemeColor: (color: string | null) => command('set_theme_color', { color }),
+    setHighlightColor: (color: string | null) => command('set_highlight_color', { color }),
+    onIncludeWallpaperChanged: (cb: (v: boolean) => void) => subscribe('tile-opacity-include-changed', cb),
+    getSettings: () => command<AppSettings>('get_settings'),
+    setHotkey: (hotkey: string) => command('set_hotkey', { hotkey }),
+    getAutostart: () => command<boolean>('get_autostart'),
+    setAutostart: (enable: boolean) => command('set_autostart', { enable }),
+    openSettingsWindow: () => command('open_settings_window'),
+    closeSettingsWindow: () => command('close_settings_window'),
+    loadTileLayout: () => command<TileLayout>('load_tile_layout'),
+    saveTileLayout: (layout: TileLayout, base: TileLayout) => command<TileLayout>('save_tile_layout', { layout, base }),
+    selectImage: () => command<string | null>('select_image'),
+    selectSvg: () => command<string | null>('select_svg'),
+    readImageBase64: (path: string) => command<string>('read_image_base64', { path }),
+    saveImage: (base64: string, fileName: string) => command<string>('save_image', { base64, fileName }),
+    openTileStyleWindow: (tileId: string) => command('open_tile_style_window', { tileId }),
+    getTileStyleTarget: () => command<string>('get_tile_style_target'),
+    closeTileStyleWindow: () => command('close_tile_style_window'),
+    onTileStyleSelect: (cb: (id: string) => void) => subscribe('tile-style:select', cb),
+    openGroupStyleWindow: (groupId: string) => command('open_group_style_window', { groupId }),
+    getGroupStyleTarget: () => command<string>('get_group_style_target'),
+    onGroupStyleSelect: (cb: (id: string) => void) => subscribe('group-style:select', cb),
+    closeGroupStyleWindow: () => command('close_group_style_window'),
+    notifyLayoutUpdated: () => command('notify_layout_updated')
+  })
 }
 
-const api = new Proxy(real as any, {
-  get(target, prop: string) {
-    if (prop in target) return (target as any)[prop]
-    return (..._args: any[]) => Promise.resolve(null)
-  }
-})
-
-// @ts-expect-error
-window.api = api
-
-// Rust 显式事件（可靠）
-listen('menu-open', () => menuOpenCbs.forEach(cb => cb()))
-listen('menu-close', () => menuCloseCbs.forEach(cb => cb()))
-// 兜底：聚焦也视为打开
-listen('tauri://focus', () => menuOpenCbs.forEach(cb => cb()))
-
-export {}
+export const desktopApi = createDesktopApi()
+if (typeof window !== 'undefined') window.api = desktopApi

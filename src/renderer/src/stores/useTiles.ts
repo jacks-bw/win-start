@@ -6,15 +6,29 @@ interface TileNotification {
   title?: string
   body?: string
   image?: string
+  count?: number
   timestamp: number
 }
 
 export const useTilesStore = defineStore('tiles', () => {
   const groups = ref<TileGroup[]>([])
+  const layoutError = ref('')
+  const loaded = ref(false)
+  let draftMode = false
+  let baseline: TileLayout = { groups: [] }
+  let changeVersion = 0
+  let loadVersion = 0
+  let saveRequested = false
+  let saveFlight: Promise<boolean> | null = null
+  const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
+
+  function beginDraft() { draftMode = true }
+  function commitDraft() { return saveLayout(true) }
   const flippedTiles = ref<Set<string>>(new Set())
-  const tileNotifications = ref<Record<string, TileNotification[]>>({})
+  const tileNotifications = ref<Record<string, TileNotification[]>>(Object.create(null))
   // 外部推送的磁贴内容（Tile Bridge 第三方接入）
-  const externalTileData = ref<Record<string, any>>({})
+  let bridgeRevision = -1
+  const externalTileData = ref<Record<string, TileBridgeData>>(Object.create(null))
   // 拖拽视觉反馈状态
   const draggingTileId = ref<string | null>(null)
   const draggingTileSize = ref<TileItem['size'] | null>(null)
@@ -40,11 +54,20 @@ export const useTilesStore = defineStore('tiles', () => {
     return tiles.sort((a, b) => a.position - b.position)
   })
 
-  async function loadLayout() {
+  async function loadLayout(discardUnsaved = false): Promise<boolean> {
+    // A background notification must not overwrite edits or an unsaved error.
+    if (!discardUnsaved && loaded.value && (draftMode || layoutError.value)) return false
+    if (saveFlight) await saveFlight
+    if (!discardUnsaved && loaded.value && layoutError.value) return false
+    const request = ++loadVersion
+    const version = changeVersion
     try {
       const layout = await window.api.loadTileLayout()
+      if (request !== loadVersion || version !== changeVersion) return false
+      if (!layout || !Array.isArray(layout.groups)) throw new Error('布局数据无效，未覆盖当前布局')
+      baseline = clone(layout)
       if (layout && layout.groups) {
-        groups.value = layout.groups
+        groups.value = clone(layout.groups)
         // 旧数据兼容：把已移除的 large 尺寸转换为 wide
         groups.value.forEach((group) => {
           group.tiles.forEach((tile) => {
@@ -75,8 +98,13 @@ export const useTilesStore = defineStore('tiles', () => {
         // 初始化模拟通知
         initMockNotifications()
       }
+      loaded.value = true
+      layoutError.value = ''
+      return true
     } catch (err) {
+      layoutError.value = String(err instanceof Error ? err.message : err)
       console.error('加载磁贴布局失败:', err)
+      return false
     }
   }
 
@@ -126,14 +154,50 @@ export const useTilesStore = defineStore('tiles', () => {
     return { row: 0, col: 0 }
   }
 
-  async function saveLayout() {
-    try {
-      // 序列化为纯对象，避免 Vue 响应式 Proxy 导致 IPC 克隆失败
-      const plainGroups = JSON.parse(JSON.stringify(groups.value))
-      await window.api.saveTileLayout({ groups: plainGroups })
-    } catch (err) {
-      console.error('保存磁贴布局失败:', err)
+  // Coalesce writes from one window. Each later request is based on the local
+  // snapshot actually sent before it, so remote merged fields are not reverted
+  // by another edit made while that request was in flight.
+  function saveLayout(commit = false): Promise<boolean> {
+    changeVersion++
+    if (draftMode && !commit) return Promise.resolve(true)
+    if (!loaded.value) {
+      layoutError.value = '布局尚未成功加载，未保存。请重新载入后再操作。'
+      return Promise.resolve(false)
     }
+    saveRequested = true
+    if (!saveFlight) {
+      saveFlight = Promise.resolve().then(async () => {
+        while (saveRequested) {
+          saveRequested = false
+          const version = changeVersion
+          const desired: TileLayout = clone({ groups: groups.value })
+          try {
+            const saved = await window.api.saveTileLayout(desired, clone(baseline))
+            if (version === changeVersion) {
+              groups.value = clone(saved.groups)
+              baseline = clone(saved)
+            } else {
+              // Current local state contains subsequent edits but not fields
+              // merged in by the backend. Compare the next edit to this draft.
+              baseline = desired
+            }
+            layoutError.value = ''
+          } catch (err) {
+            saveRequested = false
+            layoutError.value = String(err instanceof Error ? err.message : err)
+            console.error('保存磁贴布局失败:', err)
+            return false
+          }
+        }
+        return true
+      }).finally(() => {
+        saveFlight = null
+        // A Vue watcher can enqueue another edit between the async loop
+        // settling and this finalizer. Do not leave that write stranded.
+        if (saveRequested) return saveLayout(true)
+      })
+    }
+    return saveFlight
   }
 
   function addTile(groupId: string, appId: string, size: TileItem['size'] = 'medium') {
@@ -658,25 +722,27 @@ export const useTilesStore = defineStore('tiles', () => {
         template: 'text',
         title: external.title || '新消息',
         body: external.body || '',
-        image: external.icon,
+        image: external.icon || undefined,
+        count: external.count ?? undefined,
         timestamp: external.timestamp || Date.now()
       }]
     }
-    return tileNotifications.value[tileId] || []
+    return Object.hasOwn(tileNotifications.value, tileId) ? tileNotifications.value[tileId] : []
   }
 
-  // 设置外部推送的磁贴内容
-  function setExternalTileData(appId: string, data: any) {
-    externalTileData.value[appId] = data
-  }
-
-  // 清除外部推送的磁贴内容
-  function clearExternalTileData(appId: string) {
-    delete externalTileData.value[appId]
+  // Revision guards the initial snapshot arriving after a newer push.
+  function applyTileBridgeSnapshot(snapshot: TileBridgeSnapshot) {
+    if (snapshot.revision <= bridgeRevision) return
+    bridgeRevision = snapshot.revision
+    externalTileData.value = Object.assign(Object.create(null), snapshot.entries)
   }
 
   return {
     groups,
+    layoutError,
+    loaded,
+    beginDraft,
+    commitDraft,
     flippedTiles,
     allTiles,
     draggingTileId,
@@ -711,7 +777,6 @@ export const useTilesStore = defineStore('tiles', () => {
     setGroupBackground,
     getNotifications,
     externalTileData,
-    setExternalTileData,
-    clearExternalTileData
+    applyTileBridgeSnapshot
   }
 })

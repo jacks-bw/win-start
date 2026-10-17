@@ -1,5 +1,6 @@
 <template>
   <div class="side-toolbar" :style="{ background }">
+    <div v-if="operationError || toolbarStore.error" class="operation-error" role="alert">{{ operationError || toolbarStore.error }} <button v-if="!toolbarStore.ready" @click.stop="toolbarStore.load()">重试读取配置</button><button v-else @click.stop="operationError = ''; toolbarStore.error = ''">关闭</button></div>
     <!-- 已添加的功能按钮 -->
     <div class="toolbar-buttons">
       <div
@@ -18,9 +19,9 @@
     <!-- 底部固定区：添加按钮 / 新建分组 / 用户头像 / 电源 -->
     <div class="toolbar-bottom">
       <!-- 添加工具栏功能按钮 -->
-      <div class="toolbar-btn" @click.stop="toggleAddMenu">
+      <div class="toolbar-btn" :class="{ unavailable: !canCustomize }" :aria-disabled="!canCustomize" @click.stop="toggleAddMenu">
         <Plus :size="18" />
-        <span class="toolbar-tooltip">添加按钮</span>
+        <span class="toolbar-tooltip">{{ toolbarStore.saving ? '正在保存工具栏' : toolbarStore.ready ? '添加按钮' : '正在读取工具栏配置' }}</span>
       </div>
 
       <div class="bottom-divider"></div>
@@ -38,9 +39,9 @@
       </div>
 
       <!-- 电源：点击弹出电源菜单 -->
-      <div class="toolbar-btn" @click.stop="togglePowerMenu">
+      <div class="toolbar-btn" :class="{ unavailable: !capabilities.powerActions || powerBusy }" :aria-disabled="!capabilities.powerActions || powerBusy" @click.stop="togglePowerMenu">
         <Power :size="18" />
-        <span class="toolbar-tooltip">电源</span>
+        <span class="toolbar-tooltip">{{ capabilities.powerActions ? '电源' : '电源操作尚未支持' }}</span>
       </div>
 
       <!-- 用户头像：点击直接换头像（最底部） -->
@@ -115,10 +116,18 @@ import {
   User
 } from 'lucide-vue-next'
 import { useAppsStore } from '../../stores/useApps'
+import { useToolbarStore } from '../../stores/useToolbar'
 
 defineProps<{ background?: string }>()
 
 const appsStore = useAppsStore()
+const capabilities = window.api.capabilities
+const toolbarStore = useToolbarStore()
+const canCustomize = computed(() => capabilities.toolbarCustomization && toolbarStore.ready && !toolbarStore.saving)
+const powerBusy = ref(false)
+let stopToolbarUpdates: (() => void) | undefined
+let stopAvatarUpdates: (() => void) | undefined
+const operationError = ref('')
 
 // 所有可用的工具栏功能注册表
 interface ToolbarAction {
@@ -150,7 +159,7 @@ const iconMap: Record<string, unknown> = {
 }
 
 // 用户已添加的按钮 key 列表（持久化）
-const items = ref<string[]>([])
+const items = computed(() => toolbarStore.items)
 const addMenuVisible = ref(false)
 const removeMenu = ref({ visible: false, y: 0, key: '' })
 const powerMenuVisible = ref(false)
@@ -184,21 +193,11 @@ const availableItems = computed(() =>
   ACTION_REGISTRY.filter((a) => !items.value.includes(a.key))
 )
 
-async function loadItems() {
-  try {
-    items.value = await window.api.getToolbarItems()
-  } catch (e) {
-    console.error('加载工具栏配置失败:', e)
-    items.value = ['explorer', 'settings', 'controlPanel']
-  }
-}
+async function loadItems() { await toolbarStore.load() }
 
-async function persistItems() {
-  await window.api.setToolbarItems(items.value)
-}
-
-function handleClick(key: string) {
-  window.api.openToolbarItem(key)
+async function handleClick(key: string) {
+  try { await window.api.openToolbarItem(key) }
+  catch (error) { operationError.value = String(error instanceof Error ? error.message : error) }
 }
 
 function closeAllMenus() {
@@ -208,26 +207,26 @@ function closeAllMenus() {
 }
 
 function toggleAddMenu() {
+  if (!canCustomize.value) return
   const willOpen = !addMenuVisible.value
   closeAllMenus()
   addMenuVisible.value = willOpen
 }
 
 function togglePowerMenu() {
+  if (!capabilities.powerActions || powerBusy.value) return
   const willOpen = !powerMenuVisible.value
   closeAllMenus()
   powerMenuVisible.value = willOpen
 }
 
-function addItem(key: string) {
-  if (!items.value.includes(key)) {
-    items.value.push(key)
-    persistItems()
-  }
-  addMenuVisible.value = false
+async function addItem(key: string) {
+  if (!canCustomize.value || items.value.includes(key)) return
+  if (await toolbarStore.setItems([...items.value, key])) addMenuVisible.value = false
 }
 
 function openRemoveMenu(e: MouseEvent, key: string) {
+  if (!canCustomize.value) return
   addMenuVisible.value = false
   powerMenuVisible.value = false
   // 菜单高约 36px，防止超出工具栏上下边界
@@ -236,13 +235,10 @@ function openRemoveMenu(e: MouseEvent, key: string) {
   removeMenu.value = { visible: true, y, key }
 }
 
-function removeCurrentItem() {
-  const idx = items.value.indexOf(removeMenu.value.key)
-  if (idx >= 0) {
-    items.value.splice(idx, 1)
-    persistItems()
-  }
-  removeMenu.value.visible = false
+async function removeCurrentItem() {
+  if (!canCustomize.value) return
+  const next = items.value.filter(key => key !== removeMenu.value.key)
+  if (await toolbarStore.setItems(next)) removeMenu.value.visible = false
 }
 
 // 新建磁贴分组（迁移自原 UserBar）
@@ -264,21 +260,30 @@ function createFolder() {
 }
 
 // 电源操作
-function powerAction(action: 'shutdown' | 'restart' | 'sleep' | 'lock') {
-  powerMenuVisible.value = false
-  window.api.powerAction?.(action)
+async function powerAction(action: 'shutdown' | 'restart' | 'sleep' | 'lock') {
+  if (!capabilities.powerActions || powerBusy.value) return
+  powerBusy.value = true
+  closeAllMenus()
+  try {
+    await window.api.hideStartMenu()
+    await window.api.powerAction(action)
+  } catch (error) {
+    operationError.value = String(error)
+    await window.api.showStartMenu().catch(failure => { operationError.value += `；${failure}` })
+  } finally { powerBusy.value = false }
 }
 
 // 点击头像：打开头像设置窗口（选择图片 / 清空头像）
-function selectAvatar() {
-  window.api.openAvatarSettingsWindow?.()
+async function selectAvatar() {
+  try { await window.api.openAvatarSettingsWindow() }
+  catch (error) { operationError.value = String(error) }
 }
 
 async function reloadAvatar() {
-  const saved = await window.api.getUserAvatar?.()
-  if (saved) {
-    avatarInfo.value = saved as AvatarData
-  }
+  try {
+    const saved = await window.api.getUserAvatar()
+    avatarInfo.value = saved ? { ...saved, url: saved.url || '' } as AvatarData : { url: '' }
+  } catch (error) { operationError.value = String(error) }
 }
 
 function handleClickOutside() {
@@ -295,18 +300,23 @@ onMounted(() => {
   reloadAvatar()
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('start-menu:closing', handleMenuClosing)
-  window.api.onAvatarUpdated?.(() => {
+  stopToolbarUpdates = window.api.onToolbarItemsChanged(toolbarStore.updateFromEvent)
+  stopAvatarUpdates = window.api.onAvatarUpdated(() => {
     reloadAvatar()
   })
 })
 
 onUnmounted(() => {
+  stopToolbarUpdates?.()
+  stopAvatarUpdates?.()
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('start-menu:closing', handleMenuClosing)
 })
 </script>
 
 <style scoped>
+.unavailable { opacity: 0.45; cursor: not-allowed; }
+.operation-error { position: fixed; left: 56px; bottom: 12px; max-width: 320px; padding: 10px; background: #573b29; color: #fff0dc; z-index: 10003; font-size: 12px; cursor: pointer; }
 .side-toolbar {
   flex-shrink: 0;
   width: 48px;

@@ -3,7 +3,6 @@
 //   1. 软件主题色（--accent-color）：按钮、磁贴底色等实色元素
 //   2. 高亮颜色（--highlight-color-rgb）：悬停/聚焦/拖拽等半透明高亮
 // 二者均可自定义，也可各自恢复为跟随系统主题色。
-import { listen } from '@tauri-apps/api/event'
 
 let systemAccent = '#0078d7'
 
@@ -63,10 +62,7 @@ export async function initTheme() {
 
 /** 监听设置窗口的颜色变更（所有窗口通用） */
 export function bindThemeEvents() {
-  listen('theme-color-changed', (e: any) => {
-    applyThemeColor((e.payload as string | null) ?? null)
-  })
-  listen('highlight-color-changed', (e: any) => {
-    applyHighlightColor((e.payload as string | null) ?? null)
-  })
+  const stopTheme = window.api.onThemeColorChanged(color => applyThemeColor(color ?? null))
+  const stopHighlight = window.api.onHighlightColorChanged(color => applyHighlightColor(color ?? null))
+  return () => { stopTheme(); stopHighlight() }
 }

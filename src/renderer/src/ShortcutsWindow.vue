@@ -13,13 +13,14 @@
             type="text"
             class="shortcut-input"
             :value="displayShortcut"
+            :disabled="saving"
             :placeholder="recording ? '请按下快捷键组合...' : '点击录制按钮'"
             readonly
             @keydown="onKeyDown"
             @focus="startRecording"
             @blur="stopRecording"
           />
-          <button class="record-btn" :class="{ recording }" @click="toggleRecording">
+          <button class="record-btn" :disabled="saving" :class="{ recording }" @click="toggleRecording">
             <Keyboard :size="14" />
             {{ recording ? '停止' : '录制' }}
           </button>
@@ -37,11 +38,11 @@
       </div>
 
       <div class="actions">
-        <button class="btn btn-primary" :disabled="!hasChanges || recording" @click="saveShortcut">
+        <button class="btn btn-primary" :disabled="!hasChanges || recording || saving" @click="saveShortcut">
           <Check :size="14" />
           保存
         </button>
-        <button class="btn" :disabled="!hasChanges || recording" @click="resetShortcut">
+        <button class="btn" :disabled="!hasChanges || recording || saving" @click="resetShortcut">
           <X :size="14" />
           重置
         </button>
@@ -51,13 +52,16 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from './utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { ref, computed, onMounted } from 'vue'
 import { Keyboard, Check, X } from 'lucide-vue-next'
 
-const originalShortcut = ref('Alt+Space')
-const currentShortcut = ref('Alt+Space')
+const originalShortcut = ref('Alt+W')
+const currentShortcut = ref('Alt+W')
 const recording = ref(false)
 const saveError = ref('')
+const saving = ref(false)
 const saveSuccess = ref(false)
 const shortcutInput = ref<HTMLInputElement | null>(null)
 
@@ -66,12 +70,11 @@ const hasChanges = computed(() => currentShortcut.value !== originalShortcut.val
 
 onMounted(async () => {
   try {
-    const saved = await window.api.getShortcut?.()
-    if (saved) {
-      originalShortcut.value = saved
-      currentShortcut.value = saved
-    }
+    const saved = (await window.api.getSettings()).hotkey
+    originalShortcut.value = saved
+    currentShortcut.value = saved
   } catch (e) {
+    saveError.value = String(e instanceof Error ? e.message : e)
     console.warn('加载快捷键失败', e)
   }
 })
@@ -84,7 +87,7 @@ function startRecording() {
 
 function stopRecording() {
   // 延迟停止，允许 Enter 键先处理
-  setTimeout(() => {
+  lifetime.delay(() => {
     recording.value = false
   }, 100)
 }
@@ -142,21 +145,21 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 async function saveShortcut() {
+  if (saving.value) return
+  saving.value = true
+  saveSuccess.value = false
+  const requested = currentShortcut.value.trim()
   try {
-    const success = await window.api.setShortcut?.(currentShortcut.value)
-    if (success) {
-      originalShortcut.value = currentShortcut.value
-      saveError.value = ''
-      saveSuccess.value = true
-      setTimeout(() => (saveSuccess.value = false), 3000)
-    } else {
-      saveError.value = '该快捷键已被其他程序占用，请更换'
-      saveSuccess.value = false
-    }
+    await window.api.setHotkey(requested)
+    currentShortcut.value = requested
+    originalShortcut.value = requested
+    saveError.value = ''
+    saveSuccess.value = true
+    lifetime.delay(() => (saveSuccess.value = false), 3000)
   } catch (e) {
-    saveError.value = '保存失败'
+    saveError.value = String(e instanceof Error ? e.message : e)
     saveSuccess.value = false
-  }
+  } finally { saving.value = false }
 }
 
 function resetShortcut() {

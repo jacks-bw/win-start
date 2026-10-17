@@ -3,8 +3,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod icon_extract;
+mod fullscreen;
 mod launch_button;
 mod scanner;
+mod layout;
+mod storage;
+mod hotkey;
+mod toolbar;
+mod power;
+mod discovery;
+mod tile_bridge;
 
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -12,7 +20,7 @@ use tauri::{
     Emitter, Manager, WindowEvent,
 };
 use window_vibrancy::apply_acrylic;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 static MENU_READY: AtomicBool = AtomicBool::new(false);
 
@@ -22,8 +30,12 @@ fn menu_ready() {
 }
 
 static FIRST_SHOW: AtomicBool = AtomicBool::new(true);
+static SHOW_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static SHOW_PENDING: AtomicBool = AtomicBool::new(false);
 // 样式设置窗口打开时，主菜单失焦不自动隐藏
 static MENU_BLOCKED: AtomicBool = AtomicBool::new(false);
+static RESIZE_BLOCKED: AtomicBool = AtomicBool::new(false);
+static MENU_BUSY: AtomicBool = AtomicBool::new(false);
 // 设置窗口打开前，主菜单是否本就可见（用于设置关闭后恢复）
 static SETTINGS_MENU_WAS_OPEN: AtomicBool = AtomicBool::new(false);
 
@@ -43,78 +55,149 @@ fn force_first_paint(win: &tauri::WebviewWindow) {
     }
 }
 
-// 显示开始菜单：首次需等渲染就绪，避免空白
+// A pending first show is cancellable: a second click must close it rather
+// than leave a detached waiter that opens the menu seconds later.
+fn finish_show(win: &tauri::WebviewWindow, sequence: u64) {
+    if SHOW_SEQUENCE.load(Ordering::SeqCst) != sequence { return; }
+    SHOW_PENDING.store(false, Ordering::SeqCst);
+    if MENU_BLOCKED.load(Ordering::SeqCst) { return; }
+    let _ = win.show();
+    let _ = win.set_focus();
+    let _ = win.emit("menu-open", ());
+    force_first_paint(win);
+}
+
 pub(crate) fn do_show(win: &tauri::WebviewWindow) {
+    let sequence = SHOW_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
+    SHOW_PENDING.store(true, Ordering::SeqCst);
     if MENU_READY.load(Ordering::SeqCst) {
-        let _ = win.show();
-        let _ = win.set_focus();
-        let _ = win.emit("menu-open", ());
-        force_first_paint(win);
+        finish_show(win, sequence);
         return;
     }
     let w = win.clone();
     std::thread::spawn(move || {
         for _ in 0..200 {
-            if MENU_READY.load(Ordering::SeqCst) {
-                let _ = w.show();
-                let _ = w.set_focus();
-                let _ = w.emit("menu-open", ());
-                force_first_paint(&w);
-                return;
-            }
+            if SHOW_SEQUENCE.load(Ordering::SeqCst) != sequence { return; }
+            if MENU_READY.load(Ordering::SeqCst) { break; }
             std::thread::sleep(std::time::Duration::from_millis(30));
         }
-        // 兜底：超时也显示
-        let _ = w.show();
-        let _ = w.set_focus();
-        let _ = w.emit("menu-open", ());
-        force_first_paint(&w);
+        let target = w.clone();
+        let _ = w.run_on_main_thread(move || finish_show(&target, sequence));
     });
 }
 
 #[tauri::command]
-async fn scan_apps() -> Vec<scanner::AppEntry> {
+async fn scan_apps() -> Result<scanner::ScanResult, String> {
     // 扫描含 PowerShell 调用与大量图标提取（CPU 密集），丢到阻塞线程池，
     // 避免同步 command 卡死 webview 主线程，导致设置等子窗口的 loading 不结束。
-    tauri::async_runtime::spawn_blocking(scanner::scan_all)
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut scan = scanner::scan_all();
+        let history = (|| {
+            let path = data_dir()?.join("app-discovery.json");
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| error.to_string())?.as_millis() as u64;
+            let ids = scan.apps.iter().map(|app| app.id.clone()).collect::<Vec<_>>();
+            discovery::record(&path, &ids, scan.complete, now)
+        })();
+        match history {
+            Ok(entries) => for app in &mut scan.apps {
+                app.first_seen_at = entries.get(&app.id).copied().flatten();
+            },
+            Err(error) => scan.warnings.push(format!("最近添加记录不可用：{error}")),
+        }
+        scan
+    })
         .await
-        .unwrap_or_default()
+        .map_err(|error| format!("应用扫描失败：{error}"))
 }
 
 #[tauri::command]
 fn show_start_menu(window: tauri::WebviewWindow) {
-    do_show(&window);
+    if !MENU_BLOCKED.load(Ordering::SeqCst) {
+        do_show(&window);
+    }
 }
 
 #[tauri::command]
 fn hide_start_menu(window: tauri::WebviewWindow) {
+    close_menu(&window);
+}
+
+fn close_menu(window: &tauri::WebviewWindow) {
+    SHOW_SEQUENCE.fetch_add(1, Ordering::SeqCst);
+    SHOW_PENDING.store(false, Ordering::SeqCst);
     let _ = window.emit("menu-close", ());
     let _ = window.hide();
 }
 
+/// All toggle requests are serialized on Tauri's window thread. Native hotzones
+/// never activate in normal mode, so their clicks cannot hide the menu first.
+pub(crate) fn request_menu_toggle(app: &tauri::AppHandle, target: Option<(i32, i32, isize)>) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if MENU_BLOCKED.load(Ordering::SeqCst) {
+            return;
+        }
+        let Some(win) = handle.get_webview_window("main") else { return; };
+        let same_monitor = target
+            .map(|(_, _, monitor)| {
+                use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
+                win.hwnd().ok().map(|hwnd| unsafe {
+                    MonitorFromWindow(
+                        windows::Win32::Foundation::HWND(hwnd.0),
+                        MONITOR_DEFAULTTONEAREST,
+                    ).0 as isize == monitor
+                }).unwrap_or(false)
+            })
+            .unwrap_or(true);
+        if (win.is_visible().unwrap_or(false) || SHOW_PENDING.load(Ordering::SeqCst)) && same_monitor {
+            close_menu(&win);
+        } else {
+            if let Some((x, y, _)) = target {
+                let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+            }
+            do_show(&win);
+        }
+    });
+}
+
 #[tauri::command]
-fn open_toolbar_item(key: String) {
-    let (program, arg): (&str, Option<&str>) = match key.as_str() {
-        "explorer" => ("explorer.exe", None),
-        "settings" => ("cmd", Some("/c start ms-settings:")),
-        "controlPanel" => ("control.exe", None),
-        "recycleBin" => ("explorer.exe", Some("shell:RecycleBinFolder")),
-        "documents" => ("explorer.exe", None),
-        "downloads" => ("explorer.exe", None),
-        "run" => ("cmd", Some("/c start rundll32.exe shell32.dll,#61")),
-        "taskManager" => ("taskmgr.exe", None),
-        _ => return,
-    };
-    let mut cmd = hidden_command(program);
-    if let Some(a) = arg { cmd.arg(a); }
-    if key == "documents" {
-        cmd.arg(dirs::document_dir().unwrap().to_string_lossy().as_ref());
+fn open_toolbar_item(key: String) -> Result<(), String> {
+    match toolbar::target(&key, dirs::document_dir(), dirs::download_dir())? {
+        toolbar::Target::Shell(target) => shell_open(&target),
+        toolbar::Target::RunDialog => open_run_dialog(),
     }
-    if key == "downloads" {
-        let dl = dirs::download_dir().unwrap();
-        cmd.arg(dl.to_string_lossy().as_ref());
+}
+
+fn open_run_dialog() -> Result<(), String> {
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, CLSCTX_LOCAL_SERVER, COINIT_APARTMENTTHREADED};
+    use windows::Win32::UI::Shell::{IShellDispatch, Shell};
+    struct Apartment(bool);
+    impl Drop for Apartment { fn drop(&mut self) { if self.0 { unsafe { CoUninitialize() } } } }
+    unsafe {
+        let _apartment = Apartment(CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok());
+        let shell: IShellDispatch = CoCreateInstance(&Shell, None, CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER).map_err(|error| error.to_string())?;
+        shell.FileRun().map_err(|error| error.to_string())
     }
-    let _ = cmd.spawn();
+}
+
+#[tauri::command]
+async fn power_action(action: power::Action) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || power::execute(action)).await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+fn open_taskbar_pinning_guide(path: Option<String>) -> Result<(), String> {
+    if let Some(path) = path {
+        if !std::path::Path::new(&path).is_file() { return Err("快捷方式已不存在，请刷新应用列表".into()); }
+        // Select the shortcut itself so the system context menu offers its
+        // own pinning UI. Do not claim that opening the folder pins anything.
+        hidden_command("explorer.exe").arg(format!("/select,{}", path)).spawn()
+            .map(|_| ()).map_err(|error| error.to_string())
+    } else {
+        shell_open("shell:AppsFolder")
+    }
 }
 
 // 构造一个隐藏控制台窗口的子进程：release 构建是 GUI 子系统，直接 spawn
@@ -156,16 +239,12 @@ fn shell_open(target: &str) -> Result<(), String> {
 
 #[tauri::command]
 fn launch_app(path: String) -> Result<(), String> {
-    hidden_command("cmd")
-        .args(["/c", "start", "", &path])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    shell_open(&path)
 }
 
 #[tauri::command]
-fn launch_uwp(app_id: String) -> Result<(), String> {
-    // 协议直开，UWP/商店应用交给 explorer.exe shell:AppsFolder
+fn launch_shell_app(app_id: String) -> Result<(), String> {
+    // 协议直开；打包应用和桌面 Shell 入口都交给 AppsFolder 激活。
     if app_id.contains("://") {
         return shell_open(&app_id);
     }
@@ -225,11 +304,7 @@ fn show_in_folder(path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn uninstall_program() -> Result<(), String> {
-    hidden_command("cmd")
-        .args(["/c", "start", "control", "appwiz.cpl"])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    shell_open("ms-settings:appsfeatures")
 }
 
 #[derive(serde::Serialize)]
@@ -574,6 +649,10 @@ fn data_dir() -> Result<std::path::PathBuf, String> {
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct AppSettings {
     hotkey: String,
+    #[serde(default = "default_true", rename = "tileBridgeEnabled")]
+    tile_bridge_enabled: bool,
+    #[serde(default = "toolbar::default_items", rename = "toolbarItems")]
+    toolbar_items: Vec<String>,
     #[serde(rename = "tileOpacity")]
     tile_opacity: f32,
     /// 透明度是否包含设置了壁纸的磁贴
@@ -627,6 +706,8 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             hotkey: "Alt+W".to_string(),
+            tile_bridge_enabled: true,
+            toolbar_items: toolbar::default_items(),
             tile_opacity: 0.9,
             include_wallpaper_opacity: true,
             theme_color: None,
@@ -640,6 +721,45 @@ impl Default for AppSettings {
 }
 
 struct AppSettingsState(std::sync::Mutex<AppSettings>);
+struct TileBridgeState(std::sync::Mutex<tile_bridge::Service>);
+
+#[tauri::command]
+fn get_tile_bridge_status(state: tauri::State<'_, TileBridgeState>) -> Result<tile_bridge::Status, String> {
+    Ok(state.0.lock().map_err(|_| "磁贴服务不可用")?.status())
+}
+#[tauri::command]
+fn get_tile_bridge_snapshot(state: tauri::State<'_, TileBridgeState>) -> Result<tile_bridge::Snapshot, String> {
+    state.0.lock().map_err(|_| "磁贴服务不可用")?.snapshot()
+}
+#[tauri::command]
+fn set_tile_bridge_enabled(app: tauri::AppHandle, settings: tauri::State<'_, AppSettingsState>, state: tauri::State<'_, TileBridgeState>, enabled: bool) -> Result<tile_bridge::Status, String> {
+    let mut saved = settings.0.lock().map_err(|_| "设置不可用")?;
+    let mut service = state.0.lock().map_err(|_| "磁贴服务不可用")?;
+    let mut next = saved.clone();
+    next.tile_bridge_enabled = enabled;
+    save_settings(&next)?;
+    *saved = next;
+    let status = service.configure(enabled);
+    let _ = app.emit("tile-bridge-status", &status);
+    Ok(status)
+}
+
+
+#[cfg(test)]
+mod settings_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_settings_get_default_toolbar_but_explicit_empty_stays_empty() {
+        let mut value = serde_json::json!({"hotkey": "Alt+W", "tileOpacity": 0.9});
+        let legacy: AppSettings = serde_json::from_value(value.clone()).unwrap();
+        assert!(legacy.tile_bridge_enabled);
+        assert_eq!(legacy.toolbar_items, toolbar::default_items());
+        value["toolbarItems"] = serde_json::json!([]);
+        let empty: AppSettings = serde_json::from_value(value).unwrap();
+        assert!(empty.toolbar_items.is_empty());
+    }
+}
 
 fn load_settings() -> AppSettings {
     let Some(p) = data_dir().ok().map(|d| d.join("settings.json")) else {
@@ -653,7 +773,24 @@ fn load_settings() -> AppSettings {
 
 fn save_settings(s: &AppSettings) -> Result<(), String> {
     let p = data_dir()?.join("settings.json");
-    std::fs::write(&p, serde_json::to_string(s).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    storage::write_json_atomic(&p, s)
+}
+
+#[tauri::command]
+fn get_toolbar_items(state: tauri::State<'_, AppSettingsState>) -> Result<Vec<String>, String> {
+    toolbar::validate(state.0.lock().map_err(|_| "设置暂不可用")?.toolbar_items.clone())
+}
+
+#[tauri::command]
+fn set_toolbar_items(app: tauri::AppHandle, state: tauri::State<'_, AppSettingsState>, items: Vec<String>) -> Result<Vec<String>, String> {
+    let items = toolbar::validate(items)?;
+    let mut settings = state.0.lock().map_err(|_| "设置暂不可用")?;
+    let mut next = settings.clone();
+    next.toolbar_items = items.clone();
+    save_settings(&next)?;
+    *settings = next;
+    let _ = app.emit("toolbar-items-changed", &items);
+    Ok(items)
 }
 
 #[tauri::command]
@@ -664,17 +801,14 @@ fn get_settings(state: tauri::State<'_, AppSettingsState>) -> AppSettings {
 #[tauri::command]
 fn set_hotkey(app: tauri::AppHandle, state: tauri::State<'_, AppSettingsState>, hotkey: String) -> Result<(), String> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    let gs = app.global_shortcut();
-    gs.unregister_all().map_err(|e| e.to_string())?;
-    let trimmed = hotkey.trim();
-    if !trimmed.is_empty() {
-        let sc: tauri_plugin_global_shortcut::Shortcut =
-            trimmed.parse().map_err(|e| format!("快捷键无效：{e}"))?;
-        gs.register(sc).map_err(|e| format!("该快捷键已被占用或无效：{e}"))?;
-    }
-    let mut s = state.0.lock().unwrap();
-    s.hotkey = trimmed.to_string();
-    save_settings(&s)
+    let mut settings = state.0.lock().map_err(|_| "设置暂不可用")?;
+    let mut registry = app.global_shortcut();
+    let mut next = settings.clone();
+    next.hotkey = hotkey.trim().to_string();
+    hotkey::change(&mut registry, &settings.hotkey, &next.hotkey, || save_settings(&next))?;
+    // Commit memory only after native registration and atomic file persistence.
+    *settings = next;
+    Ok(())
 }
 
 #[tauri::command]
@@ -911,16 +1045,15 @@ fn set_autostart(app: tauri::AppHandle, enable: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn load_tile_layout() -> Option<serde_json::Value> {
-    let p = data_dir().ok()?.join("tile-layout.json");
-    let s = std::fs::read_to_string(p).ok()?;
-    serde_json::from_str(&s).ok()
+fn load_tile_layout() -> Result<serde_json::Value, String> {
+    layout::load(&data_dir()?.join("tile-layout.json"))
 }
 
 #[tauri::command]
-fn save_tile_layout(layout: serde_json::Value) -> Result<(), String> {
-    let p = data_dir()?.join("tile-layout.json");
-    std::fs::write(&p, layout.to_string()).map_err(|e| e.to_string())
+fn save_tile_layout(app: tauri::AppHandle, layout: serde_json::Value, base: serde_json::Value) -> Result<serde_json::Value, String> {
+    let result = self::layout::save(&data_dir()?.join("tile-layout.json"), &base, &layout)?;
+    let _ = app.emit("layout-updated", ());
+    Ok(result)
 }
 
 // ===================== 背景图片选择 / 读写 =====================
@@ -996,6 +1129,20 @@ struct StyleTargets {
     group: Mutex<String>,
 }
 
+// Closing one editor must not unlock the menu while another editor remains.
+fn sync_menu_blocked(app: &tauri::AppHandle, closing: Option<&str>) -> bool {
+    let interaction_blocked = RESIZE_BLOCKED.load(Ordering::SeqCst)
+        || ["tile-style", "group-style", "settings"].iter().any(|label| {
+            Some(*label) != closing && app.get_webview_window(label).is_some()
+        });
+    // An in-menu crop dialog blocks auto-hide/toggle, but must remain clickable:
+    // only external editor/resize locks enable the main interaction overlay.
+    let blocked = interaction_blocked || MENU_BUSY.load(Ordering::SeqCst);
+    MENU_BLOCKED.store(blocked, Ordering::SeqCst);
+    let _ = app.emit("menu-blocked", interaction_blocked);
+    blocked
+}
+
 fn open_style_window(
     app: &tauri::AppHandle,
     label: &str,
@@ -1010,6 +1157,8 @@ fn open_style_window(
         let _ = win.emit(select_event, target);
         return Ok(());
     }
+    MENU_BLOCKED.store(true, Ordering::SeqCst);
+    let _ = app.emit("menu-blocked", true);
     let url = format!("index.html#{}", hash);
     let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .title(if label == "tile-style" { "磁贴样式" } else { "分组背景" })
@@ -1021,7 +1170,10 @@ fn open_style_window(
         .center()
         .visible(true)
         .build();
-    let win = win.map_err(|e| e.to_string())?;
+    let win = win.map_err(|e| {
+        sync_menu_blocked(app, Some(label));
+        e.to_string()
+    })?;
     // 先在隐藏状态下做毛玻璃 / 去边框
     let _ = window_vibrancy::apply_acrylic(&win, Some((32, 32, 32, 40)));
     #[cfg(target_os = "windows")]
@@ -1073,10 +1225,8 @@ fn open_style_window(
         let label2 = label.to_string();
         win.on_window_event(move |event| {
             if let tauri::WindowEvent::Destroyed = event {
-                MENU_BLOCKED.store(false, Ordering::SeqCst);
-                let _ = app2.emit("menu-blocked", false);
+                sync_menu_blocked(&app2, Some(&label2));
                 let _ = app2.emit("layout-updated", ());
-                let _ = label2;
             }
         });
     }
@@ -1101,9 +1251,6 @@ fn close_tile_style_window(app: tauri::AppHandle) {
     if let Some(win) = app.get_webview_window("tile-style") {
         let _ = win.close();
     }
-    MENU_BLOCKED.store(false, Ordering::SeqCst);
-    let _ = app.emit("menu-blocked", false);
-    let _ = app.emit("layout-updated", ());
 }
 
 #[tauri::command]
@@ -1122,15 +1269,19 @@ fn close_group_style_window(app: tauri::AppHandle) {
     if let Some(win) = app.get_webview_window("group-style") {
         let _ = win.close();
     }
-    MENU_BLOCKED.store(false, Ordering::SeqCst);
-    let _ = app.emit("menu-blocked", false);
-    let _ = app.emit("layout-updated", ());
 }
 
 // 窗口边缘缩放期间屏蔽失焦自动隐藏（resize 系统模态循环会导致短暂失焦）
 #[tauri::command]
-fn set_resize_blocked(blocked: bool) {
-    MENU_BLOCKED.store(blocked, Ordering::SeqCst);
+fn set_resize_blocked(app: tauri::AppHandle, blocked: bool) {
+    RESIZE_BLOCKED.store(blocked, Ordering::SeqCst);
+    sync_menu_blocked(&app, None);
+}
+
+#[tauri::command]
+fn set_menu_busy(app: tauri::AppHandle, busy: bool) {
+    MENU_BUSY.store(busy, Ordering::SeqCst);
+    sync_menu_blocked(&app, None);
 }
 
 #[tauri::command]
@@ -1177,7 +1328,10 @@ async fn create_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
     .center()
     .visible(true)
     .build()
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        sync_menu_blocked(app, Some("settings"));
+        e.to_string()
+    })?;
     framelize_window(&win);
     let _ = win.set_focus();
 
@@ -1185,9 +1339,8 @@ async fn create_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
     let app2 = app.clone();
     win.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
-            MENU_BLOCKED.store(false, Ordering::SeqCst);
-            let _ = app2.emit("menu-blocked", false);
-            if !SETTINGS_MENU_WAS_OPEN.load(Ordering::SeqCst) {
+            let blocked = sync_menu_blocked(&app2, Some("settings"));
+            if !blocked && !SETTINGS_MENU_WAS_OPEN.load(Ordering::SeqCst) {
                 if let Some(main) = app2.get_webview_window("main") {
                     let _ = main.emit("menu-close", ());
                     let _ = main.hide();
@@ -1278,20 +1431,15 @@ fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        if let Some(win) = app.get_webview_window("main") {
-                            if win.is_visible().unwrap_or(false) {
-                                let _ = win.hide();
-                            } else {
-                                do_show(&win);
-                            }
-                        }
+                        request_menu_toggle(app, None);
                     }
                 })
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
+            get_tile_bridge_status, get_tile_bridge_snapshot, set_tile_bridge_enabled,
             scan_apps, show_start_menu, hide_start_menu, menu_ready, open_toolbar_item,
-            launch_app, launch_uwp,
+            launch_app, launch_shell_app, power_action, open_taskbar_pinning_guide, get_toolbar_items, set_toolbar_items,
             show_in_folder, uninstall_program,
             get_user_avatar, select_user_avatar, set_user_avatar, save_cropped_avatar,
             open_avatar_settings_window, close_avatar_settings_window, clear_user_avatar,
@@ -1302,7 +1450,7 @@ fn run() {
             select_image, select_svg, read_image_base64, save_image,
             open_tile_style_window, get_tile_style_target, close_tile_style_window,
             open_group_style_window, get_group_style_target, close_group_style_window,
-            set_resize_blocked,
+            set_resize_blocked, set_menu_busy,
             notify_layout_updated,
             get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color, set_wallpaper, clear_wallpaper, set_wallpaper_darken, set_panel_alpha, set_tile_blur,
             get_autostart, set_autostart,
@@ -1312,6 +1460,13 @@ fn run() {
             app.manage(CropImagePath(Mutex::new(String::new())));
             app.manage(StyleTargets { tile: Mutex::new(String::new()), group: Mutex::new(String::new()) });
             app.manage(AppSettingsState(std::sync::Mutex::new(load_settings())));
+            let bridge_app = app.handle().clone();
+            let mut bridge = tile_bridge::Service::new(std::sync::Arc::new(move |snapshot| {
+                bridge_app.emit("tile-bridge-snapshot", snapshot).map_err(|error| error.to_string())
+            }));
+            let bridge_enabled = app.state::<AppSettingsState>().0.lock().unwrap().tile_bridge_enabled;
+            bridge.configure(bridge_enabled);
+            app.manage(TileBridgeState(std::sync::Mutex::new(bridge)));
             // 注册用户配置的全局快捷键
             {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -1394,8 +1549,7 @@ fn run() {
                     if MENU_BLOCKED.load(Ordering::SeqCst) {
                         // 样式窗打开中，主菜单保持显示，不关闭
                     } else {
-                        let _ = win_clone.emit("menu-close", ());
-                        let _ = win_clone.hide();
+                        close_menu(&win_clone);
                     }
                 }
             });
@@ -1424,20 +1578,13 @@ fn run() {
                         ..
                     } = event
                     {
-                        if let Some(win) = tray.app_handle().get_webview_window("main") {
-                            if win.is_visible().unwrap_or(false) {
-                                let _ = win.hide();
-                            } else {
-                                do_show(&win);
-                            }
-                        }
+                        request_menu_toggle(tray.app_handle(), None);
                     }
                 })
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "open" => {
                         if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
+                            if !MENU_BLOCKED.load(Ordering::SeqCst) { do_show(&win); }
                         }
                     }
                     "settings" => {
@@ -1461,8 +1608,15 @@ fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                if let Some(state) = app.try_state::<TileBridgeState>() {
+                    if let Ok(mut service) = state.0.lock() { service.shutdown(); }
+                }
+            }
+        });
 }
 
 fn main() {

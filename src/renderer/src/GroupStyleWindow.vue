@@ -1,9 +1,9 @@
 <template>
   <div class="group-style-window" :style="{ background: pageBg }">
     <!-- 加载遮罩：数据加载完成前不可操作 -->
-    <div v-if="loading" class="loading-mask">
+    <div v-if="loading || saving" class="loading-mask">
       <div class="loading-spinner"></div>
-      <div class="loading-text">正在加载…</div>
+      <div class="loading-text">{{ saving ? '正在保存…' : '正在加载…' }}</div>
     </div>
     <!-- 标题栏（无边框窗口自绘，可拖动） -->
     <div class="page-header">
@@ -50,9 +50,10 @@
     </div>
 
     <!-- 底部确定 / 取消 -->
+    <div v-if="tilesStore.layoutError" class="layout-error" role="alert">{{ tilesStore.layoutError }}</div>
     <div class="page-footer">
       <button class="footer-btn" @click="cancelWindow">取消</button>
-      <button class="footer-btn primary" @click="confirmWindow">确定</button>
+      <button class="footer-btn primary" :disabled="!tilesStore.loaded || saving" @click="confirmWindow">确定</button>
     </div>
 
     <!-- 图片裁剪预览 -->
@@ -71,6 +72,8 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from './utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { computed, onMounted, ref, watch } from 'vue'
 import { X, ImagePlus, Trash2 } from 'lucide-vue-next'
 import CropImageDialog from './components/CropImageDialog.vue'
@@ -79,6 +82,8 @@ import { useAppsStore } from './stores/useApps'
 import { useSettingsStore } from './stores/useSettings'
 
 const tilesStore = useTilesStore()
+tilesStore.beginDraft()
+const saving = ref(false)
 
 // TODO(组背景 BUG 待修复): 组背景设置仍存在问题，修复前勿视为完成。
 // 已知反馈：组背景裁剪后的图片可能模糊/拉伸（单磁贴裁剪已高清化并修正比例，组背景切片仍需复核）。
@@ -101,50 +106,37 @@ const sortedTiles = computed(() =>
   group.value ? [...group.value.tiles].sort((a, b) => a.position - b.position) : []
 )
 
-// ---- 布局/刷新同步（编辑期间不通知主窗口，点确定才保存） ----
-let updateTimer: ReturnType<typeof setTimeout> | null = null
-let snapshot = ''
-
-function closeWindow() {
-  cancelWindow()
-}
-
-function pushUpdate() {
-  if (updateTimer) clearTimeout(updateTimer)
-}
-
+// All controls update only this window's draft. Cancel/close never writes.
+function closeWindow() { cancelWindow() }
+function pushUpdate() {}
 async function confirmWindow() {
-  await tilesStore.saveLayout()
-  await window.api.notifyLayoutUpdated()
-  window.api.closeGroupStyleWindow()
-}
-
-async function cancelWindow() {
+  if (saving.value || !tilesStore.loaded) return
+  saving.value = true
   try {
-    if (snapshot) {
-      tilesStore.groups = JSON.parse(snapshot)
-      await tilesStore.saveLayout()
-    }
-  } catch (e) {
-    console.error('回滚失败', e)
-  }
-  window.api.closeGroupStyleWindow()
+    if (await tilesStore.commitDraft()) await window.api.closeGroupStyleWindow()
+  } catch (error) {
+    tilesStore.layoutError = String(error)
+  } finally { saving.value = false }
+}
+function cancelWindow() {
+  if (!saving.value) window.api.closeGroupStyleWindow()
 }
 
 onMounted(async () => {
   try {
     await settingsStore.loadTileOpacity()
-    await tilesStore.loadLayout()
+    if (!await tilesStore.loadLayout()) return
     // 独立窗口有独立的 apps store，需自行加载，否则预览显示 appId
+    if (lifetime.disposed) return
     appsStore.loadApps()
     const target = await window.api.getGroupStyleTarget()
+    if (lifetime.disposed) return
     if (target) groupId.value = target
-    snapshot = JSON.stringify(tilesStore.groups)
-    // 给预览图片一点渲染时间
-    setTimeout(() => { loading.value = false }, 300)
+    lifetime.add(window.api.onGroupStyleSelect((id) => { groupId.value = id }))
+  } catch (error) {
+    tilesStore.layoutError = String(error)
   } finally {
-    // 兜底：加载异常时也不卡住界面
-    setTimeout(() => { loading.value = false }, 1500)
+    loading.value = false
   }
 })
 
@@ -321,6 +313,8 @@ async function onCropConfirmed(dataUrl: string) {
 </script>
 
 <style scoped>
+.layout-error { color: #ffd3c7; background: #542d26; padding: 10px 16px; font-size: 12px; flex-shrink: 0; }
+.footer-btn:disabled { opacity: 0.5; cursor: default; }
 .group-style-window {
   height: 100vh;
   display: flex;

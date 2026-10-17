@@ -7,39 +7,40 @@ use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, PhysicalPosition};
+use tauri::{AppHandle, Manager};
 use windows::core::w;
 use windows::Win32::Foundation::{
     BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{
-    BeginPaint, CreatePen, CreateSolidBrush, DeleteObject, EndPaint, EnumDisplayMonitors,
-    FillRect, GetMonitorInfoW, HBRUSH, HDC, HGDIOBJ, HMONITOR, InvalidateRect, LineTo,
-    MONITOR_DEFAULTTONEAREST, MONITORINFO, MONITORINFOEXW, MonitorFromWindow, MoveToEx,
-    PAINTSTRUCT, PS_DASH, PS_SOLID, SelectObject,
+    BeginPaint, CreatePen, CreateSolidBrush, DeleteObject, EndPaint, EnumDisplayMonitors, FillRect,
+    GetMonitorInfoW, InvalidateRect, LineTo, MonitorFromWindow, MoveToEx, SelectObject, HBRUSH,
+    HDC, HGDIOBJ, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST, PAINTSTRUCT,
+    PS_DASH, PS_SOLID,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::System::Threading::GetCurrentProcessId;
+use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyState, SetActiveWindow, SetFocus, VK_DOWN, VK_ESCAPE, VK_LEFT, VK_RIGHT, VK_SHIFT,
-    VK_UP,
+    GetCapture, GetKeyState, ReleaseCapture, SetActiveWindow, SetCapture, SetFocus, VK_DOWN,
+    VK_ESCAPE, VK_LEFT, VK_RIGHT, VK_SHIFT, VK_UP,
 };
-use windows::Win32::UI::Shell::{QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
-    GetMessageW, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, GWL_EXSTYLE,
-    GWL_STYLE, IsIconic, IsWindowVisible, KillTimer, LWA_ALPHA, LoadCursorW, MINMAXINFO,
-    PostMessageW, RegisterClassW, SW_RESTORE, SW_SHOWNOACTIVATE, SetCursor,
-    SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-    TranslateMessage, WNDCLASSW, WINDOWPOS, HMENU, HWND_MESSAGE, HWND_TOPMOST, HTCLIENT,
-    IDC_HAND, MSG, SC_MINIMIZE, SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, SWP_SHOWWINDOW, WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DESTROY,
-    WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ERASEBKGND, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
-    WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONUP, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_PAINT,
-    WM_SETCURSOR, WM_SYSCOMMAND, WM_TIMER, WM_WINDOWPOSCHANGING, WS_CAPTION, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
-    WS_THICKFRAME,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+    GetWindowLongPtrW, GetWindowRect, IsIconic, IsWindowVisible, KillTimer, LoadCursorW,
+    PostMessageW, RegisterClassW, RegisterWindowMessageW, SetCursor, SetLayeredWindowAttributes,
+    SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, EVENT_OBJECT_CLOAKED,
+    EVENT_OBJECT_HIDE, EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_REORDER, EVENT_OBJECT_SHOW,
+    EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND,
+    EVENT_SYSTEM_MINIMIZESTART, GWL_EXSTYLE, HMENU, HTCLIENT, HWND_TOPMOST, IDC_HAND, LWA_ALPHA,
+    MA_NOACTIVATE, MINMAXINFO, MSG, OBJID_WINDOW, SC_MINIMIZE, SWP_FRAMECHANGED, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_RESTORE, SW_SHOWNOACTIVATE, WINDOW_EX_STYLE,
+    WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_CAPTURECHANGED, WM_DESTROY,
+    WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ERASEBKGND, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_KEYDOWN,
+    WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_NCHITTEST, WM_NCLBUTTONDOWN,
+    WM_PAINT, WM_SETCURSOR, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_TIMER, WM_WINDOWPOSCHANGING,
+    WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    WS_POPUP,
 };
 
 const CLASS_BTN: PCWSTR = w!("WinStartHotZone");
@@ -72,7 +73,6 @@ struct BtnRect {
 
 struct MonInfo {
     name: String,
-    mon: HMONITOR,
     work: RECT,
     screen: RECT,
     dpi: u32,
@@ -81,6 +81,8 @@ struct MonInfo {
 struct BtnEntry {
     device: String,
     dpi: u32,
+    screen: RECT,
+    paused: bool,
 }
 
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
@@ -88,6 +90,8 @@ static EDIT_MODE: AtomicBool = AtomicBool::new(false);
 static CONTROLLER_HWND: AtomicIsize = AtomicIsize::new(0);
 // 编辑模式下当前选中的热区按钮（用于高亮 + 键盘微调）
 static SELECTED: AtomicIsize = AtomicIsize::new(0);
+static PRESSED: AtomicIsize = AtomicIsize::new(0);
+static REFRESH_PENDING: AtomicBool = AtomicBool::new(false);
 // hwnd(isize) -> 按钮信息
 static WINDOW_MAP: OnceLock<Mutex<HashMap<isize, BtnEntry>>> = OnceLock::new();
 
@@ -181,17 +185,17 @@ unsafe fn run_ui_thread() {
     };
     RegisterClassW(&ctl_class);
 
-    // 控制窗：只负责定时器与跨线程命令，不显示
+    // Hidden top-level window receives broadcasts as well as controller messages.
     let ctl = CreateWindowExW(
         WINDOW_EX_STYLE(0),
         CLASS_CTL,
         CLASS_CTL,
-        WINDOW_STYLE(0),
+        WS_POPUP,
         0,
         0,
         0,
         0,
-        HWND_MESSAGE,
+        HWND(std::ptr::null_mut()),
         HMENU(std::ptr::null_mut()),
         hinst,
         None,
@@ -201,23 +205,23 @@ unsafe fn run_ui_thread() {
         SetTimer(h, 1, HEAL_INTERVAL_MS, None);
     }
 
-    reconcile_buttons();
+    let hooks = install_hooks();
+    tick_buttons();
 
     let mut msg = MSG::default();
-    while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+    while GetMessageW(&mut msg, None, 0, 0).0 > 0 {
         let _ = TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+    for hook in hooks {
+        let _ = UnhookWinEvent(hook);
+    }
+    CONTROLLER_HWND.store(0, Ordering::SeqCst);
 }
 
 // ===================== 显示器枚举 =====================
 
-unsafe extern "system" fn enum_proc(
-    mon: HMONITOR,
-    _hdc: HDC,
-    _rc: *mut RECT,
-    lp: LPARAM,
-) -> BOOL {
+unsafe extern "system" fn enum_proc(mon: HMONITOR, _hdc: HDC, _rc: *mut RECT, lp: LPARAM) -> BOOL {
     let out = &mut *(lp.0 as *mut Vec<MonInfo>);
     let mut mi = MONITORINFOEXW::default();
     mi.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
@@ -230,7 +234,6 @@ unsafe extern "system" fn enum_proc(
             .to_string();
         out.push(MonInfo {
             name,
-            mon,
             work: mi.monitorInfo.rcWork,
             screen: mi.monitorInfo.rcMonitor,
             dpi: dpi_x,
@@ -243,23 +246,26 @@ unsafe fn enumerate_monitors() -> Vec<MonInfo> {
     let out: Vec<MonInfo> = Vec::new();
     let boxed = Box::new(out);
     let raw = Box::into_raw(boxed);
-    let _ = EnumDisplayMonitors(
-        None,
-        None,
-        Some(enum_proc),
-        LPARAM(raw as isize),
-    );
+    let _ = EnumDisplayMonitors(None, None, Some(enum_proc), LPARAM(raw as isize));
     *Box::from_raw(raw)
 }
 
 // ===================== 按钮创建 / 同步 / 自愈 =====================
 
-unsafe fn default_rect(work: &RECT, dpi: u32) -> BtnRect {
+unsafe fn default_rect(screen: &RECT, work: &RECT, dpi: u32) -> BtnRect {
     let scale = dpi as f32 / 96.0;
     let size = (DEFAULT_SIZE_LOGICAL as f32 * scale).round() as i32;
     BtnRect {
-        x: work.left,
-        y: work.bottom - size,
+        x: if work.right < screen.right {
+            screen.right - size
+        } else {
+            screen.left
+        },
+        y: if work.top > screen.top || work.left > screen.left || work.right < screen.right {
+            screen.top
+        } else {
+            screen.bottom - size
+        },
         w: size,
         h: size,
     }
@@ -268,12 +274,15 @@ unsafe fn default_rect(work: &RECT, dpi: u32) -> BtnRect {
 unsafe fn create_button(m: &MonInfo, cfg: Option<BtnRect>) -> Option<HWND> {
     let scale = m.dpi as f32 / 96.0;
     let min = (MIN_SIZE_LOGICAL as f32 * scale).round() as i32;
-    let r = cfg
-        .filter(|r| rect_valid(r, &m.work, min))
-        .unwrap_or_else(|| default_rect(&m.work, m.dpi));
+    let mut r = cfg
+        .filter(|r| rect_valid(r, &m.screen, min))
+        .unwrap_or_else(|| default_rect(&m.screen, &m.work, m.dpi));
+    r.w = r.w.max(min).min(m.screen.right - m.screen.left);
+    r.h = r.h.max(min).min(m.screen.bottom - m.screen.top);
+    r.x = r.x.clamp(m.screen.left, m.screen.right - r.w);
+    r.y = r.y.clamp(m.screen.top, m.screen.bottom - r.h);
 
     let hinst = GetModuleHandleW(None).ok().map(|h| HINSTANCE(h.0))?;
-    // 编辑模式下去掉 WS_EX_NOACTIVATE，使按钮可获得键盘焦点（方向键微调）
     let mut exstyle = WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
     if !EDIT_MODE.load(Ordering::SeqCst) {
         exstyle |= WS_EX_NOACTIVATE;
@@ -304,88 +313,133 @@ unsafe fn create_button(m: &MonInfo, cfg: Option<BtnRect>) -> Option<HWND> {
         },
         LWA_ALPHA,
     );
-    // 热区按钮创建即显示，不做任何全屏隐藏
-    let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+    // Keep hidden until the controller computes this display's state.
     Some(hwnd)
 }
 
-/// 枚举显示器，新增缺失的、移除已断开的。新按钮一律显示。
+/// Reconcile every monitor, preserving a hotzone's monitor-relative position
+/// across display rearrangement and scaling changes. Existing JSON remains valid.
 unsafe fn reconcile_buttons() {
     let mons = enumerate_monitors();
-    let configs = load_all_configs();
     let present: HashSet<String> = mons.iter().map(|m| m.name.clone()).collect();
-
-    // 移除失效按钮
-    let dead: Vec<isize> = {
-        let guard = map().lock().unwrap();
-        guard
-            .iter()
-            .filter(|(_, e)| !present.contains(&e.device))
-            .map(|(h, _)| *h)
-            .collect()
-    };
-    for h in dead {
-        let hwnd = HWND(h as *mut _);
-        let _ = DestroyWindow(hwnd);
-        map().lock().unwrap().remove(&h);
-    }
-
-    // 新增按钮；DPI 变化（系统缩放改变）时按默认尺寸重建
-    let existing: Vec<(String, u32)> = map()
+    let dead: Vec<isize> = map()
         .lock()
         .unwrap()
-        .values()
-        .map(|e| (e.device.clone(), e.dpi))
+        .iter()
+        .filter(|(_, entry)| !present.contains(&entry.device))
+        .map(|(key, _)| *key)
         .collect();
-    for m in &mons {
-        match existing.iter().find(|(n, _)| n == &m.name) {
-            Some((_, dpi)) if *dpi != m.dpi => {
-                let hwnd_key: Option<isize> = map()
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .find(|(_, e)| e.device == m.name)
-                    .map(|(h, _)| *h);
-                if let Some(key) = hwnd_key {
-                    let _ = DestroyWindow(HWND(key as *mut _));
-                    map().lock().unwrap().remove(&key);
-                    if let Some(hwnd) = create_button(m, None) {
-                        map().lock().unwrap().insert(
-                            hwnd.0 as isize,
-                            BtnEntry {
-                                device: m.name.clone(),
-                                dpi: m.dpi,
-                            },
-                        );
-                    }
+    for key in dead {
+        map().lock().unwrap().remove(&key);
+        let _ = DestroyWindow(HWND(key as *mut _));
+    }
+    let mut configs = None;
+    for monitor in &mons {
+        let existing = map()
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(_, entry)| entry.device == monitor.name)
+            .map(|(key, entry)| (*key, entry.dpi, entry.screen));
+        if let Some((key, dpi, previous)) = existing {
+            if dpi != monitor.dpi || previous != monitor.screen {
+                let hwnd = HWND(key as *mut _);
+                let mut rect = RECT::default();
+                if GetWindowRect(hwnd, &mut rect).is_ok() {
+                    let scale = monitor.dpi as f64 / dpi.max(1) as f64;
+                    let min = (MIN_SIZE_LOGICAL as f64 * monitor.dpi as f64 / 96.0).round() as i32;
+                    let w = (((rect.right - rect.left) as f64 * scale).round() as i32)
+                        .max(min)
+                        .min(monitor.screen.right - monitor.screen.left);
+                    let h = (((rect.bottom - rect.top) as f64 * scale).round() as i32)
+                        .max(min)
+                        .min(monitor.screen.bottom - monitor.screen.top);
+                    let x = (monitor.screen.left
+                        + ((rect.left - previous.left) as f64 * scale).round() as i32)
+                        .clamp(monitor.screen.left, monitor.screen.right - w);
+                    let y = (monitor.screen.top
+                        + ((rect.top - previous.top) as f64 * scale).round() as i32)
+                        .clamp(monitor.screen.top, monitor.screen.bottom - h);
+                    let _ = SetWindowPos(
+                        hwnd,
+                        HWND(std::ptr::null_mut()),
+                        x,
+                        y,
+                        w,
+                        h,
+                        SWP_NOACTIVATE | SWP_NOZORDER,
+                    );
+                    save_config(&monitor.name, BtnRect { x, y, w, h });
+                }
+                if let Some(entry) = map().lock().unwrap().get_mut(&key) {
+                    entry.dpi = monitor.dpi;
+                    entry.screen = monitor.screen;
                 }
             }
-            Some(_) => {}
-            None => {
-                if let Some(hwnd) = create_button(m, configs.get(&m.name).copied()) {
-                    map().lock().unwrap().insert(
-                        hwnd.0 as isize,
-                        BtnEntry {
-                            device: m.name.clone(),
-                            dpi: m.dpi,
-                        },
-                    );
-                }
+        } else {
+            let saved = configs
+                .get_or_insert_with(load_all_configs)
+                .get(&monitor.name)
+                .copied();
+            if let Some(hwnd) = create_button(monitor, saved) {
+                map().lock().unwrap().insert(
+                    hwnd.0 as isize,
+                    BtnEntry {
+                        device: monitor.name.clone(),
+                        dpi: monitor.dpi,
+                        screen: monitor.screen,
+                        paused: true,
+                    },
+                );
             }
         }
     }
 }
 
-/// 单个按钮自愈：恢复显示并强制置顶（对齐 Electron 版：按钮永远可点）
-unsafe fn heal_one(hwnd: HWND) {
-    let edit = EDIT_MODE.load(Ordering::SeqCst);
+/// Never hold WINDOW_MAP across Win32 calls: window procedures may reenter.
+unsafe fn apply_state(hwnd: HWND, paused: bool) {
+    let mut ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+    if EDIT_MODE.load(Ordering::SeqCst) {
+        ex &= !WS_EX_NOACTIVATE.0;
+    } else {
+        ex |= WS_EX_NOACTIVATE.0;
+    }
+    if paused {
+        ex |= WS_EX_TRANSPARENT.0;
+    } else {
+        ex &= !WS_EX_TRANSPARENT.0;
+    }
+    if ex != GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 {
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex as isize);
+        let _ = SetWindowPos(
+            hwnd,
+            HWND(std::ptr::null_mut()),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+    }
+    if paused {
+        if PRESSED.load(Ordering::SeqCst) == hwnd.0 as isize {
+            PRESSED.store(0, Ordering::SeqCst);
+            if GetCapture() == hwnd {
+                let _ = ReleaseCapture();
+            }
+        }
+        if IsWindowVisible(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_HIDE);
+        }
+        return;
+    }
     if IsIconic(hwnd).as_bool() {
         let _ = ShowWindow(hwnd, SW_RESTORE);
     }
     if !IsWindowVisible(hwnd).as_bool() {
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     }
-    if !edit {
+    if !EDIT_MODE.load(Ordering::SeqCst) {
         let _ = SetWindowPos(
             hwnd,
             HWND_TOPMOST,
@@ -398,47 +452,11 @@ unsafe fn heal_one(hwnd: HWND) {
     }
 }
 
-/// 设置按钮是否鼠标点击穿透（增删 WS_EX_TRANSPARENT，配合已有的 WS_EX_LAYERED）。
-/// 全屏屏的热区本身视觉上透明（alpha=1/255），再加穿透让点击落到下层全屏程序，
-/// 不真正隐藏窗口，因此不与 WM_WINDOWPOSCHANGING 的"禁止隐藏"逻辑冲突。
-unsafe fn set_click_through(hwnd: HWND, enable: bool) {
-    let cur = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-    let has = cur & WS_EX_TRANSPARENT.0 != 0;
-    if enable == has {
-        return;
-    }
-    let new = if enable {
-        cur | WS_EX_TRANSPARENT.0
-    } else {
-        cur & !WS_EX_TRANSPARENT.0
-    };
-    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, WINDOW_EX_STYLE(new).0 as isize);
-}
-
 unsafe fn apply_edit_mode() {
-    let edit = EDIT_MODE.load(Ordering::SeqCst);
-    if !edit {
+    if !EDIT_MODE.load(Ordering::SeqCst) {
         SELECTED.store(0, Ordering::SeqCst);
     }
-    let keys: Vec<isize> = map().lock().unwrap().keys().copied().collect();
-    for key in keys {
-        let hwnd = HWND(key as *mut _);
-        // 编辑模式临时允许获取焦点，退出后恢复 NOACTIVATE
-        let cur = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-        let new_style = WINDOW_EX_STYLE(if edit {
-            cur & !(WS_EX_NOACTIVATE.0)
-        } else {
-            cur | WS_EX_NOACTIVATE.0
-        });
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style.0 as isize);
-        let _ = SetLayeredWindowAttributes(
-            hwnd,
-            COLORREF(0),
-            button_alpha(hwnd, edit),
-            LWA_ALPHA,
-        );
-        let _ = InvalidateRect(hwnd, None, BOOL(1));
-    }
+    refresh_selection();
 }
 
 /// 选中状态变化后刷新所有按钮的透明度与边框绘制
@@ -447,12 +465,7 @@ unsafe fn refresh_selection() {
     let keys: Vec<isize> = map().lock().unwrap().keys().copied().collect();
     for key in keys {
         let hwnd = HWND(key as *mut _);
-        let _ = SetLayeredWindowAttributes(
-            hwnd,
-            COLORREF(0),
-            button_alpha(hwnd, edit),
-            LWA_ALPHA,
-        );
+        let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), button_alpha(hwnd, edit), LWA_ALPHA);
         let _ = InvalidateRect(hwnd, None, BOOL(1));
     }
 }
@@ -467,78 +480,109 @@ unsafe fn button_alpha(hwnd: HWND, edit: bool) -> u8 {
     }
 }
 
-/// 定时刷新：同步显示器，按各显示器全屏状态设置点击穿透，并对按钮做自愈。
-/// 普通应用（含最大化）下热区常驻可点；只有无边框全屏程序（游戏/视频/F11）
-/// 所在屏幕的热区才被设为鼠标穿透（视觉上仍透明，点不到）。
-unsafe fn tick_buttons() {
+/// External events drive refresh; the watchdog covers missed shell events.
+unsafe fn tick_buttons() -> bool {
     reconcile_buttons();
-    // 编辑模式下所有按钮都要可点、可拖拽，不做任何穿透
-    let fullscreen: HashSet<String> = if EDIT_MODE.load(Ordering::SeqCst) {
+    let fullscreen = if EDIT_MODE.load(Ordering::SeqCst) {
         HashSet::new()
     } else {
-        fullscreen_devices()
+        match fullscreen_devices() {
+            Ok(displays) => displays,
+            Err(error) => {
+                eprintln!("[hotzone] fullscreen scan failed, keeping previous state: {error}");
+                return false;
+            }
+        }
     };
+    let entries: Vec<(isize, bool)> = {
+        let mut windows = map().lock().unwrap();
+        windows
+            .iter_mut()
+            .map(|(key, entry)| {
+                entry.paused = fullscreen.contains(&entry.device);
+                (*key, entry.paused)
+            })
+            .collect()
+    };
+    for (key, paused) in entries {
+        apply_state(HWND(key as *mut _), paused);
+    }
+    true
+}
 
-    let entries: Vec<(isize, String)> = map()
-        .lock()
-        .unwrap()
-        .iter()
-        .map(|(h, e)| (*h, e.device.clone()))
-        .collect();
-    for (key, device) in entries {
-        let hwnd = HWND(key as *mut _);
-        set_click_through(hwnd, fullscreen.contains(&device));
-        heal_one(hwnd);
+unsafe fn fullscreen_devices() -> Result<HashSet<String>, String> {
+    let displays = enumerate_monitors()
+        .into_iter()
+        .map(|m| crate::fullscreen::Display {
+            name: m.name,
+            screen: m.screen,
+        })
+        .collect::<Vec<_>>();
+    crate::fullscreen::detect(&displays)
+}
+
+fn request_refresh() {
+    if REFRESH_PENDING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let hwnd = CONTROLLER_HWND.load(Ordering::SeqCst);
+    if hwnd == 0 {
+        REFRESH_PENDING.store(false, Ordering::SeqCst);
+        return;
+    }
+    unsafe {
+        if PostMessageW(HWND(hwnd as *mut _), WM_REFRESH, WPARAM(0), LPARAM(0)).is_err() {
+            REFRESH_PENDING.store(false, Ordering::SeqCst);
+        }
     }
 }
 
-// ===================== 全屏检测（按显示器） =====================
-
-/// 返回当前处于"真全屏"状态的显示器设备名集合。
-/// 判据：前台窗口属于别的进程、未最小化、几何完全覆盖该屏、且为无边框窗口
-/// （无 WS_CAPTION 标题栏、无 WS_THICKFRAME 可调边框）。
-/// 普通最大化窗口即使几何铺满（副屏无任务栏时 rcWork=rcMonitor），也仍带
-/// WS_CAPTION|WS_THICKFRAME，因此不会被误判；游戏独占全屏、视频/浏览器 F11
-/// 都是无边框 popup，能正确识别。D3D 独占全屏（几何可能拿不到）用 Shell 信号
-/// 兜底定位到前台窗口所在屏。
-unsafe fn fullscreen_devices() -> HashSet<String> {
-    let mut result = HashSet::new();
-    let fg = GetForegroundWindow();
-    if fg.0.is_null() {
-        return result;
+unsafe extern "system" fn win_event(
+    _hook: HWINEVENTHOOK,
+    event: u32,
+    hwnd: HWND,
+    object: i32,
+    _child: i32,
+    _thread: u32,
+    _time: u32,
+) {
+    if event >= EVENT_OBJECT_SHOW && event != EVENT_OBJECT_REORDER && object != OBJID_WINDOW.0 {
+        return;
     }
-    // 本软件自己的窗口不算全屏（开始菜单、设置窗等）
-    let mut pid = 0u32;
-    GetWindowThreadProcessId(fg, Some(&mut pid));
-    if pid == GetCurrentProcessId() {
-        return result;
+    if !hwnd.0.is_null() || event == EVENT_OBJECT_REORDER {
+        request_refresh();
     }
-    // 最小化窗口不算
-    if IsIconic(fg).as_bool() {
-        return result;
-    }
+}
 
-    let mut wr = RECT::default();
-    let _ = GetWindowRect(fg, &mut wr);
-    let fg_mon = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
-    let d3d_fs = SHQueryUserNotificationState()
-        .map(|s| s.0 == QUNS_RUNNING_D3D_FULL_SCREEN.0)
-        .unwrap_or(false);
-
-    let style = GetWindowLongPtrW(fg, GWL_STYLE) as u32;
-    let borderless = (style & WS_CAPTION.0 == 0) && (style & WS_THICKFRAME.0 == 0);
-
-    for m in &enumerate_monitors() {
-        // 几何完全覆盖该屏（允许窗口略大于屏幕，部分游戏会多占几像素）
-        let covers = wr.left <= m.screen.left
-            && wr.top <= m.screen.top
-            && wr.right >= m.screen.right
-            && wr.bottom >= m.screen.bottom;
-        if (covers && borderless) || (d3d_fs && m.mon == fg_mon) {
-            result.insert(m.name.clone());
+unsafe fn install_hooks() -> Vec<HWINEVENTHOOK> {
+    let mut hooks = Vec::new();
+    for event in [
+        EVENT_SYSTEM_FOREGROUND,
+        EVENT_SYSTEM_MINIMIZESTART,
+        EVENT_SYSTEM_MINIMIZEEND,
+        EVENT_OBJECT_SHOW,
+        EVENT_OBJECT_HIDE,
+        EVENT_OBJECT_REORDER,
+        EVENT_OBJECT_LOCATIONCHANGE,
+        EVENT_OBJECT_CLOAKED,
+        EVENT_OBJECT_UNCLOAKED,
+    ] {
+        let hook = SetWinEventHook(
+            event,
+            event,
+            None,
+            Some(win_event),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+        );
+        if !hook.0.is_null() {
+            hooks.push(hook);
+        } else {
+            eprintln!("[hotzone] event hook {event} unavailable; watchdog active");
         }
     }
-    result
+    hooks
 }
 
 // ===================== 点击行为 =====================
@@ -551,23 +595,7 @@ unsafe fn toggle_menu(button: HWND) {
         return;
     };
 
-    // 被点击热区所在屏幕，与菜单窗口当前所在屏幕
     let btn_mon = MonitorFromWindow(button, MONITOR_DEFAULTTONEAREST);
-    // tauri 的 hwnd 与本 crate 的 windows 版本可能不同，用裸指针重建本 crate HWND
-    let win_mon = win
-        .hwnd()
-        .ok()
-        .map(|h| MonitorFromWindow(HWND(h.0), MONITOR_DEFAULTTONEAREST))
-        .unwrap_or(btn_mon);
-
-    if win.is_visible().unwrap_or(false) {
-        if btn_mon == win_mon {
-            // 同一屏幕：正常切换关闭
-            let _ = win.hide();
-            return;
-        }
-        // 菜单在另一屏显示着：不关闭，直接移动到当前屏显示（继续走下方定位逻辑）
-    }
 
     // 在热区按钮上方定位菜单（以该按钮所在屏幕的工作区为准）
     let mut br = RECT::default();
@@ -581,16 +609,17 @@ unsafe fn toggle_menu(button: HWND) {
             let mw = size.width as i32;
             let mh = size.height as i32;
             let mut x = (br.left + br.right) / 2 - mw / 2;
-            x = x.clamp(work.left, work.right - mw);
+            x = x.clamp(work.left, (work.right - mw).max(work.left));
             let mut y = br.top - mh;
             if y < work.top {
                 y = work.top;
             }
-            let _ = win.set_position(PhysicalPosition::new(x, y));
+            crate::request_menu_toggle(app, Some((x, y, btn_mon.0 as isize)));
+            return;
         }
     }
 
-    crate::do_show(&win);
+    crate::request_menu_toggle(app, None);
 }
 
 // ===================== 编辑模式：拖拽 / 缩放 / 绘制 =====================
@@ -719,19 +748,16 @@ unsafe fn persist_rect(hwnd: HWND) {
 
 // ===================== 窗口过程 =====================
 
-unsafe extern "system" fn btn_proc(
-    hwnd: HWND,
-    msg: u32,
-    wp: WPARAM,
-    lp: LPARAM,
-) -> LRESULT {
+unsafe extern "system" fn btn_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
         WM_ERASEBKGND => LRESULT(1),
         WM_PAINT => {
             paint_button(hwnd);
             LRESULT(0)
         }
-        WM_NCHITTEST if EDIT_MODE.load(Ordering::SeqCst) => LRESULT(edit_hit_test(hwnd, lp) as isize),
+        WM_NCHITTEST if EDIT_MODE.load(Ordering::SeqCst) => {
+            LRESULT(edit_hit_test(hwnd, lp) as isize)
+        }
         WM_SETCURSOR => {
             if !EDIT_MODE.load(Ordering::SeqCst) && (lp.0 as u32 & 0xFFFF) == HTCLIENT {
                 if let Ok(cursor) = LoadCursorW(None, IDC_HAND) {
@@ -752,10 +778,52 @@ unsafe extern "system" fn btn_proc(
             // 交回默认处理，保持原生拖拽/缩放
             DefWindowProcW(hwnd, msg, wp, lp)
         }
-        WM_LBUTTONUP => {
-            if !EDIT_MODE.load(Ordering::SeqCst) {
-                toggle_menu(hwnd);
+        WM_MOUSEACTIVATE if !EDIT_MODE.load(Ordering::SeqCst) => LRESULT(MA_NOACTIVATE as isize),
+        WM_LBUTTONDOWN if !EDIT_MODE.load(Ordering::SeqCst) => {
+            if !tick_buttons() {
+                return LRESULT(0);
             }
+            let paused = map()
+                .lock()
+                .unwrap()
+                .get(&(hwnd.0 as isize))
+                .map(|entry| entry.paused)
+                .unwrap_or(true);
+            if !paused {
+                PRESSED.store(hwnd.0 as isize, Ordering::SeqCst);
+                let _ = SetCapture(hwnd);
+            }
+            LRESULT(0)
+        }
+        WM_LBUTTONUP => {
+            let pressed = PRESSED.swap(0, Ordering::SeqCst) == hwnd.0 as isize;
+            if GetCapture() == hwnd {
+                let _ = ReleaseCapture();
+            }
+            if pressed && !EDIT_MODE.load(Ordering::SeqCst) {
+                let mut rect = RECT::default();
+                let _ = GetWindowRect(hwnd, &mut rect);
+                let x = lp.0 as u16 as i16 as i32;
+                let y = (lp.0 >> 16) as u16 as i16 as i32;
+                if x >= 0 && y >= 0 && x < rect.right - rect.left && y < rect.bottom - rect.top {
+                    if !tick_buttons() {
+                        return LRESULT(0);
+                    }
+                    let paused = map()
+                        .lock()
+                        .unwrap()
+                        .get(&(hwnd.0 as isize))
+                        .map(|entry| entry.paused)
+                        .unwrap_or(true);
+                    if !paused {
+                        toggle_menu(hwnd);
+                    }
+                }
+            }
+            LRESULT(0)
+        }
+        WM_CAPTURECHANGED => {
+            PRESSED.store(0, Ordering::SeqCst);
             LRESULT(0)
         }
         WM_KEYDOWN if SELECTED.load(Ordering::SeqCst) == hwnd.0 as isize => {
@@ -806,28 +874,8 @@ unsafe extern "system" fn btn_proc(
                 DefWindowProcW(hwnd, msg, wp, lp)
             }
         }
-        WM_WINDOWPOSCHANGING => {
-            // 事件级自愈（对齐 Electron 版 hide/minimize/blur 立即拦截）：
-            let pos = &mut *(lp.0 as *mut WINDOWPOS);
-            // 1) 任何试图隐藏本按钮的操作（显示桌面、其他程序、系统）都改成保持显示
-            if (pos.flags & SWP_HIDEWINDOW).0 != 0 {
-                pos.flags = (pos.flags & !SWP_HIDEWINDOW) | SWP_SHOWWINDOW;
-            }
-            // 2) 非编辑模式且未处于全屏穿透状态时，禁止被挤出 topmost 层级。
-            //    全屏穿透的按钮允许被全屏程序压到下层（给独占游戏让路）；
-            //    退出全屏后由 heal_one 重新置顶。
-            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-            let click_through = ex & WS_EX_TRANSPARENT.0 != 0;
-            if !EDIT_MODE.load(Ordering::SeqCst)
-                && !click_through
-                && (pos.flags & SWP_NOZORDER).0 == 0
-                && pos.hwndInsertAfter != HWND_TOPMOST
-            {
-                pos.hwndInsertAfter = HWND_TOPMOST;
-            }
-            DefWindowProcW(hwnd, msg, wp, lp)
-        }
-        WM_DISPLAYCHANGE | WM_DPICHANGED => {
+        WM_WINDOWPOSCHANGING => DefWindowProcW(hwnd, msg, wp, lp),
+        WM_DISPLAYCHANGE | WM_DPICHANGED | WM_SETTINGCHANGE => {
             let ctl = CONTROLLER_HWND.load(Ordering::SeqCst);
             if ctl != 0 {
                 let _ = PostMessageW(HWND(ctl as *mut _), WM_REFRESH, WPARAM(0), LPARAM(0));
@@ -839,14 +887,13 @@ unsafe extern "system" fn btn_proc(
     }
 }
 
-unsafe extern "system" fn ctl_proc(
-    hwnd: HWND,
-    msg: u32,
-    _wp: WPARAM,
-    _lp: LPARAM,
-) -> LRESULT {
+unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, _wp: WPARAM, _lp: LPARAM) -> LRESULT {
     match msg {
         WM_TIMER => {
+            if _wp.0 == 2 {
+                let _ = KillTimer(hwnd, 2);
+                REFRESH_PENDING.store(false, Ordering::SeqCst);
+            }
             tick_buttons();
             LRESULT(0)
         }
@@ -857,12 +904,23 @@ unsafe extern "system" fn ctl_proc(
             LRESULT(0)
         }
         WM_REFRESH => {
-            tick_buttons();
-            apply_edit_mode();
+            if SetTimer(hwnd, 2, 20, None) == 0 {
+                REFRESH_PENDING.store(false, Ordering::SeqCst);
+                tick_buttons();
+            }
+            LRESULT(0)
+        }
+        WM_DISPLAYCHANGE | WM_SETTINGCHANGE => {
+            request_refresh();
+            LRESULT(0)
+        }
+        message if message == RegisterWindowMessageW(w!("TaskbarCreated")) => {
+            request_refresh();
             LRESULT(0)
         }
         WM_DESTROY => {
             let _ = KillTimer(hwnd, 1);
+            let _ = KillTimer(hwnd, 2);
             LRESULT(0)
         }
         _ => DefWindowProcW(hwnd, msg, _wp, _lp),

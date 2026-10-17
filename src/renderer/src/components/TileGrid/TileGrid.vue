@@ -47,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, onMounted } from 'vue'
+import { ref, reactive, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useTilesStore } from '../../stores/useTiles'
 import { useAppsStore } from '../../stores/useApps'
 import LiveTile from './LiveTile.vue'
@@ -215,12 +215,13 @@ function addGroup() {
 }
 
 // 监听来自 UserBar 的新增分组事件
-onMounted(() => {
-  window.addEventListener('add-tile-group', ((e: CustomEvent) => {
-    if (e.detail?.name) {
-      tilesStore.addGroup(e.detail.name)
-    }
-  }) as EventListener)
+const handleAddGroup = ((e: CustomEvent) => {
+  if (e.detail?.name) tilesStore.addGroup(e.detail.name)
+}) as EventListener
+onMounted(() => window.addEventListener('add-tile-group', handleAddGroup))
+onUnmounted(() => {
+  window.removeEventListener('add-tile-group', handleAddGroup)
+  window.removeEventListener('mousemove', onFloatMove)
 })
 </script>
 

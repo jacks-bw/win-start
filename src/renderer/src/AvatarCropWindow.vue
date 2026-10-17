@@ -27,22 +27,27 @@
       </div>
     </div>
 
+    <div v-if="operationError" class="operation-error" role="alert">{{ operationError }}</div>
     <div class="crop-footer">
       <div class="zoom-info">缩放: {{ Math.round(scale * 100) }}%</div>
       <div class="crop-actions">
         <button class="btn btn-cancel" @click="onCancel">取消</button>
-        <button class="btn btn-confirm" @click="confirmCrop">确认</button>
+        <button class="btn btn-confirm" :disabled="saving || !imgLoaded" @click="confirmCrop">确认</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from './utils/useDisposalScope'
+const lifetime = useDisposalScope()
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { X } from 'lucide-vue-next'
 
 const cropContainerRef = ref<HTMLElement | null>(null)
 const imgLoaded = ref(false)
+const operationError = ref('')
+const saving = ref(false)
 const imagePath = ref('')
 
 // 图片原始尺寸
@@ -81,8 +86,11 @@ const imageStyle = computed(() => {
 
 onMounted(async () => {
   // 从主进程获取要裁剪的图片路径
-  const path = await window.api.getCropImage?.()
-  if (!path) return
+  let path: string
+  try { path = await window.api.getCropImage() }
+  catch (error) { operationError.value = String(error); return }
+  if (lifetime.disposed) return
+  if (!path) { operationError.value = '没有可裁剪的图片'; return }
   imagePath.value = path
 
   const img = new Image()
@@ -94,6 +102,8 @@ onMounted(async () => {
     clampOffset()
     imgLoaded.value = true
   }
+  img.onerror = () => { operationError.value = '图片加载失败' }
+  lifetime.add(() => { img.onload = null; img.onerror = null })
   img.src = imageUrl.value
 })
 
@@ -144,7 +154,16 @@ onUnmounted(() => {
 })
 
 function onCancel() {
-  window.api.cancelCrop?.()
+  if (saving.value) return
+  window.api.cancelCrop().catch(error => { operationError.value = String(error) })
+}
+async function saveCropResult(save: () => Promise<void>) {
+  if (saving.value) return
+  saving.value = true
+  operationError.value = ''
+  try { await save() }
+  catch (error) { operationError.value = String(error) }
+  finally { saving.value = false }
 }
 
 function confirmCrop() {
@@ -159,7 +178,7 @@ function confirmCrop() {
       imgH: imgHeight.value,
       cropSize: CROP_SIZE
     }
-    window.api.saveGifAvatar?.(imagePath.value, crop)
+    void saveCropResult(() => window.api.saveGifAvatar(imagePath.value, crop))
     return
   }
 
@@ -181,13 +200,15 @@ function confirmCrop() {
   img.onload = () => {
     ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, size, size)
     const base64 = canvas.toDataURL('image/png')
-    window.api.confirmCrop?.(base64)
+    void saveCropResult(() => window.api.confirmCrop(base64))
   }
+  lifetime.add(() => { img.onload = null; img.onerror = null })
   img.src = imageUrl.value
 }
 </script>
 
 <style scoped>
+.operation-error { padding: 8px 16px; color: #ffd3c7; font-size: 12px; }
 .avatar-crop-window {
   width: 100%;
   height: 100vh;

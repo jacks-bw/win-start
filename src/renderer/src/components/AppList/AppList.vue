@@ -7,7 +7,7 @@
     <div class="app-scroll-area">
       <!-- 最近添加 -->
       <div v-if="appsStore.recentApps.length > 0 && !appsStore.searchQuery" class="section">
-        <div class="section-title">最近添加</div>
+        <div class="section-title" title="首次完整扫描后新发现的应用，显示 7 天，最多 5 个；并非系统安装时间">最近添加</div>
         <AppItem
           v-for="app in appsStore.recentApps"
           :key="app.id"
@@ -365,6 +365,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('start-menu:closing', handleMenuClosing)
+  window.removeEventListener('mousemove', handleAppMouseMove)
+  window.removeEventListener('mouseup', handleAppMouseUp)
 })
 </script>
 

@@ -1,10 +1,13 @@
 {
   "name": "win10-start-menu",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Win10 开始菜单增强版 - 左侧 Win7 程序列表 + 右侧 Win10 磁贴（Tauri 版）",
   "author": "jacks13",
   "license": "MIT",
   "scripts": {
+    "test:lifecycle": "node --test scripts/lifecycle.test.cjs",
+    "test:data": "node --test scripts/data-safety.test.cjs",
+    "test:bridge": "node --test scripts/bridge-contract.test.cjs",
     "dev": "tauri dev",
     "dev:vite": "vite",
     "build": "vite build",

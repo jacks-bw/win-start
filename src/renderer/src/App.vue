@@ -1,4 +1,5 @@
 <template>
+  <BridgeErrorBanner />
   <!-- 快捷键设置窗口 -->
   <ShortcutsWindow v-if="isShortcutsRoute" />
 
@@ -19,6 +20,11 @@
 
   <!-- 开始菜单主窗口 -->
   <div v-else class="start-menu" :class="{ visible: isVisible }">
+    <div v-if="tilesStore.layoutError || menuOperationError || appsStore.launchError || appsStore.scanWarning" class="data-status" role="alert">
+      <span>{{ tilesStore.layoutError || menuOperationError || appsStore.launchError || appsStore.scanWarning }}</span>
+      <button v-if="tilesStore.layoutError" @click="tilesStore.loadLayout(true)">放弃未保存修改并重新载入</button>
+      <button v-else-if="appsStore.launchError" @click="appsStore.launchError = ''">关闭提示</button>
+    </div>
     <!-- 锁定预览（设置/样式窗口打开）时的暗色兜底：主窗口失焦后系统亚克力会退化为白 -->
     <div v-if="menuBlocked" class="menu-blocked-bg"></div>
     <!-- 菜单壁纸层：在毛玻璃背景之上、所有内容之下 -->
@@ -181,6 +187,11 @@
 </template>
 
 <script setup lang="ts">
+import { useDisposalScope } from './utils/useDisposalScope'
+import { bindThemeEvents } from './utils/theme'
+const lifetime = useDisposalScope()
+lifetime.add(bindThemeEvents())
+import BridgeErrorBanner from './components/BridgeErrorBanner.vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import AvatarCropWindow from './AvatarCropWindow.vue'
@@ -243,6 +254,7 @@ function collectTileRects(): BlurRect[] {
   return list
 }
 function buildBlurPieces() {
+  if (lifetime.disposed) return
   vpW.value = window.innerWidth
   vpH.value = window.innerHeight
   if (!wallpaperUrl.value || tileBlur.value <= 0) {
@@ -268,6 +280,7 @@ function buildBlurPieces() {
   }
 }
 function updateBlurMask() {
+  if (lifetime.disposed) return
   if (blurTimer !== undefined) { clearTimeout(blurTimer); blurTimer = undefined }
   blurTimer = setTimeout(() => {
     blurTimer = undefined
@@ -321,6 +334,9 @@ const isSettingsRoute = computed(() => window.location.hash.includes('/settings'
 const isVisible = ref(false)
 // 样式窗打开期间锁定开始菜单交互
 const menuBlocked = ref(false)
+const menuOperationError = ref('')
+let cropRequest = 0
+let cropLockRequested = false
 const contextMenu = ref({
   visible: false,
   x: 0,
@@ -441,10 +457,13 @@ function startDrag(e: MouseEvent) {
 
   const onMouseUp = () => {
     isDragging.value = false
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
+    releaseDrag()
   }
 
+  const releaseDrag = lifetime.add(() => {
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  })
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
 }
@@ -513,18 +532,21 @@ function cancelAllTransientDialogs() {
   inputDialog.value.callback = null
   confirmDialog.value.visible = false
   confirmDialog.value.callback = null
-  cropDialog.value.visible = false
-  cropDialog.value.callback = null
+  if (cropDialog.value.visible || cropLockRequested) closeCropDialog()
 }
 
 // 图片裁剪对话框：打开后用户裁剪/预览，确定后回调裁剪出的 dataURL
-function openImageCropDialog(
+async function openImageCropDialog(
   imageUrl: string,
   targetRatio: number,
   callback: (dataUrl: string) => void
 ) {
   // 忙碌锁：裁剪期间开始菜单不因点外部而关闭
-  window.api.setMenuBusy(true)
+  const request = ++cropRequest
+  cropLockRequested = true
+  try { await window.api.setMenuBusy(true) }
+  catch (error) { cropLockRequested = false; menuOperationError.value = String(error); return }
+  if (request !== cropRequest) return
   cropDialog.value = {
     visible: true,
     imageUrl,
@@ -534,10 +556,12 @@ function openImageCropDialog(
 }
 
 function closeCropDialog() {
+  cropRequest++
+  cropLockRequested = false
   cropDialog.value.visible = false
   cropDialog.value.callback = null
   // 裁剪流程结束，解除忙碌锁，菜单可正常关闭
-  window.api.setMenuBusy(false)
+  window.api.setMenuBusy(false).catch(error => { menuOperationError.value = String(error) })
 }
 
 function confirmCropDialog(dataUrl: string) {
@@ -587,85 +611,86 @@ window.openAppContextMenu = (x: number, y: number, app: AppItem) => {
   appContextMenu.value = { visible: true, x: adjustedX, y: adjustedY, app }
 }
 
-// 清理列表中已不存在的应用对应的死磁贴和死固定（卸载软件后调用）
-function pruneDeadReferences() {
-  if (appsStore.apps.length === 0) return
-  const validIds = new Set(appsStore.apps.map((a) => a.id))
-  // 移除指向已卸载应用的磁贴
-  for (const group of tilesStore.groups) {
-    const dead = group.tiles.filter((t) => !validIds.has(t.appId))
-    for (const t of dead) {
-      tilesStore.removeTile(t.id)
-    }
-  }
-  // 清理固定状态里的死引用
-  appsStore.pinnedApps = appsStore.pinnedApps.filter((id) => validIds.has(id))
+// Release global callbacks only if this instance still owns them.
+for (const key of ['openTileContextMenu', 'openGroupContextMenu', 'showInputDialog',
+  'showConfirmDialog', 'openImageCrop', 'openAppContextMenu'] as const) {
+  const owned = window[key]
+  lifetime.add(() => {
+    if (window[key] === owned) Reflect.deleteProperty(window, key)
+  })
 }
 
+// Application discovery is not proof of uninstallation. Never delete saved
+// tiles or pins merely because an app is absent from a scan.
 // 菜单打开后的惰性重扫定时器：菜单快速闪关时取消，不发起后台扫描
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
 
 onMounted(async () => {
+  // Child windows own their draft lifecycle; the root must not reload their
+  // store or mark the main menu ready in parallel with the child component.
+  if (isShortcutsRoute.value || isAvatarCropRoute.value || isAvatarSettingsRoute.value ||
+      isTileStyleRoute.value || isGroupStyleRoute.value || isSettingsRoute.value) return
   // 加载数据
   await Promise.all([appsStore.loadApps(), tilesStore.loadLayout(), settingsStore.loadTileOpacity()])
-  // 清理死磁贴和死固定
-  pruneDeadReferences()
   // 数据就绪后通知主进程（窗口隐藏时 rAF 不触发，不能用 rAF）
   await nextTick()
-  window.api.menuReady?.()
+  if (lifetime.disposed) return
+  window.api.menuReady()
 
   // 监听系统主题色变化（主题色/高亮色变更由 utils/theme 统一监听）
 
   // 监听磁贴透明度变化
-  window.api.onTileOpacityChanged((opacity) => {
+  lifetime.add(window.api.onTileOpacityChanged((opacity) => {
     settingsStore.tileOpacity = opacity
-  })
-  window.api.onIncludeWallpaperChanged((include) => {
+  }))
+  lifetime.add(window.api.onIncludeWallpaperChanged((include) => {
     settingsStore.includeWallpaperOpacity = include
-  })
+  }))
 
   // 开始菜单壁纸
   try {
     const s = await window.api.getSettings()
+    if (lifetime.disposed) return
     wallpaperDarken.value = typeof s?.wallpaperDarken === 'number' ? s.wallpaperDarken : 0.5
     applyTileBlur(typeof s?.tileBlur === 'number' ? s.tileBlur : 20)
     await loadWallpaper(s?.wallpaperPath)
   } catch (e) {
     console.error('加载壁纸设置失败:', e)
   }
-  window.api.onWallpaperChanged((p) => {
+  if (lifetime.disposed) return
+  lifetime.add(window.api.onWallpaperChanged((p) => {
     loadWallpaper(p)
-  })
-  window.api.onWallpaperDarkenChanged((v) => {
+  }))
+  lifetime.add(window.api.onWallpaperDarkenChanged((v) => {
     wallpaperDarken.value = typeof v === 'number' ? v : 0.5
-  })
-  window.api.onPanelAlphaChanged((v) => {
+  }))
+  lifetime.add(window.api.onPanelAlphaChanged((v) => {
     settingsStore.panelAlpha = typeof v === 'number' ? v : 0.4
-  })
-  window.api.onTileBlurChanged((v) => {
+  }))
+  lifetime.add(window.api.onTileBlurChanged((v) => {
     applyTileBlur(v)
-  })
-  watch(wallpaperUrl, () => updateBlurMask())
-  watch(
+  }))
+  lifetime.add(watch(wallpaperUrl, () => updateBlurMask()))
+  lifetime.add(watch(
     () => tilesStore.groups,
     () => updateBlurMask(),
     { deep: true }
-  )
+  ))
   // 拖拽刚结束时磁贴位置可能还在过渡，连续重建几次
-  watch(
+  lifetime.add(watch(
     () => tilesStore.draggingTileId,
     (id) => {
       if (!id) {
         updateBlurMask()
-        setTimeout(updateBlurMask, 120)
-        setTimeout(updateBlurMask, 300)
+        lifetime.delay(updateBlurMask, 120)
+        lifetime.delay(updateBlurMask, 300)
       }
     }
-  )
+  ))
   window.addEventListener('resize', updateBlurMask)
   // 磁贴区滚动（含分组内部滚动）时实时重算模糊裁剪块
   document.addEventListener('scroll', handleBlurScroll, true)
-  onUnmounted(() => {
+  lifetime.add(() => {
     window.removeEventListener('resize', updateBlurMask)
     document.removeEventListener('scroll', handleBlurScroll, true)
     if (blurScrollRaf) cancelAnimationFrame(blurScrollRaf)
@@ -673,40 +698,32 @@ onMounted(async () => {
   })
   // 初始布局与拖拽完成后刷新遮罩
   nextTick(() => updateBlurMask())
-  setTimeout(updateBlurMask, 400)
-  setTimeout(updateBlurMask, 1200)
+  lifetime.delay(updateBlurMask, 400)
+  lifetime.delay(updateBlurMask, 1200)
   // onLayoutUpdated 在下方已有统一注册，遮罩刷新交由下方处理
 
-  // 监听磁贴桥接服务事件（第三方软件推送内容）
-  window.api.onTileBridgeUpdate((data) => {
-    if (data?.appId) {
-      tilesStore.setExternalTileData(data.appId, data)
-    }
-  })
-  window.api.onTileBridgeClear((data) => {
-    if (data?.appId) {
-      tilesStore.clearExternalTileData(data.appId)
-    }
-  })
+  if (window.api.capabilities.tileBridge) {
+    lifetime.add(window.api.onTileBridgeSnapshot(tilesStore.applyTileBridgeSnapshot))
+  }
 
   // 监听菜单打开/关闭事件
-  window.api.onMenuOpen(() => {
+  lifetime.add(window.api.onMenuOpen(() => {
     isVisible.value = true
     // 默认聚焦搜索框
     window.dispatchEvent(new CustomEvent('start-menu:opened'))
     // 菜单显示时重建磁贴模糊块（隐藏窗口期间可能未生成）
     updateBlurMask()
-    setTimeout(updateBlurMask, 150)
-    setTimeout(updateBlurMask, 500)
+    lifetime.delay(updateBlurMask, 150)
+    lifetime.delay(updateBlurMask, 500)
     // 菜单保持打开 400ms 后才后台惰性重扫（60s 内只扫一次）；
     // 快速闪一下菜单就关闭的话会在 onMenuClose 里取消
     clearTimeout(refreshTimer)
     refreshTimer = setTimeout(() => {
-      appsStore.maybeRefreshApps().then(() => pruneDeadReferences())
+      appsStore.maybeRefreshApps()
     }, 400)
-  })
+  }))
 
-  window.api.onMenuClose(() => {
+  lifetime.add(window.api.onMenuClose(() => {
     isVisible.value = false
     // 取消尚未发起的后台重扫
     clearTimeout(refreshTimer)
@@ -718,25 +735,23 @@ onMounted(async () => {
     appContextMenu.value.visible = false
     // 通知子组件清理各自的弹出层（工具栏菜单、文件夹菜单、字母面板等）
     window.dispatchEvent(new CustomEvent('start-menu:closing'))
-  })
+  }))
 
   // 监听布局更新事件（壁纸窗口保存后通知）
-  window.api.onLayoutUpdated(() => {
+  lifetime.add(window.api.onLayoutUpdated(() => {
     updateBlurMask()
     tilesStore.loadLayout()
-  })
+  }))
 
   // 样式窗打开/关闭时锁定/解锁开始菜单交互
-  window.api.onMenuBlocked((blocked) => {
+  lifetime.add(window.api.onMenuBlocked((blocked) => {
     menuBlocked.value = blocked
-  })
+  }))
 
   // 监听开始菜单应用列表变化（安装/卸载软件后自动刷新）
-  window.api.onAppsChanged(async () => {
+  lifetime.add(window.api.onAppsChanged(async () => {
     await appsStore.loadApps()
-    // 刷新后清理死磁贴和死固定
-    pruneDeadReferences()
-  })
+  }))
 
   window.addEventListener('keydown', handleKeydown)
 
@@ -759,17 +774,20 @@ onMounted(async () => {
   }
   document.addEventListener('mousedown', handleGlobalClick)
 
-  onUnmounted(() => {
+  lifetime.add(() => {
     document.removeEventListener('mousedown', handleGlobalClick)
   })
 })
 
 onUnmounted(() => {
+  clearTimeout(refreshTimer)
   window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
 <style scoped>
+.data-status { position: absolute; top: 8px; left: 56px; right: 12px; z-index: 10002; padding: 10px; color: #fff0dc; background: #573b29; font-size: 12px; }
+.data-status button { margin-left: 12px; cursor: pointer; }
 .start-menu {
   display: flex;
   width: 100%;
