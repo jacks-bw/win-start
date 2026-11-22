@@ -93,6 +93,7 @@ export function createDesktopApi(transport: Transport = native) {
     },
     getAppScan,
     getAppList: async () => (await getAppScan()).apps,
+    getStartupWarning: () => command<string | null>('get_startup_warning'),
     showStartMenu: () => command('show_start_menu'),
     menuReady: () => command('menu_ready'),
     hideStartMenu: () => command('hide_start_menu'),

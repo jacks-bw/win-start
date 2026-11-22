@@ -107,9 +107,28 @@ fn config_path() -> std::path::PathBuf {
 }
 
 fn load_all_configs() -> HashMap<String, BtnRect> {
-    match std::fs::read_to_string(config_path()) {
-        Ok(s) => serde_json::from_str(&s).unwrap_or_default(),
-        Err(_) => HashMap::new(),
+    let path = config_path();
+    let raw = match std::fs::read(&path) {
+        Ok(raw) => raw,
+        // 文件不存在（首次运行）按空配置处理，不告警
+        Err(_) => return HashMap::new(),
+    };
+    match serde_json::from_slice::<HashMap<String, BtnRect>>(&raw) {
+        Ok(all) => all,
+        Err(error) => {
+            // 损坏时先备份再回空配置，避免下一次保存把用户的热区位置静默覆盖
+            let backup = path.with_extension(format!("json.corrupt-{}", crate::unix_millis()));
+            match std::fs::copy(&path, &backup) {
+                Ok(_) => eprintln!(
+                    "[hotzone] launch-buttons.json 已损坏（{error}），原文件备份为 {}",
+                    backup.display()
+                ),
+                Err(copy_error) => eprintln!(
+                    "[hotzone] launch-buttons.json 已损坏（{error}），备份失败：{copy_error}"
+                ),
+            }
+            HashMap::new()
+        }
     }
 }
 
@@ -120,8 +139,8 @@ fn save_config(device: &str, r: BtnRect) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Ok(s) = serde_json::to_string_pretty(&all) {
-        let _ = std::fs::write(path, s);
+    if let Err(error) = crate::storage::write_json_atomic(&path, &all) {
+        eprintln!("[hotzone] 保存热区位置失败：{error}");
     }
 }
 

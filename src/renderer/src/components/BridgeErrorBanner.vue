@@ -11,6 +11,10 @@ const message = ref('')
 let stop: (() => void) | undefined
 onMounted(() => {
   stop = window.api.onBridgeError(error => { message.value = `窗口事件连接失败：${error.message}` })
+  // 启动告警（如配置文件损坏已备份）只取一次，避免用户错过控制台里的信息
+  window.api.getStartupWarning()
+    .then(warning => { if (warning && !message.value) message.value = warning })
+    .catch(() => {})
 })
 onUnmounted(() => stop?.())
 </script>

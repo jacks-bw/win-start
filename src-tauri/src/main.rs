@@ -358,7 +358,10 @@ async fn select_user_avatar(app: tauri::AppHandle) -> Result<Option<String>, Str
     let path = file.and_then(|f| f.into_path().ok()).map(|p| p.to_string_lossy().to_string());
     if let Some(p) = path {
         // 存到主进程状态，裁剪窗通过 get_crop_image 取
-        *app.state::<CropImagePath>().0.lock().unwrap() = p.clone();
+        {
+            let crop_state = app.state::<CropImagePath>();
+            *guard_or_error(&crop_state.0, "头像状态不可用")? = p.clone();
+        }
         // 已存在裁剪窗：更新路径后重新加载页面并置前，避免重复创建失败
         if let Some(existing) = app.get_webview_window("avatar-crop") {
             let _ = existing.eval("location.reload()");
@@ -461,7 +464,7 @@ struct CropImagePath(Mutex<String>);
 
 #[tauri::command]
 fn get_crop_image(state: tauri::State<CropImagePath>) -> String {
-    state.0.lock().unwrap().clone()
+    guard_or_poisoned(&state.0).clone()
 }
 
 #[tauri::command]
@@ -722,6 +725,39 @@ impl Default for AppSettings {
 
 struct AppSettingsState(std::sync::Mutex<AppSettings>);
 struct TileBridgeState(std::sync::Mutex<tile_bridge::Service>);
+/// 启动读取设置时产生的告警（如配置文件损坏已备份），由前端一次性取走展示。
+struct StartupWarning(std::sync::Mutex<Option<String>>);
+
+/// 写路径：锁被毒化时返回可展示的错误，而不是再次 panic。
+fn guard_or_error<'a, T>(
+    mutex: &'a std::sync::Mutex<T>,
+    message: &str,
+) -> Result<std::sync::MutexGuard<'a, T>, String> {
+    mutex.lock().map_err(|_| message.to_string())
+}
+
+/// 读路径：毒化只说明上一次写没走完，读旧值比整块不可用更安全。
+fn guard_or_poisoned<'a, T>(mutex: &'a std::sync::Mutex<T>) -> std::sync::MutexGuard<'a, T> {
+    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// 先落盘再提交内存：落盘失败时内存保持旧值，避免运行态与文件分叉。
+fn persist_then_commit<T: Clone>(
+    slot: &std::sync::Mutex<T>,
+    next: T,
+    persist: impl FnOnce(&T) -> Result<(), String>,
+) -> Result<(), String> {
+    persist(&next)?;
+    *guard_or_error(slot, "设置暂不可用")? = next;
+    Ok(())
+}
+
+fn persist_settings(
+    state: &tauri::State<'_, AppSettingsState>,
+    next: AppSettings,
+) -> Result<(), String> {
+    persist_then_commit(&state.0, next, save_settings)
+}
 
 #[tauri::command]
 fn get_tile_bridge_status(state: tauri::State<'_, TileBridgeState>) -> Result<tile_bridge::Status, String> {
@@ -761,14 +797,249 @@ mod settings_compatibility_tests {
     }
 }
 
-fn load_settings() -> AppSettings {
-    let Some(p) = data_dir().ok().map(|d| d.join("settings.json")) else {
-        return AppSettings::default();
+#[cfg(test)]
+mod settings_safety_tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "win-start-{}-{}-{}",
+            tag,
+            std::process::id(),
+            unix_millis()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("创建临时目录");
+        dir
+    }
+
+    fn something_other_than(value: f32) -> f32 {
+        if value > 0.5 {
+            0.2
+        } else {
+            0.9
+        }
+    }
+
+    #[test]
+    fn failed_persist_keeps_memory_on_old_value() {
+        let slot = std::sync::Mutex::new(AppSettings::default());
+        let before = slot.lock().unwrap().tile_opacity;
+        let mut next = AppSettings::default();
+        next.tile_opacity = something_other_than(before);
+
+        let error = persist_then_commit(&slot, next, |_| Err("disk full".to_string()))
+            .expect_err("落盘失败必须返回错误");
+        assert_eq!(error, "disk full");
+        assert_eq!(
+            slot.lock().unwrap().tile_opacity,
+            before,
+            "落盘失败后内存必须保持旧值"
+        );
+    }
+
+    #[test]
+    fn persist_writes_before_committing_memory() {
+        let slot = std::sync::Mutex::new(AppSettings::default());
+        let before = slot.lock().unwrap().tile_opacity;
+        let target = something_other_than(before);
+        let mut next = AppSettings::default();
+        next.tile_opacity = target;
+
+        let written = std::sync::Mutex::new(None);
+        persist_then_commit(&slot, next, |settings| {
+            *written.lock().unwrap() = Some(settings.tile_opacity);
+            Ok(())
+        })
+        .expect("落盘成功应提交");
+
+        assert_eq!(*written.lock().unwrap(), Some(target), "必须先写文件");
+        assert_eq!(slot.lock().unwrap().tile_opacity, target);
+    }
+
+    #[test]
+    fn poisoned_mutex_still_serves_reads() {
+        let slot = std::sync::Arc::new(std::sync::Mutex::new(AppSettings::default()));
+        let expected = slot.lock().unwrap().hotkey.clone();
+        let poison = slot.clone();
+        let _ = std::panic::catch_unwind(move || {
+            let _guard = poison.lock().unwrap();
+            panic!("模拟持锁 panic");
+        });
+
+        let guard = guard_or_poisoned(&slot);
+        assert_eq!(guard.hotkey, expected, "毒化后读取旧值仍应可用");
+    }
+
+    #[test]
+    fn poisoned_write_path_reports_error_instead_of_panicking() {
+        let slot = std::sync::Arc::new(std::sync::Mutex::new(AppSettings::default()));
+        let poison = slot.clone();
+        let _ = std::panic::catch_unwind(move || {
+            let _guard = poison.lock().unwrap();
+            panic!("模拟持锁 panic");
+        });
+
+        assert!(guard_or_error(&slot, "设置暂不可用").is_err());
+    }
+
+    #[test]
+    fn corrupt_settings_are_backed_up_and_defaults_loaded() {
+        let dir = temp_dir("corrupt");
+        let path = dir.join("settings.json");
+        let original = b"{\"hotkey\": ".to_vec();
+        std::fs::write(&path, &original).unwrap();
+
+        let (settings, warning) = load_settings_from(Some(&path));
+        assert_eq!(settings.hotkey, AppSettings::default().hotkey);
+        let warning = warning.expect("损坏必须产生告警");
+        assert!(warning.contains("已备份"), "告警应说明备份位置：{warning}");
+
+        let backups: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().contains(".corrupt-"))
+            .collect();
+        assert_eq!(backups.len(), 1, "应恰好生成一份备份");
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            original,
+            "备份不能改动原文件"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn missing_settings_file_is_not_a_warning() {
+        let dir = temp_dir("missing");
+        let path = dir.join("settings.json");
+        let (settings, warning) = load_settings_from(Some(&path));
+        assert!(warning.is_none());
+        assert_eq!(settings.tile_opacity, AppSettings::default().tile_opacity);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "不应产生备份文件");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn valid_settings_load_without_warning() {
+        let dir = temp_dir("valid");
+        let path = dir.join("settings.json");
+        let mut settings = AppSettings::default();
+        settings.hotkey = "Ctrl+Alt+W".to_string();
+        std::fs::write(&path, serde_json::to_vec(&settings).unwrap()).unwrap();
+
+        let (loaded, warning) = load_settings_from(Some(&path));
+        assert!(warning.is_none());
+        assert_eq!(loaded.hotkey, "Ctrl+Alt+W");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn failed_wallpaper_persist_keeps_old_file_and_drops_staged_one() {
+        let dir = temp_dir("wallpaper-fail");
+        let old = dir.join("wallpaper.png");
+        std::fs::write(&old, b"old").unwrap();
+        let src = dir.join("source.png");
+        std::fs::write(&src, b"new").unwrap();
+
+        let error = install_wallpaper_with(&dir, &src, "png", |_| Err("disk full".to_string()))
+            .expect_err("落盘失败必须返回错误");
+        assert_eq!(error, "disk full");
+        assert_eq!(std::fs::read(&old).unwrap(), b"old", "旧壁纸不能被删除");
+        let staged: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("wallpaper-"))
+            .collect();
+        assert!(staged.is_empty(), "失败后不应留下暂存壁纸");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn successful_wallpaper_install_prunes_previous_files() {
+        let dir = temp_dir("wallpaper-ok");
+        std::fs::write(dir.join("wallpaper.png"), b"old-png").unwrap();
+        std::fs::write(dir.join("wallpaper.jpg"), b"old-jpg").unwrap();
+        let src = dir.join("source.webp");
+        std::fs::write(&src, b"new-webp").unwrap();
+
+        let dest = install_wallpaper_with(&dir, &src, "webp", |_| Ok(())).expect("安装应成功");
+        assert!(dest.exists());
+        assert_eq!(std::fs::read(&dest).unwrap(), b"new-webp");
+        let wallpapers = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("wallpaper"))
+            .count();
+        assert_eq!(wallpapers, 1, "只应保留新壁纸");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pruning_wallpapers_ignores_unrelated_files() {
+        let dir = temp_dir("wallpaper-prune");
+        std::fs::write(dir.join("wallpaper-1.png"), b"a").unwrap();
+        std::fs::write(dir.join("wallpaper.png"), b"b").unwrap();
+        std::fs::write(dir.join("settings.json"), b"{}").unwrap();
+
+        prune_wallpapers(&dir, None);
+        assert!(!dir.join("wallpaper-1.png").exists());
+        assert!(!dir.join("wallpaper.png").exists());
+        assert!(dir.join("settings.json").exists(), "非壁纸文件不能被清理");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+fn unix_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
+fn settings_file() -> Option<std::path::PathBuf> {
+    data_dir().ok().map(|d| d.join("settings.json"))
+}
+
+/// 读取设置。文件不存在按默认值处理；整体解析失败先把原文件备份成 `.corrupt-<时间戳>`，
+/// 再回默认值并返回告警，避免下一次保存把用户原配置静默覆盖。
+fn load_settings_from(path: Option<&std::path::Path>) -> (AppSettings, Option<String>) {
+    let Some(p) = path else {
+        return (AppSettings::default(), None);
     };
-    std::fs::read_to_string(&p)
-        .ok()
-        .and_then(|s| serde_json::from_str::<AppSettings>(&s).ok())
-        .unwrap_or_default()
+    let raw = match std::fs::read(p) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (AppSettings::default(), None)
+        }
+        Err(error) => {
+            return (
+                AppSettings::default(),
+                Some(format!("设置文件无法读取，本次使用默认值：{error}")),
+            )
+        }
+    };
+    match serde_json::from_slice::<AppSettings>(&raw) {
+        Ok(settings) => (settings, None),
+        Err(error) => {
+            let backup = p.with_extension(format!("json.corrupt-{}", unix_millis()));
+            let backup_note = match std::fs::copy(p, &backup) {
+                Ok(_) => format!("原文件已备份为 {}", backup.display()),
+                Err(copy_error) => format!("原文件备份失败：{copy_error}"),
+            };
+            (
+                AppSettings::default(),
+                Some(format!(
+                    "设置文件已损坏（{error}），{backup_note}。本次使用默认值，修改任一设置会覆盖原文件。"
+                )),
+            )
+        }
+    }
+}
+
+fn load_settings() -> (AppSettings, Option<String>) {
+    let path = settings_file();
+    load_settings_from(path.as_deref())
 }
 
 fn save_settings(s: &AppSettings) -> Result<(), String> {
@@ -795,7 +1066,12 @@ fn set_toolbar_items(app: tauri::AppHandle, state: tauri::State<'_, AppSettingsS
 
 #[tauri::command]
 fn get_settings(state: tauri::State<'_, AppSettingsState>) -> AppSettings {
-    state.0.lock().unwrap().clone()
+    guard_or_poisoned(&state.0).clone()
+}
+
+#[tauri::command]
+fn get_startup_warning(state: tauri::State<'_, StartupWarning>) -> Option<String> {
+    guard_or_poisoned(&state.0).clone()
 }
 
 #[tauri::command]
@@ -813,17 +1089,15 @@ fn set_hotkey(app: tauri::AppHandle, state: tauri::State<'_, AppSettingsState>, 
 
 #[tauri::command]
 fn get_tile_opacity(state: tauri::State<'_, AppSettingsState>) -> f32 {
-    state.0.lock().unwrap().tile_opacity
+    guard_or_poisoned(&state.0).tile_opacity
 }
 
 #[tauri::command]
 fn set_tile_opacity(app: tauri::AppHandle, state: tauri::State<'_, AppSettingsState>, opacity: f32) -> Result<f32, String> {
     let v = opacity.clamp(0.1, 1.0);
-    {
-        let mut s = state.0.lock().unwrap();
-        s.tile_opacity = v;
-        save_settings(&s)?;
-    }
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.tile_opacity = v;
+    persist_settings(&state, next)?;
     let _ = app.emit("tile-opacity-changed", v);
     Ok(v)
 }
@@ -834,11 +1108,9 @@ fn set_include_wallpaper_opacity(
     state: tauri::State<'_, AppSettingsState>,
     enable: bool,
 ) -> Result<(), String> {
-    {
-        let mut s = state.0.lock().unwrap();
-        s.include_wallpaper_opacity = enable;
-        save_settings(&s)?;
-    }
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.include_wallpaper_opacity = enable;
+    persist_settings(&state, next)?;
     let _ = app.emit("tile-opacity-include-changed", enable);
     Ok(())
 }
@@ -854,11 +1126,9 @@ fn set_theme_color(
             return Err("颜色格式无效，应为 #RRGGBB".to_string());
         }
     }
-    {
-        let mut s = state.0.lock().unwrap();
-        s.theme_color = color.clone();
-        save_settings(&s)?;
-    }
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.theme_color = color.clone();
+    persist_settings(&state, next)?;
     let _ = app.emit("theme-color-changed", color);
     Ok(())
 }
@@ -874,16 +1144,65 @@ fn set_highlight_color(
             return Err("颜色格式无效，应为 #RRGGBB".to_string());
         }
     }
-    {
-        let mut s = state.0.lock().unwrap();
-        s.highlight_color = color.clone();
-        save_settings(&s)?;
-    }
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.highlight_color = color.clone();
+    persist_settings(&state, next)?;
     let _ = app.emit("highlight-color-changed", color);
     Ok(())
 }
 
 // ===================== 开始菜单壁纸 =====================
+// 新壁纸一律写成唯一文件名，保证“设置里记录的路径一定存在”：
+// 复制成功 → 落盘设置 → 清理旧文件；任一步失败都不会让旧壁纸消失。
+
+fn stage_wallpaper(
+    dir: &std::path::Path,
+    src: &std::path::Path,
+    ext: &str,
+) -> Result<std::path::PathBuf, String> {
+    let dest = dir.join(format!("wallpaper-{}.{}", unix_millis(), ext));
+    std::fs::copy(src, &dest).map_err(|e| format!("复制壁纸失败：{e}"))?;
+    Ok(dest)
+}
+
+/// 清理目录内的 wallpaper* 文件，keep 指定的除外；删除失败只记日志。
+fn prune_wallpapers(dir: &std::path::Path, keep: Option<&std::path::Path>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !entry.file_name().to_string_lossy().starts_with("wallpaper") {
+            continue;
+        }
+        if keep == Some(entry.path().as_path()) {
+            continue;
+        }
+        if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+            if let Err(error) = std::fs::remove_file(entry.path()) {
+                eprintln!("[Warn] 清理旧壁纸失败 {}: {error}", entry.path().display());
+            }
+        }
+    }
+}
+
+/// 安装壁纸：复制到唯一文件 → 落盘设置 → 成功后清理旧文件。
+/// 落盘失败时删除新文件并返回错误，旧壁纸与旧设置保持不变。
+fn install_wallpaper_with(
+    dir: &std::path::Path,
+    src: &std::path::Path,
+    ext: &str,
+    persist: impl FnOnce(&str) -> Result<(), String>,
+) -> Result<std::path::PathBuf, String> {
+    let dest = stage_wallpaper(dir, src, ext)?;
+    let staged_path = dest.to_string_lossy().to_string();
+    if let Err(error) = persist(&staged_path) {
+        let _ = std::fs::remove_file(&dest);
+        return Err(error);
+    }
+    prune_wallpapers(dir, Some(&dest));
+    Ok(dest)
+}
+
 /// 复制用户选择的静态图片到数据目录作为壁纸；仅支持静态图。
 #[tauri::command]
 fn set_wallpaper(
@@ -892,7 +1211,7 @@ fn set_wallpaper(
     path: String,
 ) -> Result<String, String> {
     let src = std::path::Path::new(&path);
-    if !src.exists() {
+    if !src.is_file() {
         return Err("图片文件不存在".to_string());
     }
     let ext = src
@@ -908,18 +1227,13 @@ fn set_wallpaper(
         _ => "png".to_string(),
     };
     let dir = data_dir()?;
-    // 清理旧壁纸
-    for old_ext in ["png", "jpg", "jpeg", "bmp", "webp"] {
-        let _ = std::fs::remove_file(dir.join(format!("wallpaper.{old_ext}")));
-    }
-    let dest = dir.join(format!("wallpaper.{ext}"));
-    std::fs::copy(src, &dest).map_err(|e| format!("复制壁纸失败：{e}"))?;
+    let base = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    let dest = install_wallpaper_with(&dir, src, &ext, |staged| {
+        let mut next = base.clone();
+        next.wallpaper_path = Some(staged.to_string());
+        persist_settings(&state, next)
+    })?;
     let dest_str = dest.to_string_lossy().to_string();
-    {
-        let mut s = state.0.lock().unwrap();
-        s.wallpaper_path = Some(dest_str.clone());
-        save_settings(&s)?;
-    }
     let _ = app.emit("wallpaper-changed", dest_str.clone());
     Ok(dest_str)
 }
@@ -929,14 +1243,12 @@ fn clear_wallpaper(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppSettingsState>,
 ) -> Result<(), String> {
-    let old = state.0.lock().unwrap().wallpaper_path.clone();
-    if let Some(p) = old {
-        let _ = std::fs::remove_file(&p);
-    }
-    {
-        let mut s = state.0.lock().unwrap();
-        s.wallpaper_path = None;
-        save_settings(&s)?;
+    // 先落盘清空设置成功，再删文件；否则落盘失败会留下指向已删除文件的悬挂路径。
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.wallpaper_path = None;
+    persist_settings(&state, next)?;
+    if let Ok(dir) = data_dir() {
+        prune_wallpapers(&dir, None);
     }
     let _ = app.emit("wallpaper-changed", ());
     Ok(())
@@ -949,11 +1261,9 @@ fn set_wallpaper_darken(
     v: f32,
 ) -> Result<f32, String> {
     let v = v.clamp(0.0, 1.0);
-    {
-        let mut s = state.0.lock().unwrap();
-        s.wallpaper_darken = v;
-        save_settings(&s)?;
-    }
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.wallpaper_darken = v;
+    persist_settings(&state, next)?;
     let _ = app.emit("wallpaper-darken-changed", v);
     Ok(v)
 }
@@ -965,11 +1275,9 @@ fn set_panel_alpha(
     v: f32,
 ) -> Result<f32, String> {
     let v = v.clamp(0.0, 1.0);
-    {
-        let mut s = state.0.lock().unwrap();
-        s.panel_alpha = v;
-        save_settings(&s)?;
-    }
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.panel_alpha = v;
+    persist_settings(&state, next)?;
     let _ = app.emit("panel-alpha-changed", v);
     Ok(v)
 }
@@ -981,11 +1289,9 @@ fn set_tile_blur(
     v: f32,
 ) -> Result<f32, String> {
     let v = v.clamp(0.0, 100.0);
-    {
-        let mut s = state.0.lock().unwrap();
-        s.tile_blur = v;
-        save_settings(&s)?;
-    }
+    let mut next = guard_or_error(&state.0, "设置暂不可用")?.clone();
+    next.tile_blur = v;
+    persist_settings(&state, next)?;
     let _ = app.emit("tile-blur-changed", v);
     Ok(v)
 }
@@ -1237,13 +1543,13 @@ fn open_style_window(
 
 #[tauri::command]
 async fn open_tile_style_window(app: tauri::AppHandle, state: tauri::State<'_, StyleTargets>, tile_id: String) -> Result<(), String> {
-    *state.tile.lock().unwrap() = tile_id.clone();
+    *guard_or_error(&state.tile, "样式目标不可用")? = tile_id.clone();
     open_style_window(&app, "tile-style", "/tile-style", "tile-style:select", &tile_id)
 }
 
 #[tauri::command]
 fn get_tile_style_target(state: tauri::State<StyleTargets>) -> String {
-    state.tile.lock().unwrap().clone()
+    guard_or_poisoned(&state.tile).clone()
 }
 
 #[tauri::command]
@@ -1255,13 +1561,13 @@ fn close_tile_style_window(app: tauri::AppHandle) {
 
 #[tauri::command]
 async fn open_group_style_window(app: tauri::AppHandle, state: tauri::State<'_, StyleTargets>, group_id: String) -> Result<(), String> {
-    *state.group.lock().unwrap() = group_id.clone();
+    *guard_or_error(&state.group, "样式目标不可用")? = group_id.clone();
     open_style_window(&app, "group-style", "/group-style", "group-style:select", &group_id)
 }
 
 #[tauri::command]
 fn get_group_style_target(state: tauri::State<StyleTargets>) -> String {
-    state.group.lock().unwrap().clone()
+    guard_or_poisoned(&state.group).clone()
 }
 
 #[tauri::command]
@@ -1452,25 +1758,33 @@ fn run() {
             open_group_style_window, get_group_style_target, close_group_style_window,
             set_resize_blocked, set_menu_busy,
             notify_layout_updated,
-            get_settings, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color, set_wallpaper, clear_wallpaper, set_wallpaper_darken, set_panel_alpha, set_tile_blur,
+            get_settings, get_startup_warning, set_hotkey, get_tile_opacity, set_tile_opacity, set_include_wallpaper_opacity, set_theme_color, set_highlight_color, get_accent_color, set_wallpaper, clear_wallpaper, set_wallpaper_darken, set_panel_alpha, set_tile_blur,
             get_autostart, set_autostart,
             open_settings_window, close_settings_window
         ])
         .setup(|app| {
             app.manage(CropImagePath(Mutex::new(String::new())));
             app.manage(StyleTargets { tile: Mutex::new(String::new()), group: Mutex::new(String::new()) });
-            app.manage(AppSettingsState(std::sync::Mutex::new(load_settings())));
+            let (settings, warning) = load_settings();
+            app.manage(AppSettingsState(std::sync::Mutex::new(settings)));
+            app.manage(StartupWarning(std::sync::Mutex::new(warning)));
             let bridge_app = app.handle().clone();
             let mut bridge = tile_bridge::Service::new(std::sync::Arc::new(move |snapshot| {
                 bridge_app.emit("tile-bridge-snapshot", snapshot).map_err(|error| error.to_string())
             }));
-            let bridge_enabled = app.state::<AppSettingsState>().0.lock().unwrap().tile_bridge_enabled;
+            let bridge_enabled = {
+                let settings = app.state::<AppSettingsState>();
+                guard_or_poisoned(&settings.0).tile_bridge_enabled
+            };
             bridge.configure(bridge_enabled);
             app.manage(TileBridgeState(std::sync::Mutex::new(bridge)));
             // 注册用户配置的全局快捷键
             {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-                let hk = app.state::<AppSettingsState>().0.lock().unwrap().hotkey.clone();
+                let hk = {
+                    let settings = app.state::<AppSettingsState>();
+                    guard_or_poisoned(&settings.0).hotkey.clone()
+                };
                 if let Ok(sc) = hk.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                     if let Err(e) = app.global_shortcut().register(sc) {
                         eprintln!("[Warn] 全局快捷键 {:?} 注册失败: {}", hk, e);
