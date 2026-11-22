@@ -2,6 +2,35 @@
 
 > 左侧 Win7 风格程序列表 + 右侧 Win10 磁贴区，融合两代 Windows 开始菜单的最佳体验。
 
+## 项目状态：已暂停（2026-11-22）
+
+**本项目暂停维护，可能不再继续。**
+
+背景：项目最初的出发点是"系统开始菜单不好用，用自己的界面整体替换它"。最新版 Windows 11 的开始菜单已经提供应用列表视图，官方覆盖了原来的主要痛点；而要做到"按 Win 键、点任务栏图标都打开本程序"，只能走全局键鼠钩子或 Explorer 注入，成本与风险都远高于收益。因此决定停止更新。
+
+仓库保留为存档与参考：
+- 代码（Tauri 2 + Vue 3）按现状提供，未做发布级验证
+- 不保证继续修 bug、适配新系统版本或合并 PR
+- License 仍为 MIT，可自由 fork 继续
+
+### 本地工作树状态（接手前必读）
+
+当前工作区有一批**未提交**的数据安全加固改动，尚未通过编译验证：
+
+| 内容 | 位置 |
+| --- | --- |
+| 设置"先落盘再提交内存"、壁纸唯一文件名、损坏配置备份、锁毒化处理 | `src-tauri/src/main.rs`、`src-tauri/src/launch_button.rs` |
+| 启动告警上报（`get_startup_warning`）与前端提示横幅 | `src/renderer/src/tauri-bridge.ts`、`src/renderer/src/components/BridgeErrorBanner.vue` |
+| 新增 10 个设置安全单测 | `src-tauri/src/main.rs` 内 `settings_safety_tests` |
+
+验证状态：本机当时没有 Rust 工具链，`cargo test` **未跑通**；前端命令注册完整性用临时静态脚本核对过（57 个 `command()` 全部命中 `generate_handler`），脚本已删除。接手后建议先 `git status` / `git diff` 复核，再按 `docs/hardening-plan.md` 第 9 节继续。
+
+### 相关文档
+
+- [隐患治理方案（含批次 A 进展）](docs/hardening-plan.md)
+- [开始菜单替换设计（未实施）](docs/start-menu-replacement-plan.md)——Win 键 / 任务栏按钮替换的可行性分析、方案对比与风险清单
+- [热区架构与验收](docs/hotzone-architecture.md)
+
 ## 功能特性
 
 ### 左侧 · Win7 程序列表
@@ -100,6 +129,8 @@ npm run tauri:kill
 
 ## 开发计划
 
+> 随项目暂停，以下计划已冻结。
+
 - [x] 项目骨架 + 基本布局
 - [x] 程序列表扫描 + 搜索 + 分组
 - [x] 磁贴三种尺寸 + 静态展示
@@ -117,6 +148,8 @@ npm run tauri:kill
 - [x] Tile Bridge 本地 HTTP 接入服务（待桌面验收）
 - [x] Tile Bridge 启停开关和运行状态（设置界面）
 - [ ] 天气/日历/邮件等扩展磁贴示例
+- [ ] 替换系统开始菜单入口（Win 键 / 任务栏开始按钮）——暂停，仅保留设计文档 [docs/start-menu-replacement-plan.md](docs/start-menu-replacement-plan.md)
+- [ ] 数据安全加固批次 B–F（单实例、Tile Bridge 默认关等）——见 [docs/hardening-plan.md](docs/hardening-plan.md)
 
 ## Tile Bridge · 磁贴桥接服务（第三方接入）
 
